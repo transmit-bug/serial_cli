@@ -1,7 +1,7 @@
 # Serial CLI TODO List
 
 **Version**: v0.5.0
-**Updated**: 2026-04-25
+**Updated**: 2026-05-07
 
 ---
 
@@ -15,115 +15,71 @@
 
 ## P0 - Critical Issues
 
-### 1. DTR/RTS Hardware Signal Control — Completely Non-functional
-**Status**: ✅ Fixed
+### 1. CLI Output Mixing Bug — Refactor Regression
+**Status**: 🐛 Found, needs fix
 **Priority**: P0
-**Files**: `src/serial_core/port.rs`
+**Files**: `src/cli/commands/*.rs`
 
-Port type changed from `Box<dyn tokio_serial::SerialPort>` to `Box<dyn serialport::SerialPort>`.
-- Unix: opens via `serialport::new().open_native()` → `TTYPort`, sets DTR/RTS via `TIOCMGET`/`TIOCMSET` ioctl on raw fd
-- Windows: opens via `serialport::new().open_native()` → `COMPort`
-- `UnixSignalController` stored in `SerialPortHandle` for runtime DTR/RTS changes
-- Removed `MioSerialPort` wrapper (mio_serial not in dependencies)
+**Problem**: During CLI architecture refactor (commit 29b513a), the fix from commit 6bd7e02 was not applied to new command files. User-visible output uses `tracing::info!` instead of `println!`, causing log metadata to pollute command output.
 
-### 2. ProtocolWatcher Event Channel — Events Never Delivered
-**Status**: ✅ Fixed
-**Priority**: P0
-**Files**: `src/protocol/watcher.rs`
+**Root cause**:
+- 2026-04-15: Fixed output mixing (principle: user output → `println!`, logging → `tracing::info!`)
+- 2026-04-17: CLI refactor deleted fixed files, created new modular structure
+- New files didn't follow the established principle
 
-- Stored `reload_tx` (cloned before closure) and `reload_rx` as struct fields
-- `reload_events()` now returns `Some(actual_receiver)` via `Option::take()`
-- Added `sender()` method for cloning the sender
+**Affected files**:
+- `src/cli/commands/virtual_port.rs` (lines 121-144): List output uses `tracing::info!`
+- `src/cli/commands/sniff.rs` (lines 51-59): Start command uses `tracing::info!`
+- `src/cli/commands/ports.rs` (send_data): Mixed use of both
 
-### 3. Sniff Daemon — No Internal Read Loop
-**Status**: ✅ Fixed
-**Priority**: P0
-**Files**: `src/cli/sniff_session.rs`, `src/serial_core/sniffer.rs`
-
-- Added async read loop in `run_sniff_daemon` that periodically reads from the serial port
-- Data is fed into `SnifferSession.capture_rx()` as received packets
-- `SnifferSession` now derives `Clone` for sharing between read loop and control flow
-- On ctrl_c/SIGTERM, stops session, waits for read loop, saves output, closes port
+**Fix**: Replace all user-visible output with `println!`, keep only debugging logs as `tracing::info!`
 
 ---
 
 ## P1 - Important Issues
 
-### 4. Lua Bindings Stub Functions
-**Status**: ✅ Fixed (partial)
+### 2. CLI Command Structure Design
+**Status**: 🎯 Design needed
 **Priority**: P1
-**Files**: `src/lua/bindings.rs`
+**Scope**: CLI interface
 
-| API | Status |
-|-----|--------|
-| `protocol_load()` | Now validates script, derives name from filename, adds to ConfigManager, and saves |
-| `protocol_unload()` | Now calls ConfigManager.remove_custom_protocol() and saves |
-| `protocol_reload()` | Now validates script exists, updates ConfigManager, and saves |
-| `virtual_stop()` | Still stub — requires global virtual pair registry (architectural change) |
+**Current state**:
+- `list-ports` - List serial ports
+- `protocol list` - List protocols
+- `virtual list` - List virtual ports
 
-### 5. VirtualSerialPair NamedPipe/Socat Backends Not Accessible via CLI
-**Status**: ✅ Fixed
+**Proposed improvement**: Shorter, more intuitive commands
+- Option A: `list ports`, `list protocols`, `list virtual`
+- Option B: Keep current but add `list` as alias for `list-ports`
+
+**Decision needed**: Choose unified command structure before implementation
+
+### 3. GUI Compilation Errors
+**Status**: 🐛 Known issue
 **Priority**: P1
-**Files**: `src/serial_core/virtual_port.rs`, `src/serial_core/backends/trait.rs`
+**Files**: `src-tauri/src/commands/*.rs`
 
-`VirtualSerialPair::create()` now uses `BackendFactory` internally. All backends
-(PTY, NamedPipe, Socat) go through the same `VirtualBackend` trait path.
-- Extended `VirtualBackend::create_pair()` to return `(ports, error_rx, stats)`
-- `VirtualSerialPair` holds `Box<dyn VirtualBackend>` — delegates all operations
-- Removed ~500 lines of duplicate PTY bridge code from `virtual_port.rs`
-- PtyBackend/SocatBackend/NamedPipeBackend all implement the unified trait
+**Errors**:
+- 9 warnings (unused imports/variables)
+- 1 compilation error in `serial.rs`
 
-### 6. Benchmark Virtual Port — Simulated Instead of Real
-**Status**: ✅ Fixed
-**Priority**: P1
-**Files**: `src/benchmark/runner.rs`
-
-- Replaced `thread::sleep(100µs)` simulation with real PTY pair creation
-- Uses `VirtualSerialPair::create(VirtualConfig::default())` in a tokio runtime
-- Skips gracefully on platforms where PTY is not available
-
-### 7. Benchmark Save/Load Uses Text Format (Not JSON)
-**Status**: ✅ Fixed
-**Priority**: P1
-**Files**: `src/cli/commands/benchmark.rs`, `src/benchmark/mod.rs`, `src/benchmark/reporter.rs`
-
-- Added `serde::Serialize/Deserialize` derives for `BenchmarkCategory`, `BenchmarkResult`, `BenchmarkReport`
-- Replaced text-format save with `serde_json::to_string_pretty`
-- Replaced custom parser with `serde_json::from_str`
-
-### 8. NamedPipe Backend — Handle Leak + Missing Bridge
-**Status**: ✅ Fixed
-**Priority**: P1
-**Files**: `src/serial_core/backends/named_pipe.rs`
-
-- [x] Store all pipe handles (server_a, server_b, client_a, client_b) in struct fields
-- [x] Implement bidirectional relay via blocking ReadFile/WriteFile in spawn_blocking threads
-- [x] Real health check: `is_healthy()` checks if relay task is still running
-- [x] Proper cleanup: `CloseHandle()` on all handles + shutdown event signal + relay wait
-- [x] Byte tracking: relay updates `bytes_read`/`bytes_written` in `BackendStats`
+**Impact**: GUI cannot be built, but CLI works perfectly
 
 ---
 
 ## P2 - Future Enhancements
 
-### 9. Performance Optimization (v0.5.0)
+### 4. Performance Optimization (v0.5.0)
 **Status**: 🚧 Partial
 
 **Completed**:
-- [x] Add benchmark module structure
-- [x] Implement BenchmarkRunner with timing and throughput measurement
-- [x] Implement BenchmarkReporter for result comparison
-- [x] Add BenchmarkCommand to CLI (run, compare, list)
-- [x] Create basic serial I/O benchmarks
-- [x] Create virtual port benchmarks (creation timing)
-- [x] Create protocol benchmarks (parsing throughput)
-- [x] Implement benchmark result persistence (save/load)
-- [x] Implement benchmark comparison (regression detection)
-- [x] Add startup time benchmarks
-- [x] Add memory usage benchmarks
-- [x] Add concurrency benchmarks
-- [x] Fix benchmark runtime-in-runtime panic (`#[tokio::main]` conflict)
-- [x] Buffer allocation optimization (pre-allocate with `with_capacity`)
+- [x] Benchmark infrastructure
+- [x] I/O throughput benchmarks
+- [x] Protocol parsing benchmarks
+- [x] Startup time benchmarks
+- [x] Memory usage benchmarks
+- [x] Concurrency benchmarks
+- [x] Buffer allocation optimization
   - Modbus RTU encode: +179% (70 → 197 MB/s)
   - Modbus ASCII encode: +82% (97 → 176 MB/s)
   - Modbus ASCII parse: +17% (225 → 263 MB/s)
@@ -138,37 +94,19 @@ Port type changed from `Box<dyn tokio_serial::SerialPort>` to `Box<dyn serialpor
 
 ---
 
-## Completed
+## Completed (v0.4.0 - v0.5.0)
 
-- [x] Basic serial port communication (open, close, configure, send/receive)
-- [x] Lua scripting engine (LuaJIT with async support)
-- [x] Interactive shell (REPL)
-- [x] Built-in protocols (Modbus RTU, Modbus ASCII, AT Command, Line)
-- [x] Data format support (text, hex, base64)
-- [x] Error handling with thiserror
-- [x] CLI command structure (clap)
-- [x] GUI application (Tauri + React)
-- [x] Virtual serial port pairs (PTY backend)
-- [x] Event-driven bridge (tokio AsyncFd, no busy-wait)
-- [x] Virtual port health checking and auto-cleanup
-- [x] Real-time statistics (bytes, packets, errors, uptime)
-- [x] Cyber-industrial UI with Lucide icons
-- [x] Monaco Editor integration for Lua scripts
-- [x] Data export (TXT/CSV/JSON)
-- [x] System notifications
-- [x] Keyboard shortcuts and command palette
-- [x] Data persistence (localStorage)
-- [x] Serial sniffer with packet capture
-- [x] Virtual port monitoring (packet capture integration)
-- [x] Protocol dynamic loading (load/unload/reload with config persistence)
-- [x] Configuration management (show/set/save/reset)
-- [x] Data sniffing session management (start/stop/stats/save)
-- [x] Batch processing with variables and loops
-- [x] Modular CLI architecture (main.rs 1194→73 lines)
-- [x] **Virtual port backend architecture (PTY, NamedPipe, Socat)**
-- [x] **Protocol hot-reload management (enable/disable/status)**
-- [x] **Benchmark infrastructure (runner, reporter, CLI integration)**
-- [x] **Startup time benchmarks (cold/warm start, protocol load, Lua init)**
+All features from v0.4.0 are fully implemented and tested:
+- ✅ Serial port management (cross-platform, DTR/RTS signals)
+- ✅ Protocol engine (Modbus RTU/ASCII, AT Commands, Line-based, custom Lua)
+- ✅ Lua scripting (LuaJIT, async, protocol extension)
+- ✅ Virtual serial ports (PTY, NamedPipe, Socat backends)
+- ✅ Data sniffing (session management, packet capture)
+- ✅ Batch processing (variables, loops, error reporting)
+- ✅ Benchmarking (comprehensive performance tests)
+- ✅ Configuration management (TOML, validation, persistence)
+- ✅ CLI commands (all core functionality)
+- ✅ 212 tests passing
 
 ---
 
@@ -176,30 +114,26 @@ Port type changed from `Box<dyn tokio_serial::SerialPort>` to `Box<dyn serialpor
 
 | Category | Total | Completed | Partial | TODO |
 |----------|-------|-----------|---------|------|
-| P0 - Critical | 3 | 3 | 0 | 0 |
-| P1 - Important | 5 | 5 | 0 | 0 |
-| P2 - Future | 4 | 4 | 0 | 0 |
-| **Total** | **12** | **12** | **0** | **0** |
+| P0 - Critical | 1 | 0 | 0 | 1 |
+| P1 - Important | 2 | 0 | 0 | 2 |
+| P2 - Future | 1 | 1 | 0 | 0 |
+| **Total** | **4** | **1** | **0** | **3** |
 
-**Overall Progress**: 🎉 100% complete, all functional gaps closed
+**Overall Progress**: 25% complete, critical bugs found post-refactor
 
 ---
 
 ## Implementation Plan
 
-### Phase 1 (P0 - Critical Fixes) — ✅ Complete
-1. ✅ Fix DTR/RTS hardware signal control (Unix ioctl + Windows EscapeCommFunction)
-2. ✅ Fix ProtocolWatcher event channel (store tx/rx properly)
-3. ✅ Fix sniff daemon read loop (add async polling in daemon)
+### Phase 1 (P0 - Critical Fixes) — Current
+1. 🔄 Fix CLI output mixing in all command files
+2. 🔄 Verify all user output uses `println!`
+3. 🔄 Test with `--verbose` and `RUST_LOG` enabled
 
-### Phase 2 (P1 - Important Fixes) — Complete
-1. ✅ Implement Lua binding stubs (protocol_unload, protocol_reload, protocol_load)
-2. ✅ Wire NamedPipe/Socat backends into VirtualSerialPair (unified via BackendFactory + VirtualBackend trait)
-3. ✅ Fix benchmark virtual port (real PTY instead of sleep)
-4. ✅ Implement JSON serialization for benchmark save/load
-5. ✅ Fix NamedPipe handle leak, bridge, health check, cleanup
+### Phase 2 (P1 - Important) — Next
+1. Design CLI command structure (get user input on preferred approach)
+2. Fix GUI compilation errors
+3. Implement agreed-upon command structure
 
 ### Phase 3 (P2 - Optimization)
-1. Memory usage benchmarks
-2. Concurrency benchmarks
-3. Performance optimization based on findings
+1. Continue performance optimizations based on benchmark data

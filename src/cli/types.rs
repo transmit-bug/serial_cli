@@ -5,6 +5,23 @@
 
 use std::path::PathBuf;
 
+/// Serial port management subcommands
+#[derive(clap::Subcommand)]
+pub enum PortCommand {
+    /// List available serial ports on the system
+    List,
+
+    /// Send raw data to a serial port and optionally read the response
+    Send {
+        /// Port name (e.g., `COM1`, `/dev/ttyUSB0`)
+        #[arg(short, long)]
+        port: String,
+
+        /// Data to send (plain text)
+        data: String,
+    },
+}
+
 /// Virtual serial port subcommands
 #[derive(clap::Subcommand)]
 pub enum VirtualCommand {

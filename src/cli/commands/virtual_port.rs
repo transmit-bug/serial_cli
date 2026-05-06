@@ -118,30 +118,30 @@ pub async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
             let registry = VIRTUAL_REGISTRY.read().await;
 
             if registry.is_empty() {
-                tracing::info!("No active virtual port pairs");
-                tracing::info!("");
-                tracing::info!("Create a virtual pair with:");
-                tracing::info!("  serial-cli virtual create");
+                println!("No active virtual port pairs");
+                println!();
+                println!("Create a virtual pair with:");
+                println!("  serial-cli virtual create");
             } else {
-                tracing::info!("Active virtual port pairs:");
-                tracing::info!("");
+                println!("Active virtual port pairs:");
+                println!();
                 for (id, pair) in registry.iter() {
                     let stats = pair.stats().await;
-                    tracing::info!("  ID: {}", id);
-                    tracing::info!("    Port A: {}", stats.port_a);
-                    tracing::info!("    Port B: {}", stats.port_b);
-                    tracing::info!("    Backend: {:?}", stats.backend);
-                    tracing::info!("    Uptime: {}s", stats.uptime_secs);
-                    tracing::info!(
+                    println!("  ID: {}", id);
+                    println!("    Port A: {}", stats.port_a);
+                    println!("    Port B: {}", stats.port_b);
+                    println!("    Backend: {:?}", stats.backend);
+                    println!("    Uptime: {}s", stats.uptime_secs);
+                    println!(
                         "    Status: {}",
                         if stats.running { "Running" } else { "Stopped" }
                     );
-                    tracing::info!("    Bytes bridged: {}", stats.bytes_bridged);
-                    tracing::info!("    Packets bridged: {}", stats.packets_bridged);
+                    println!("    Bytes bridged: {}", stats.bytes_bridged);
+                    println!("    Packets bridged: {}", stats.packets_bridged);
                     if stats.bridge_errors > 0 {
-                        tracing::info!("    Bridge errors: {}", stats.bridge_errors);
+                        println!("    Bridge errors: {}", stats.bridge_errors);
                     }
-                    tracing::info!("");
+                    println!();
                 }
             }
         }
@@ -173,26 +173,26 @@ pub async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
 
             if let Some(pair) = registry.get(&id) {
                 let stats = pair.stats().await;
-                tracing::info!("Virtual pair statistics:");
-                tracing::info!("  ID: {}", stats.id);
-                tracing::info!("  Port A: {}", stats.port_a);
-                tracing::info!("  Port B: {}", stats.port_b);
-                tracing::info!("  Backend: {:?}", stats.backend);
-                tracing::info!(
+                println!("Virtual pair statistics:");
+                println!("  ID: {}", stats.id);
+                println!("  Port A: {}", stats.port_a);
+                println!("  Port B: {}", stats.port_b);
+                println!("  Backend: {:?}", stats.backend);
+                println!(
                     "  Status: {}",
                     if stats.running { "Running" } else { "Stopped" }
                 );
-                tracing::info!("  Uptime: {}s", stats.uptime_secs);
-                tracing::info!("  Bytes bridged: {}", stats.bytes_bridged);
-                tracing::info!("  Packets bridged: {}", stats.packets_bridged);
-                tracing::info!("  Bridge errors: {}", stats.bridge_errors);
+                println!("  Uptime: {}s", stats.uptime_secs);
+                println!("  Bytes bridged: {}", stats.bytes_bridged);
+                println!("  Packets bridged: {}", stats.packets_bridged);
+                println!("  Bridge errors: {}", stats.bridge_errors);
 
                 if let Some(ref error) = stats.last_error {
-                    tracing::info!("  Last error: {}", error);
+                    println!("  Last error: {}", error);
                 }
             } else {
-                tracing::error!("\u{2717} Virtual pair not found: {}", id);
-                tracing::info!("Use 'serial-cli virtual list' to see active pairs");
+                eprintln!("\u{2717} Virtual pair not found: {}", id);
+                println!("Use 'serial-cli virtual list' to see active pairs");
                 return Err(SerialError::VirtualPort(format!(
                     "Virtual pair not found: {}",
                     id

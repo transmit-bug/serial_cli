@@ -9,7 +9,7 @@ edition = "2021"
 authors = ["Serial CLI Contributors"]
 description = "A universal serial port CLI tool optimized for AI interaction"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/yourusername/serial_cli"
+repository = "https://github.com/zazac-zhang/serial_cli"
 readme = "README.md"
 
 [dependencies]

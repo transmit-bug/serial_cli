@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use tauri::{AppHandle, Manager, State, Window};
+use tauri::Window;
 
 #[tauri::command]
 pub fn show_window(window: Window) -> Result<(), String> {

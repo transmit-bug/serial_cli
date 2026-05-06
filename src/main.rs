@@ -23,7 +23,7 @@ use clap::Parser;
 
 use serial_cli::cli::args::{Cli, Commands};
 use serial_cli::cli::commands::{
-    batch as batch_cmd, benchmark as benchmark_cmd, config as config_cmd, ports,
+    batch as batch_cmd, benchmark as benchmark_cmd, config as config_cmd, port as port_cmd,
     protocol as protocol_cmd, script, sniff as sniff_cmd, virtual_port,
 };
 use serial_cli::cli::interactive::InteractiveShell;
@@ -59,11 +59,8 @@ async fn main() -> Result<()> {
 
     // Execute command
     match cli.command {
-        Some(Commands::ListPorts) => {
-            ports::list_ports()?;
-        }
-        Some(Commands::Send { port, data }) => {
-            ports::send_data(&port, &data).await?;
+        Some(Commands::Port { port_command }) => {
+            port_cmd::handle_port_command(port_command).await?;
         }
         Some(Commands::Interactive) => {
             let mut shell = InteractiveShell::new();

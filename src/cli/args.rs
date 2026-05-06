@@ -6,7 +6,7 @@
 use clap::{Parser, Subcommand};
 
 use super::types::{
-    BatchCommand, BenchmarkCommand, ConfigCommand, ProtocolCommand, SniffCommand, VirtualCommand,
+    BatchCommand, BenchmarkCommand, ConfigCommand, PortCommand, ProtocolCommand, SniffCommand, VirtualCommand,
 };
 
 /// Top-level CLI arguments for the serial-cli application.
@@ -39,17 +39,10 @@ pub struct Cli {
 /// a handler function in `src/cli/commands/`.
 #[derive(Subcommand)]
 pub enum Commands {
-    /// List available serial ports on the system.
-    ListPorts,
-
-    /// Send raw data to a serial port and optionally read the response.
-    Send {
-        /// Port name (e.g., `COM1`, `/dev/ttyUSB0`).
-        #[arg(short, long)]
-        port: String,
-
-        /// Data to send (plain text).
-        data: String,
+    /// Serial port management (list, send).
+    Port {
+        #[command(subcommand)]
+        port_command: PortCommand,
     },
 
     /// Start an interactive REPL shell for serial communication.

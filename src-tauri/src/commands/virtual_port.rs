@@ -7,7 +7,8 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use serial_cli::serial_core::{VirtualBackend, VirtualConfig, VirtualSerialPair};
+use serial_cli::serial_core::{VirtualConfig, VirtualSerialPair};
+use serial_cli::serial_core::backends::BackendType;
 use tauri::{AppHandle, State};
 
 /// Virtual port information for Tauri frontend
@@ -66,9 +67,9 @@ pub async fn create_virtual_port(
 ) -> Result<String, String> {
     // Parse backend type
     let backend_type = match config.backend.as_str() {
-        "pty" => VirtualBackend::Pty,
-        "namedpipe" => VirtualBackend::NamedPipe,
-        "socat" => VirtualBackend::Socat,
+        "pty" => BackendType::Pty,
+        "namedpipe" => BackendType::NamedPipe,
+        "socat" => BackendType::Socat,
         _ => {
             return Err(format!(
                 "Unknown backend: {}. Available: pty, namedpipe, socat",

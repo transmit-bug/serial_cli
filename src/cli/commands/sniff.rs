@@ -48,16 +48,6 @@ pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
                 }
             }
 
-            tracing::info!("Starting sniff on port: {}", port);
-            tracing::info!("Max packets: {}", max_packets);
-            let display_str = if display { "enabled" } else { "disabled" };
-            tracing::info!("Real-time display: {}", display_str);
-            tracing::info!("Display format: {}", display_format);
-            if let Some(ref out_path) = output {
-                tracing::info!("Output file: {}", out_path.display());
-            }
-            tracing::info!("");
-
             // Spawn background daemon process
             let meta = spawn_sniff_daemon(
                 &port,

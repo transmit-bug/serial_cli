@@ -1,9 +1,27 @@
-//! Port listing and data sending commands
+//! Port management command handler
 //!
-//! Handlers for `serial-cli list-ports` and `serial-cli send`.
+//! Handlers for `serial-cli port list` and `serial-cli port send`.
 
+use crate::cli::types::PortCommand;
 use crate::error::Result;
 use crate::serial_core::{PortManager, SerialConfig};
+
+/// Dispatch a [`PortCommand`] to list ports or send data.
+///
+/// # Errors
+///
+/// Propagates errors from port enumeration or serial communication.
+pub async fn handle_port_command(cmd: PortCommand) -> Result<()> {
+    match cmd {
+        PortCommand::List => {
+            list_ports()?;
+        }
+        PortCommand::Send { port, data } => {
+            send_data(&port, &data).await?;
+        }
+    }
+    Ok(())
+}
 
 /// List all available serial ports and print them as JSON.
 ///
@@ -57,8 +75,6 @@ pub async fn send_data(port: &str, data: &str) -> Result<()> {
     use std::thread;
     use std::time::Duration;
 
-    tracing::info!("Opening port: {}", port);
-
     // Create port manager
     let manager = PortManager::new();
 
@@ -68,8 +84,9 @@ pub async fn send_data(port: &str, data: &str) -> Result<()> {
     // Open the port
     let port_id = manager.open_port(port, config).await?;
 
-    tracing::info!("Port opened successfully: {}", port_id);
-    tracing::info!("Sending data: {}", data);
+    println!("Opening port: {}", port);
+    println!("Port opened successfully: {}", port_id);
+    println!("Sending data: {}", data);
 
     // Get the port handle
     let port_handle = manager.get_port(&port_id).await?;
@@ -80,7 +97,7 @@ pub async fn send_data(port: &str, data: &str) -> Result<()> {
 
     // Send data
     let bytes_written = handle.write(bytes)?;
-    tracing::info!("Sent {} bytes", bytes_written);
+    println!("Sent {} bytes", bytes_written);
 
     // Wait a bit for response
     thread::sleep(Duration::from_millis(100));
@@ -93,18 +110,18 @@ pub async fn send_data(port: &str, data: &str) -> Result<()> {
                 let response = String::from_utf8_lossy(&buffer[..bytes_read]);
                 println!("Received response ({} bytes): {}", bytes_read, response);
             } else {
-                tracing::info!("No response received");
+                println!("No response received");
             }
         }
         Err(e) => {
-            tracing::info!("Note: Could not read response: {}", e);
+            eprintln!("Note: Could not read response: {}", e);
         }
     }
 
     // Close the port
     drop(handle);
     manager.close_port(&port_id).await?;
-    tracing::info!("Port closed");
+    println!("Port closed");
 
     Ok(())
 }

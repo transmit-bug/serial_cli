@@ -10,7 +10,6 @@ use crate::state::app_state::{AppState, DataSniffer};
 use log::{debug, error, info};
 use std::time::Duration;
 use tauri::{AppHandle, State};
-use tokio::sync::Mutex;
 
 /// Send data to a serial port
 #[tauri::command]

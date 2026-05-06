@@ -6,9 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
-pub fn create_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+pub fn create_system_tray(_app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // System tray is now configured in tauri.conf.json
     // We just need to set up the event handler here
 

@@ -75,17 +75,15 @@ pub fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
             }
         }
         ConfigCommand::Set { key, value } => {
-            tracing::info!("Setting configuration: {} = {}", key, value);
-
             match config_manager.set(&key, &value) {
                 Ok(_) => {
-                    tracing::info!("\u{2713} Configuration updated successfully");
+                    println!("\u{2713} Configuration updated successfully");
 
                     if let Err(e) = config_manager.validate() {
-                        tracing::info!("\u{26A0} Warning: Configuration may be invalid: {}", e);
+                        println!("\u{26A0} Warning: Configuration may be invalid: {}", e);
                     }
 
-                    tracing::info!("Note: Use 'config save' to persist changes");
+                    println!("Note: Use 'config save' to persist changes");
                 }
                 Err(e) => {
                     println!("\u{2717} Failed to set configuration: {}", e);
@@ -128,28 +126,24 @@ pub fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                 }
             });
 
-            tracing::info!("Saving configuration to: {}", output_path.display());
-
             match config_manager.save(Some(&output_path)) {
                 Ok(_) => {
-                    tracing::info!("\u{2713} Configuration saved successfully");
+                    println!("\u{2713} Configuration saved successfully");
                 }
                 Err(e) => {
-                    tracing::info!("\u{2717} Failed to save configuration: {}", e);
+                    eprintln!("\u{2717} Failed to save configuration: {}", e);
                     return Err(e);
                 }
             }
         }
         ConfigCommand::Reset => {
-            tracing::info!("Resetting configuration to defaults...");
-
             match config_manager.reset() {
                 Ok(_) => {
-                    tracing::info!("\u{2713} Configuration reset to defaults");
-                    tracing::info!("Note: Use 'config save' to persist changes");
+                    println!("\u{2713} Configuration reset to defaults");
+                    println!("Note: Use 'config save' to persist changes");
                 }
                 Err(e) => {
-                    tracing::info!("\u{2717} Failed to reset configuration: {}", e);
+                    eprintln!("\u{2717} Failed to reset configuration: {}", e);
                     return Err(e);
                 }
             }

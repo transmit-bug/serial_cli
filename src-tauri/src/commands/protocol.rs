@@ -7,8 +7,7 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use serial_cli::error::Result as SerialResult;
-use serial_cli::protocol::{Protocol, ProtocolInfo};
+use serial_cli::protocol::ProtocolInfo;
 use std::path::PathBuf;
 use tauri::State;
 

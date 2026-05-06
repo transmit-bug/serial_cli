@@ -7,16 +7,14 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use serial_cli::config::{
-    Config, LoggingConfig, LuaConfig, OutputConfig, SerialConfig, TaskConfig,
-};
+use serial_cli::config::Config;
 use std::fs;
 use std::path::PathBuf;
 use tauri::State;
 
 /// Get current configuration
 #[tauri::command]
-pub async fn get_config(state: State<'_, AppState>) -> Result<ConfigData, String> {
+pub async fn get_config(_state: State<'_, AppState>) -> Result<ConfigData, String> {
     let config = serial_cli::config::load_config_with_fallback();
     Ok(ConfigData {
         serial: SerialConfigData {
@@ -64,7 +62,7 @@ pub async fn get_config_raw() -> Result<String, String> {
 
 /// Update configuration
 #[tauri::command]
-pub async fn update_config(config: ConfigData, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> Result<(), String> {
     let config_path = get_config_path()?;
 
     // Create config directory if it doesn't exist

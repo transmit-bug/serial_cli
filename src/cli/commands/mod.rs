@@ -6,7 +6,7 @@ pub mod batch;
 pub mod benchmark;
 pub mod config;
 pub mod parsers;
-pub mod ports;
+pub mod port;
 pub mod protocol;
 pub mod script;
 pub mod sniff;
