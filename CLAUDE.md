@@ -41,6 +41,8 @@ just build-macos  # x86_64 + arm64
 
 See [`docs/dev/ARCH.md`](docs/dev/ARCH.md) for full directory layout, design patterns, module dependencies, and data flow.
 
+For complete documentation structure, see [`docs/README.md`](docs/README.md).
+
 **Quick reference:**
 
 - `src/main.rs` — thin entry point (~73 lines), dispatches to `cli/commands/*`
@@ -58,10 +60,19 @@ See [`docs/dev/ARCH.md`](docs/dev/ARCH.md) for full directory layout, design pat
 - **Async**: All I/O uses `tokio`
 - **Lua integration**: Scripts executed via LuaEngine
 - **Configuration**: TOML-based with fallback defaults
-- **Documentation**: Keep docs minimal and well-organized
-  - Root level: README.md, CHANGELOG.md, RELEASE.md (essential user-facing docs)
-  - Architecture: `docs/dev/ARCH.md` (directory layout, design patterns)
-  - Avoid creating new .md files unless they serve a clear, ongoing purpose
+- **Documentation**: Follow strict documentation hierarchy
+  - **Root level only**: README.md, CHANGELOG.md, RELEASE.md (essential user-facing docs only)
+  - **docs/user/** - End-user documentation (guides, tutorials, feature explanations)
+  - **docs/dev/** - Internal development docs (architecture, design decisions, technical specs)
+  - **docs/reference/** - Reference material (configuration, protocols, API docs, troubleshooting)
+  - **docs/commands/** - Per-command documentation (auto-generated or command-specific guides)
+  - **Documentation constraints**:
+    - NEVER create root-level docs/*.md files (except ARCH.md which should move to docs/dev/)
+    - Avoid duplication - check existing docs before creating new ones
+    - Prefer updating existing docs over creating new files
+    - Design decision docs go in docs/dev/ with DECISION.md suffix
+    - User-facing content goes in docs/user/ or docs/reference/, never in docs/dev/
+    - Before creating any new .md file, verify it doesn't exist in a related location
 - **TODO tracking**: 发现或修复问题后，同步更新 `docs/user/TODO.md` 中的待办/已完成列表。
 
 ## GUI Subproject
