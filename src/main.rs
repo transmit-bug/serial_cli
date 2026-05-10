@@ -24,7 +24,7 @@ use clap::Parser;
 use serial_cli::cli::args::{Cli, Commands};
 use serial_cli::cli::commands::{
     batch as batch_cmd, benchmark as benchmark_cmd, config as config_cmd, port as port_cmd,
-    protocol as protocol_cmd, script, sniff as sniff_cmd, virtual_port,
+    protocol as protocol_cmd, script, server as server_cmd, sniff as sniff_cmd, virtual_port,
 };
 use serial_cli::cli::interactive::InteractiveShell;
 use serial_cli::cli::sniff_session;
@@ -58,9 +58,10 @@ async fn main() -> Result<()> {
     }
 
     // Execute command
+    let json_output = cli.json;
     match cli.command {
         Some(Commands::Port { port_command }) => {
-            port_cmd::handle_port_command(port_command).await?;
+            port_cmd::handle_port_command(port_command, json_output).await?;
         }
         Some(Commands::Interactive) => {
             let mut shell = InteractiveShell::new();
@@ -70,22 +71,25 @@ async fn main() -> Result<()> {
             script::run_lua_script(PathBuf::from(script), args).await?;
         }
         Some(Commands::Protocol { protocol_command }) => {
-            protocol_cmd::handle_protocol_command(protocol_command)?;
+            protocol_cmd::handle_protocol_command(protocol_command, json_output)?;
         }
         Some(Commands::Sniff { sniff_command }) => {
-            sniff_cmd::handle_sniff_command(sniff_command).await?;
+            sniff_cmd::handle_sniff_command(sniff_command, json_output).await?;
         }
         Some(Commands::Batch { batch_command }) => {
-            batch_cmd::handle_batch_command(batch_command).await?;
+            batch_cmd::handle_batch_command(batch_command, json_output).await?;
         }
         Some(Commands::Config { config_command }) => {
-            config_cmd::handle_config_command(config_command)?;
+            config_cmd::handle_config_command(config_command, json_output)?;
         }
         Some(Commands::Virtual { virtual_command }) => {
-            virtual_port::handle_virtual_command(virtual_command).await?;
+            virtual_port::handle_virtual_command(virtual_command, json_output).await?;
         }
         Some(Commands::Benchmark { benchmark_command }) => {
-            benchmark_cmd::handle_benchmark_command(benchmark_command)?;
+            benchmark_cmd::handle_benchmark_command(benchmark_command, json_output)?;
+        }
+        Some(Commands::Server { server_command }) => {
+            server_cmd::handle_server_command(server_command, json_output).await?;
         }
         Some(Commands::SniffDaemon {
             port,

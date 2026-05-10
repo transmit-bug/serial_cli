@@ -11,19 +11,19 @@ use crate::serial_core::{PortManager, SerialConfig};
 /// # Errors
 ///
 /// Propagates errors from port enumeration or serial communication.
-pub async fn handle_port_command(cmd: PortCommand) -> Result<()> {
+pub async fn handle_port_command(cmd: PortCommand, json_output: bool) -> Result<()> {
     match cmd {
         PortCommand::List => {
-            list_ports()?;
+            list_ports(json_output)?;
         }
         PortCommand::Send { port, data } => {
-            send_data(&port, &data).await?;
+            send_data(&port, &data, json_output).await?;
         }
     }
     Ok(())
 }
 
-/// List all available serial ports and print them as JSON.
+/// List all available serial ports and print them as JSON or human-readable text.
 ///
 /// Uses the system's serial port enumeration to discover ports like
 /// `/dev/ttyUSB0` (Linux/macOS) or `COM1` (Windows).
@@ -32,23 +32,34 @@ pub async fn handle_port_command(cmd: PortCommand) -> Result<()> {
 ///
 /// Returns an error if port enumeration fails (e.g., permission issues
 /// on the platform).
-pub fn list_ports() -> Result<()> {
+pub fn list_ports(json_output: bool) -> Result<()> {
     use serde_json::json;
 
     let manager = PortManager::new();
     let ports = manager.list_ports()?;
 
-    let output: Vec<serde_json::Value> = ports
-        .iter()
-        .map(|p| {
-            json!({
-                "port_name": p.port_name,
-                "port_type": format!("{:?}", p.port_type),
+    if json_output {
+        let output: Vec<serde_json::Value> = ports
+            .iter()
+            .map(|p| {
+                json!({
+                    "port_name": p.port_name,
+                    "port_type": format!("{:?}", p.port_type),
+                })
             })
-        })
-        .collect();
+            .collect();
 
-    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    } else {
+        if ports.is_empty() {
+            println!("No serial ports found.");
+        } else {
+            println!("Available serial ports:");
+            for port in ports {
+                println!("  - {} ({})", port.port_name, port.port_type);
+            }
+        }
+    }
 
     Ok(())
 }
@@ -63,6 +74,7 @@ pub fn list_ports() -> Result<()> {
 ///
 /// * `port` - Port name (e.g., `/dev/ttyUSB0`, `COM1`)
 /// * `data` - Plain text data to send
+/// * `json_output` - Whether to output results as JSON
 ///
 /// # Errors
 ///
@@ -71,7 +83,7 @@ pub fn list_ports() -> Result<()> {
 /// - Permission is denied
 /// - The port is busy
 /// - Write or read fails at the OS level
-pub async fn send_data(port: &str, data: &str) -> Result<()> {
+pub async fn send_data(port: &str, data: &str, json_output: bool) -> Result<()> {
     use std::thread;
     use std::time::Duration;
 
@@ -84,9 +96,11 @@ pub async fn send_data(port: &str, data: &str) -> Result<()> {
     // Open the port
     let port_id = manager.open_port(port, config).await?;
 
-    println!("Opening port: {}", port);
-    println!("Port opened successfully: {}", port_id);
-    println!("Sending data: {}", data);
+    if !json_output {
+        println!("Opening port: {}", port);
+        println!("Port opened successfully: {}", port_id);
+        println!("Sending data: {}", data);
+    }
 
     // Get the port handle
     let port_handle = manager.get_port(&port_id).await?;
@@ -97,31 +111,53 @@ pub async fn send_data(port: &str, data: &str) -> Result<()> {
 
     // Send data
     let bytes_written = handle.write(bytes)?;
-    println!("Sent {} bytes", bytes_written);
 
     // Wait a bit for response
     thread::sleep(Duration::from_millis(100));
 
     // Try to read response
     let mut buffer = [0u8; 1024];
-    match handle.read(&mut buffer) {
-        Ok(bytes_read) => {
-            if bytes_read > 0 {
-                let response = String::from_utf8_lossy(&buffer[..bytes_read]);
-                println!("Received response ({} bytes): {}", bytes_read, response);
+    let (bytes_read, response) = match handle.read(&mut buffer) {
+        Ok(br) => {
+            if br > 0 {
+                let resp = String::from_utf8_lossy(&buffer[..br]).to_string();
+                (br, Some(resp))
             } else {
-                println!("No response received");
+                (0, None)
             }
         }
         Err(e) => {
-            eprintln!("Note: Could not read response: {}", e);
+            if !json_output {
+                eprintln!("Note: Could not read response: {}", e);
+            }
+            (0, None)
         }
-    }
+    };
 
     // Close the port
     drop(handle);
     manager.close_port(&port_id).await?;
-    println!("Port closed");
+
+    if json_output {
+        use serde_json::json;
+        let result = json!({
+            "port": port,
+            "port_id": port_id,
+            "data_sent": data,
+            "bytes_written": bytes_written,
+            "bytes_read": bytes_read,
+            "response": response
+        });
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    } else {
+        println!("Sent {} bytes", bytes_written);
+        if bytes_read > 0 {
+            println!("Received response ({} bytes): {}", bytes_read, response.as_ref().unwrap());
+        } else {
+            println!("No response received");
+        }
+        println!("Port closed");
+    }
 
     Ok(())
 }

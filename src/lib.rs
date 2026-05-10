@@ -13,6 +13,7 @@ pub mod lua;
 pub mod monitoring;
 pub mod protocol;
 pub mod serial_core;
+pub mod server;
 pub mod task;
 pub mod utils;
 

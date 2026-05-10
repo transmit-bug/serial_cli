@@ -28,66 +28,98 @@ const BUILT_IN_PROTOCOLS: &[(&str, &str)] = &[
 ///
 /// Propagates validation errors, config errors, and I/O errors from
 /// the underlying protocol operations.
-pub fn handle_protocol_command(cmd: ProtocolCommand) -> Result<()> {
+pub fn handle_protocol_command(cmd: ProtocolCommand, json_output: bool) -> Result<()> {
     match cmd {
-        ProtocolCommand::List { detailed } => list_protocols(detailed),
-        ProtocolCommand::Info { name } => show_protocol_info(&name),
-        ProtocolCommand::Validate { path } => validate_protocol(&path),
-        ProtocolCommand::Load { path, name } => load_protocol(&path, name),
-        ProtocolCommand::Unload { name } => unload_protocol(&name),
-        ProtocolCommand::Reload { name } => reload_protocol(&name),
-        ProtocolCommand::HotReload { action } => handle_hot_reload(&action),
+        ProtocolCommand::List { detailed } => list_protocols(detailed, json_output),
+        ProtocolCommand::Info { name } => show_protocol_info(&name, json_output),
+        ProtocolCommand::Validate { path } => validate_protocol(&path, json_output),
+        ProtocolCommand::Load { path, name } => load_protocol(&path, name, json_output),
+        ProtocolCommand::Unload { name } => unload_protocol(&name, json_output),
+        ProtocolCommand::Reload { name } => reload_protocol(&name, json_output),
+        ProtocolCommand::HotReload { action } => handle_hot_reload(&action, json_output),
     }
 }
 
-fn list_protocols(detailed: bool) -> Result<()> {
-    println!("Available protocols:");
-    println!();
+fn list_protocols(detailed: bool, json_output: bool) -> Result<()> {
+    use serde_json::json;
 
-    // Built-in protocols
-    if detailed {
-        println!("Built-in protocols:");
-        for (name, desc) in BUILT_IN_PROTOCOLS {
-            println!("  {:15} - {}", name, desc);
-        }
-    } else {
-        for (name, _) in BUILT_IN_PROTOCOLS {
-            println!("  {}", name);
-        }
-    }
-
-    // Custom protocols from config
     let config_manager = ConfigManager::load_with_fallback();
     let config = config_manager.get();
     let custom = &config.protocols.custom;
 
-    if !custom.is_empty() {
+    if json_output {
+        let mut protocols = Vec::new();
+
+        // Built-in protocols
+        for (name, desc) in BUILT_IN_PROTOCOLS {
+            protocols.push(json!({
+                "name": name,
+                "description": desc,
+                "type": "built-in"
+            }));
+        }
+
+        // Custom protocols
+        for proto in custom.values() {
+            protocols.push(json!({
+                "name": proto.name,
+                "description": format!("{:?}", proto.path),
+                "type": "custom",
+                "loaded_at": proto.loaded_at
+            }));
+        }
+
+        let result = json!({
+            "protocols": protocols,
+            "count": protocols.len()
+        });
+
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    } else {
+        println!("Available protocols:");
         println!();
-        println!("Custom protocols:");
+
+        // Built-in protocols
         if detailed {
-            for proto in custom.values() {
-                println!(
-                    "  {:15} - {} ({})",
-                    proto.name,
-                    proto.path.display(),
-                    proto.loaded_at.as_deref().unwrap_or("unknown")
-                );
+            println!("Built-in protocols:");
+            for (name, desc) in BUILT_IN_PROTOCOLS {
+                println!("  {:15} - {}", name, desc);
             }
         } else {
-            for proto in custom.values() {
-                println!("  {}", proto.name);
+            for (name, _) in BUILT_IN_PROTOCOLS {
+                println!("  {}", name);
             }
         }
-    } else if !detailed {
-        println!();
-        println!("Custom protocols: (none loaded)");
-        println!("Use 'serial-cli protocol load <script.lua>' to add custom protocols");
+
+        // Custom protocols from config
+        if !custom.is_empty() {
+            println!();
+            println!("Custom protocols:");
+            if detailed {
+                for proto in custom.values() {
+                    println!(
+                        "  {:15} - {} ({})",
+                        proto.name,
+                        proto.path.display(),
+                        proto.loaded_at.as_deref().unwrap_or("unknown")
+                    );
+                }
+            } else {
+                for proto in custom.values() {
+                    println!("  {}", proto.name);
+                }
+            }
+        } else if !detailed {
+            println!();
+            println!("Custom protocols: (none loaded)");
+            println!("Use 'serial-cli protocol load <script.lua>' to add custom protocols");
+        }
     }
 
     Ok(())
 }
 
-fn show_protocol_info(name: &str) -> Result<()> {
+fn show_protocol_info(name: &str, json_output: bool) -> Result<()> {
     println!("Protocol: {}", name);
 
     // Check built-in
@@ -116,7 +148,7 @@ fn show_protocol_info(name: &str) -> Result<()> {
     )))
 }
 
-fn validate_protocol(path: &Path) -> Result<()> {
+fn validate_protocol(path: &Path, json_output: bool) -> Result<()> {
     use crate::protocol::ProtocolValidator;
 
     println!("Validating protocol script: {}", path.display());
@@ -130,7 +162,7 @@ fn validate_protocol(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn load_protocol(path: &Path, name: Option<String>) -> Result<()> {
+fn load_protocol(path: &Path, name: Option<String>, json_output: bool) -> Result<()> {
     use crate::protocol::ProtocolValidator;
 
     // Validate script first
@@ -171,7 +203,7 @@ fn load_protocol(path: &Path, name: Option<String>) -> Result<()> {
     Ok(())
 }
 
-fn unload_protocol(name: &str) -> Result<()> {
+fn unload_protocol(name: &str, json_output: bool) -> Result<()> {
     // Check it's not a built-in
     if BUILT_IN_PROTOCOLS.iter().any(|(n, _)| *n == name) {
         return Err(SerialError::Config(format!(
@@ -191,7 +223,7 @@ fn unload_protocol(name: &str) -> Result<()> {
     Ok(())
 }
 
-fn reload_protocol(name: &str) -> Result<()> {
+fn reload_protocol(name: &str, json_output: bool) -> Result<()> {
     use crate::protocol::ProtocolValidator;
 
     let config_manager = ConfigManager::load_with_fallback();
@@ -228,7 +260,7 @@ fn reload_protocol(name: &str) -> Result<()> {
     Ok(())
 }
 
-fn handle_hot_reload(action: &str) -> Result<()> {
+fn handle_hot_reload(action: &str, json_output: bool) -> Result<()> {
     let config_manager = ConfigManager::load_with_fallback();
 
     match action {

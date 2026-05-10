@@ -66,15 +66,28 @@ impl LuaBindings {
     pub fn register_utility_apis(&self) -> Result<()> {
         let globals = self.lua.globals();
 
-        // json.encode (simple version for basic types)
+        // json.encode - proper JSON serialization
         let encode = self.lua.create_function(|_, value: Value| {
-            // For now, just return a string representation
-            Ok(format!("{:?}", value))
+            let json_value = Self::lua_value_to_json(value)?;
+            serde_json::to_string(&json_value)
+                .map_err(|e| mlua::Error::RuntimeError(format!("JSON encode error: {}", e)))
         })?;
         globals.set("json_encode", encode)?;
 
-        // json.decode (not implemented - returns nil)
-        let decode = self.lua.create_function(|_, _: String| Ok(Value::Nil))?;
+        // json.encode_pretty - pretty printed JSON
+        let encode_pretty = self.lua.create_function(|_, value: Value| {
+            let json_value = Self::lua_value_to_json(value)?;
+            serde_json::to_string_pretty(&json_value)
+                .map_err(|e| mlua::Error::RuntimeError(format!("JSON encode error: {}", e)))
+        })?;
+        globals.set("json_encode_pretty", encode_pretty)?;
+
+        // json.decode - parse JSON string to Lua table
+        let decode = self.lua.create_function(|lua, json_str: String| {
+            let v: serde_json::Value = serde_json::from_str(&json_str)
+                .map_err(|e| mlua::Error::RuntimeError(format!("JSON decode error: {}", e)))?;
+            Self::json_to_lua_value(lua, v)
+        })?;
         globals.set("json_decode", decode)?;
 
         // sleep
@@ -85,6 +98,81 @@ impl LuaBindings {
         globals.set("sleep_ms", sleep)?;
 
         Ok(())
+    }
+
+    /// Convert Lua value to JSON value
+    fn lua_value_to_json(value: Value) -> mlua::Result<serde_json::Value> {
+        match value {
+            Value::Nil => Ok(serde_json::Value::Null),
+            Value::Boolean(b) => Ok(serde_json::Value::Bool(b)),
+            Value::Integer(i) => Ok(serde_json::Value::Number(serde_json::Number::from(i))),
+            Value::Number(n) => {
+                serde_json::Number::from_f64(n)
+                    .map(serde_json::Value::Number)
+                    .ok_or_else(|| mlua::Error::RuntimeError("Invalid float value".to_string()))
+            }
+            Value::String(s) => Ok(serde_json::Value::String(s.to_str()?.to_string())),
+            Value::Table(t) => {
+                // Try to detect if it's an array or object
+                // Check if it's a sequential array (1, 2, 3, ...)
+                let len = t.len().unwrap_or(0) as usize;
+                if len > 0 {
+                    let mut arr = Vec::with_capacity(len);
+                    for i in 1..=len as i64 {
+                        match t.get(i) {
+                            Ok(v) => arr.push(Self::lua_value_to_json(v)?),
+                            Err(_) => arr.push(serde_json::Value::Null),
+                        }
+                    }
+                    Ok(serde_json::Value::Array(arr))
+                } else {
+                    // Treat as object
+                    let mut map = serde_json::Map::new();
+                    let pairs: mlua::Result<Vec<(mlua::String, Value)>> = t.pairs().collect();
+                    for pair in pairs.map_err(|e| mlua::Error::RuntimeError(e.to_string()))? {
+                        let key = pair.0.to_str()?.to_string();
+                        let value = Self::lua_value_to_json(pair.1)?;
+                        map.insert(key, value);
+                    }
+                    Ok(serde_json::Value::Object(map))
+                }
+            }
+            Value::LightUserData(_) | Value::Function(_) | Value::Thread(_) | Value::UserData(_) | Value::Error(_) => {
+                Ok(serde_json::Value::Null)
+            }
+        }
+    }
+
+    /// Convert JSON value to Lua value
+    fn json_to_lua_value(lua: &Lua, value: serde_json::Value) -> mlua::Result<Value<'_>> {
+        match value {
+            serde_json::Value::Null => Ok(Value::Nil),
+            serde_json::Value::Bool(b) => Ok(Value::Boolean(b)),
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    Ok(Value::Integer(i))
+                } else if let Some(f) = n.as_f64() {
+                    Ok(Value::Number(f))
+                } else {
+                    Ok(Value::Nil)
+                }
+            }
+            serde_json::Value::String(s) => Ok(Value::String(lua.create_string(&s)?)),
+            serde_json::Value::Array(arr) => {
+                let table = lua.create_table()?;
+                for (i, v) in arr.into_iter().enumerate() {
+                    table.set(i as i64 + 1, Self::json_to_lua_value(lua, v)?)?;
+                }
+                Ok(Value::Table(table))
+            }
+            serde_json::Value::Object(obj) => {
+                let table = lua.create_table()?;
+                for (k, v) in obj.into_iter() {
+                    table.set(k, Self::json_to_lua_value(lua, v)?)?;
+                }
+                Ok(Value::Table(table))
+            }
+        }
     }
 
     /// Register all APIs
@@ -897,7 +985,91 @@ mod tests {
 
         let script = r#"
             local json_str = json_encode({test = "value"})
-            print(json_str)
+            assert(type(json_str) == "string", "Expected string")
+            assert(string.find(json_str, "test") ~= nil, "Expected 'test' in JSON")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_json_encode() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_utility_apis().unwrap();
+
+        let script = r#"
+            -- Test simple table
+            local result = json_encode({name = "test", value = 42})
+            assert(type(result) == "string", "Expected string")
+
+            -- Test array
+            local arr = json_encode({1, 2, 3})
+            assert(type(arr) == "string", "Expected array string")
+
+            -- Test nested table
+            local nested = json_encode({data = {x = 10, y = 20}})
+            assert(type(nested) == "string", "Expected nested string")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_json_encode_pretty() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_utility_apis().unwrap();
+
+        let script = r#"
+            local compact = json_encode({test = "value"})
+            local pretty = json_encode_pretty({test = "value"})
+
+            assert(string.len(pretty) > string.len(compact), "Pretty should be longer")
+            assert(string.find(pretty, "\n") ~= nil, "Pretty should contain newlines")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_json_decode() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_utility_apis().unwrap();
+
+        let script = r#"
+            local obj = json_decode('{"name": "test", "value": 42}')
+            assert(type(obj) == "table", "Expected table")
+            assert(obj.name == "test", "Expected name='test'")
+            assert(obj.value == 42, "Expected value=42")
+
+            local arr = json_decode('[1, 2, 3]')
+            assert(type(arr) == "table", "Expected array table")
+            assert(arr[1] == 1, "Expected arr[1]=1")
+            assert(arr[2] == 2, "Expected arr[2]=2")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_json_roundtrip() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_utility_apis().unwrap();
+
+        let script = r#"
+            local original = {
+                name = "test",
+                value = 42,
+                nested = {x = 10, y = 20},
+                items = {1, 2, 3}
+            }
+
+            local encoded = json_encode(original)
+            local decoded = json_decode(encoded)
+
+            assert(decoded.name == original.name, "Roundtrip name mismatch")
+            assert(decoded.value == original.value, "Roundtrip value mismatch")
+            assert(decoded.nested.x == original.nested.x, "Roundtrip nested.x mismatch")
+            assert(decoded.items[1] == original.items[1], "Roundtrip items[1] mismatch")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());

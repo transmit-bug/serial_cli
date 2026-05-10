@@ -241,3 +241,58 @@ pub enum BenchmarkCommand {
     /// List available benchmarks
     List,
 }
+
+/// Server subcommands
+#[derive(clap::Subcommand)]
+pub enum ServerCommand {
+    /// Start server daemon
+    Start {
+        /// Unix socket path (default: /tmp/serial-cli.sock)
+        #[arg(long)]
+        socket_path: Option<String>,
+
+        /// TCP port (alternative to Unix socket)
+        #[arg(long)]
+        port: Option<u16>,
+
+        /// Log file path
+        #[arg(long)]
+        log: Option<String>,
+
+        /// Max concurrent connections
+        #[arg(long, default_value = "10")]
+        max_connections: usize,
+    },
+
+    /// Stop server daemon
+    Stop,
+
+    /// Server status
+    Status,
+
+    /// (Internal) Server daemon entry point
+    #[command(hide = true)]
+    Daemon {
+        /// Unix socket path
+        #[arg(long)]
+        socket_path: Option<String>,
+
+        /// TCP port
+        #[arg(long)]
+        port: Option<u16>,
+    },
+
+    /// Call RPC method (for AI/automation)
+    Call {
+        /// RPC method name (e.g., port_open, port_send)
+        method: String,
+
+        /// JSON arguments (e.g., '{"port": "/dev/ttyUSB0"}')
+        #[arg(value_name = "JSON_ARGS")]
+        args: String,
+
+        /// Use stdin for args (useful for piping)
+        #[arg(long)]
+        stdin: bool,
+    },
+}

@@ -6,8 +6,8 @@
 use clap::{Parser, Subcommand};
 
 use super::types::{
-    BatchCommand, BenchmarkCommand, ConfigCommand, PortCommand, ProtocolCommand, SniffCommand,
-    VirtualCommand,
+    BatchCommand, BenchmarkCommand, ConfigCommand, PortCommand, ProtocolCommand, ServerCommand,
+    SniffCommand, VirtualCommand,
 };
 
 /// Top-level CLI arguments for the serial-cli application.
@@ -93,6 +93,12 @@ pub enum Commands {
     Benchmark {
         #[command(subcommand)]
         benchmark_command: BenchmarkCommand,
+    },
+
+    /// Server mode (daemon for AI/automation workflows).
+    Server {
+        #[command(subcommand)]
+        server_command: ServerCommand,
     },
 
     /// (Internal) Background sniff daemon — not for direct user invocation.
