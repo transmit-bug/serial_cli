@@ -1,15 +1,16 @@
 <div align="center">
 
-  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.4.0-blue?style=for-the-badge&logo=rust)
+  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.5.0--dev-blue?style=for-the-badge&logo=rust)
   [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-  [![GUI](https://img.shields.io/badge/GUI-Ready-success?style=for-the-badge&logo=react)](https://reactjs.org/)
+  [![Tests](https://img.shields.io/badge/Tests-212%20passing-success?style=for-the-badge)](https://github.com/zazac-zhang/serial_cli)
+  [![GUI](https://img.shields.io/badge/GUI-In%20Progress-yellow?style=for-the-badge&logo=react)](https://reactjs.org/)
 
   # 🚀 Serial CLI
 
   **A Universal Serial Port Tool with CLI & GUI - Optimized for AI Interaction**
 
-  [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Features](#-features) • [GUI Application](#-gui-application) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Development](#-development)
+  [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Features](#-features) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Development](#-development)
 
 </div>
 
@@ -17,9 +18,9 @@
 
 ## 💡 What is Serial CLI?
 
-Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **both CLI and GUI interfaces**, **structured JSON output**, **embedded LuaJIT scripting**, and **support for multiple protocols** - making it perfect for both human interaction and AI/automation workflows.
+Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **CLI interface**, **structured JSON output**, **embedded LuaJIT scripting**, and **support for multiple protocols** - making it perfect for both human interaction and AI/automation workflows.
 
-**✨ Production Ready** • **🖥️ GUI Available** • **🔧 214/214 Tests Passing** • **🌍 Linux • macOS • Windows**
+**✨ CLI Production Ready** • **🔧 212/212 Tests Passing** • **🌍 Linux • macOS • Windows** • **🖥️ GUI In Development**
 
 ---
 
@@ -52,20 +53,29 @@ just test
 
 ```bash
 # List available serial ports
-serial-cli list
+serial-cli port list
 
-# Interactive mode (open port directly)
-serial-cli open /dev/ttyUSB0
+# Send data to a port
+serial-cli port send --port /dev/ttyUSB0 "AT"
 
-# One-shot command
-serial-cli exec /dev/ttyUSB0 "send AT; sleep 100; recv 64"
+# Interactive mode
+serial-cli interactive
 
 # Run Lua script
 serial-cli run script.lua
 
-# Data formats: text, hex (0x...), base64 (base64:...)
-serial-cli exec /dev/ttyUSB0 "send 0x01020304"
-serial-cli exec /dev/ttyUSB0 "send base64:SGVsbG8="
+# List available protocols
+serial-cli protocol list
+
+# Create virtual serial port pair
+serial-cli virtual create --backend auto
+
+# Start sniffing on a port
+serial-cli sniff start --port /dev/ttyUSB0
+
+# Configuration management
+serial-cli config show
+serial-cli config set serial.baudrate 9600
 ```
 
 ---

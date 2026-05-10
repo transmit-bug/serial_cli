@@ -1,6 +1,8 @@
 # Architecture Reference
 
-**Updated**: 2026-04-23
+**Updated**: 2026-05-10
+**Version**: 0.5.0-dev
+**Status**: All core modules implemented and tested (212 tests passing)
 
 ---
 
