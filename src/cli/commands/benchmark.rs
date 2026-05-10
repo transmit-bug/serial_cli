@@ -12,7 +12,7 @@ use std::path::PathBuf;
 /// # Errors
 ///
 /// Propagates errors from benchmark execution, file I/O, or JSON parsing.
-pub fn handle_benchmark_command(cmd: BenchmarkCommand) -> Result<()> {
+pub fn handle_benchmark_command(cmd: BenchmarkCommand, json_output: bool) -> Result<()> {
     match cmd {
         BenchmarkCommand::Run {
             category,

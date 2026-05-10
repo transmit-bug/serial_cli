@@ -23,7 +23,7 @@ use crate::error::{Result, SerialError};
 /// - An active session is already running
 /// - Session metadata cannot be read or written
 /// - Captured data files cannot be accessed
-pub async fn handle_sniff_command(cmd: SniffCommand) -> Result<()> {
+pub async fn handle_sniff_command(cmd: SniffCommand, json_output: bool) -> Result<()> {
     match cmd {
         SniffCommand::Start {
             port,

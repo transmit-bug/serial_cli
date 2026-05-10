@@ -3,44 +3,37 @@
 //! These tests verify that the platform abstraction layer works correctly
 //! and that signal control functions behave as expected across different platforms.
 
+/// Macro to reduce platform-specific controller creation code duplication
+macro_rules! get_controller {
+    () => {{
+        #[cfg(unix)]
+        {
+            serial_cli::serial_core::signals::UnixSignalController::new()
+        }
+        #[cfg(windows)]
+        {
+            serial_cli::serial_core::signals::WindowsSignalController::new()
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            serial_cli::serial_core::signals::FallbackSignalController::new()
+        }
+    }};
+}
+
 #[cfg(test)]
 mod signal_control_tests {
     use serial_cli::serial_core::signals::{PlatformSignals, SignalState};
 
     #[test]
     fn test_signal_controller_creation() {
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
-        #[cfg(unix)]
-        use serial_cli::serial_core::signals::UnixSignalController;
-        #[cfg(windows)]
-        use serial_cli::serial_core::signals::WindowsSignalController;
-
-        #[cfg(unix)]
-        let controller = UnixSignalController::new();
-        #[cfg(windows)]
-        let controller = WindowsSignalController::new();
-        #[cfg(not(any(unix, windows)))]
-        let controller = FallbackSignalController::new();
-
+        let controller = get_controller!();
         assert!(!controller.platform_name().is_empty());
     }
 
     #[test]
     fn test_dtr_state_management() {
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
-        #[cfg(unix)]
-        use serial_cli::serial_core::signals::UnixSignalController;
-        #[cfg(windows)]
-        use serial_cli::serial_core::signals::WindowsSignalController;
-
-        #[cfg(unix)]
-        let mut controller = UnixSignalController::new();
-        #[cfg(windows)]
-        let mut controller = WindowsSignalController::new();
-        #[cfg(not(any(unix, windows)))]
-        let mut controller = FallbackSignalController::new();
+        let mut controller = get_controller!();
 
         // Test initial state
         assert_eq!(controller.get_dtr().unwrap(), true);
@@ -63,19 +56,7 @@ mod signal_control_tests {
 
     #[test]
     fn test_rts_state_management() {
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
-        #[cfg(unix)]
-        use serial_cli::serial_core::signals::UnixSignalController;
-        #[cfg(windows)]
-        use serial_cli::serial_core::signals::WindowsSignalController;
-
-        #[cfg(unix)]
-        let mut controller = UnixSignalController::new();
-        #[cfg(windows)]
-        let mut controller = WindowsSignalController::new();
-        #[cfg(not(any(unix, windows)))]
-        let mut controller = FallbackSignalController::new();
+        let mut controller = get_controller!();
 
         // Test initial state
         assert_eq!(controller.get_rts().unwrap(), true);
@@ -98,19 +79,7 @@ mod signal_control_tests {
 
     #[test]
     fn test_signal_toggle() {
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
-        #[cfg(unix)]
-        use serial_cli::serial_core::signals::UnixSignalController;
-        #[cfg(windows)]
-        use serial_cli::serial_core::signals::WindowsSignalController;
-
-        #[cfg(unix)]
-        let mut controller = UnixSignalController::new();
-        #[cfg(windows)]
-        let mut controller = WindowsSignalController::new();
-        #[cfg(not(any(unix, windows)))]
-        let mut controller = FallbackSignalController::new();
+        let mut controller = get_controller!();
 
         // Toggle DTR
         for _ in 0..3 {
@@ -129,20 +98,7 @@ mod signal_control_tests {
         use std::sync::{Arc, Mutex};
         use std::thread;
 
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
-        #[cfg(unix)]
-        use serial_cli::serial_core::signals::UnixSignalController;
-        #[cfg(windows)]
-        use serial_cli::serial_core::signals::WindowsSignalController;
-
-        #[cfg(unix)]
-        let controller = Arc::new(Mutex::new(UnixSignalController::new()));
-        #[cfg(windows)]
-        let controller = Arc::new(Mutex::new(WindowsSignalController::new()));
-        #[cfg(not(any(unix, windows)))]
-        let controller = Arc::new(Mutex::new(FallbackSignalController::new()));
-
+        let controller = Arc::new(Mutex::new(get_controller!()));
         let barrier = Arc::new(Barrier::new(2));
 
         // Test concurrent DTR operations
@@ -165,54 +121,36 @@ mod signal_control_tests {
         let result1 = handle1.join().unwrap();
         let result2 = handle2.join().unwrap();
 
-        // Both operations should complete successfully
-        assert!(result1 || result2); // At least one should succeed
+        // Both operations must complete successfully under mutex protection
+        assert!(result1 && result2, "Both concurrent operations should succeed");
     }
 
     #[test]
     fn test_error_recovery() {
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
-        #[cfg(unix)]
-        use serial_cli::serial_core::signals::UnixSignalController;
-        #[cfg(windows)]
-        use serial_cli::serial_core::signals::WindowsSignalController;
+        let mut controller = get_controller!();
 
-        #[cfg(unix)]
-        let mut controller = UnixSignalController::new();
-        #[cfg(windows)]
-        let mut controller = WindowsSignalController::new();
-        #[cfg(not(any(unix, windows)))]
-        let mut controller = FallbackSignalController::new();
-
-        // Test that failed operations don't corrupt state
+        // Test that state changes are handled correctly
         let initial_dtr = controller.get_dtr().unwrap();
         let initial_rts = controller.get_rts().unwrap();
 
-        // Try invalid operations (will be caught as errors)
-        let _ = controller.set_dtr(!initial_dtr);
-        let _ = controller.set_rts(!initial_rts);
+        // Test state transitions with proper error handling
+        let dtr_result = controller.set_dtr(!initial_dtr);
+        let rts_result = controller.set_rts(!initial_rts);
 
-        // State should be consistent
-        assert_ne!(controller.get_dtr().unwrap(), initial_dtr);
-        assert_ne!(controller.get_rts().unwrap(), initial_rts);
+        // Verify operations succeeded and state changed
+        assert!(dtr_result.is_ok(), "DTR state change should succeed");
+        assert!(rts_result.is_ok(), "RTS state change should succeed");
+
+        // Verify state actually changed
+        assert_ne!(controller.get_dtr().unwrap(), initial_dtr,
+            "DTR state should have changed");
+        assert_ne!(controller.get_rts().unwrap(), initial_rts,
+            "RTS state should have changed");
     }
 
     #[test]
     fn test_platform_specific_behavior() {
-        #[cfg(not(any(unix, windows)))]
-        use serial_cli::serial_core::signals::FallbackSignalController;
-        #[cfg(unix)]
-        use serial_cli::serial_core::signals::UnixSignalController;
-        #[cfg(windows)]
-        use serial_cli::serial_core::signals::WindowsSignalController;
-
-        #[cfg(unix)]
-        let controller = UnixSignalController::new();
-        #[cfg(windows)]
-        let controller = WindowsSignalController::new();
-        #[cfg(not(any(unix, windows)))]
-        let controller = FallbackSignalController::new();
+        let controller = get_controller!();
 
         // Test platform-specific behavior
         #[cfg(unix)]

@@ -29,8 +29,8 @@ hot_reload = false
 [protocols.custom.test_valid]
 name = "test_valid"
 path = "tests/fixtures/protocols/test_valid.lua"
-version = 10
-loaded_at = "2026-05-10T17:21:49.753463+08:00"
+version = 13
+loaded_at = "2026-05-10T22:24:46.798363+08:00"
 
 [virtual_ports]
 backend = "pty"

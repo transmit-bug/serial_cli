@@ -32,7 +32,9 @@ fn test_protocol_api_integration() {
     let script = r#"
         local protocols = protocol_list()
         assert(type(protocols) == "table")
-        assert(#protocols >= 4, "Should have at least 4 protocols")
+
+        -- Verify minimum expected protocols (more may exist)
+        assert(#protocols >= 4, "Should have at least 4 built-in protocols")
 
         local encoded = protocol_encode("line", "test")
         assert(type(encoded) == "string")

@@ -25,7 +25,7 @@ static VIRTUAL_REGISTRY: Lazy<Arc<RwLock<HashMap<String, VirtualSerialPair>>>> =
 /// Returns [`SerialError::VirtualPort`] if the requested pair is not found
 /// or if the backend is unavailable on the current platform.
 /// Returns [`SerialError::UnsupportedBackend`] for invalid backend type strings.
-pub async fn handle_virtual_command(cmd: VirtualCommand) -> Result<()> {
+pub async fn handle_virtual_command(cmd: VirtualCommand, json_output: bool) -> Result<()> {
     match cmd {
         VirtualCommand::Create {
             backend,

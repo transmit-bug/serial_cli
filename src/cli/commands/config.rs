@@ -12,13 +12,13 @@ use crate::error::Result;
 ///
 /// Propagates errors from [`ConfigManager`] operations (validation failures,
 /// I/O errors, invalid key/value pairs).
-pub fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
+pub fn handle_config_command(cmd: ConfigCommand, json_output: bool) -> Result<()> {
     let config_manager = ConfigManager::load_with_fallback();
 
     match cmd {
         ConfigCommand::Show { json } => {
             let config = config_manager.get();
-            if json {
+            if json || json_output {
                 println!("{}", serde_json::to_string_pretty(&config).unwrap());
             } else {
                 println!("Current configuration:");

@@ -54,15 +54,18 @@ async fn test_concurrent_task_submission() {
         handle.await.unwrap();
     }
 
-    // Verify all tasks were submitted
+    // Verify all tasks were submitted (some may have started executing)
     let expected_total = num_threads * tasks_per_thread;
     let actual_pending = executor_clone2.pending_count().await;
+    let actual_completed = executor_clone2.get_completed().await.len();
+    let actual_running = executor_clone2.running_count().await;
 
-    assert!(
-        actual_pending >= expected_total / 3, // Some may have started executing
-        "Expected at least {} pending tasks, got {}",
-        expected_total / 3,
-        actual_pending
+    // All tasks should be accounted for (pending + completed + running)
+    let total_accounted = actual_pending + actual_completed + actual_running;
+    assert_eq!(
+        total_accounted, expected_total,
+        "All tasks should be accounted for: expected {}, got pending={} completed={} running={}",
+        expected_total, actual_pending, actual_completed, actual_running
     );
 
     executor_clone1.stop().await.unwrap();
@@ -134,7 +137,7 @@ async fn test_high_load_task_execution() {
         executor.submit(task, TaskPriority::Normal).await.unwrap();
     }
 
-    // Wait for most tasks to complete
+    // Wait for tasks to be submitted and start processing
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let completed = executor.get_completed().await;
@@ -143,13 +146,12 @@ async fn test_high_load_task_execution() {
 
     let elapsed = start_time.elapsed();
 
-    // Verify the executor is making progress
-    assert!(
-        completed.len() + running + pending >= num_tasks - 20,
-        "Expected most tasks to be processed, got completed={}, running={}, pending={}",
-        completed.len(),
-        running,
-        pending
+    // Verify all tasks are accounted for (pending, running, or completed)
+    let total_accounted = completed.len() + running + pending;
+    assert_eq!(
+        total_accounted, num_tasks,
+        "All tasks should be accounted for: expected {}, got completed={} running={} pending={}",
+        num_tasks, completed.len(), running, pending
     );
 
     // Verify performance (should not be too slow)
