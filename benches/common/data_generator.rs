@@ -1,35 +1,8 @@
 //! Test data generation utilities
 
-use rand::Rng;
-
-/// Generate random bytes of specified size
-pub fn generate_random_data(size: usize) -> Vec<u8> {
-    let mut data = Vec::with_capacity(size);
-    let mut rng = rand::thread_rng();
-
-    for _ in 0..size {
-        data.push(rng.gen());
-    }
-
-    data
-}
-
 /// Generate repeating pattern data
 pub fn generate_pattern_data(size: usize, pattern: u8) -> Vec<u8> {
     vec![pattern; size]
-}
-
-/// Generate ASCII test data (printable characters)
-pub fn generate_ascii_data(size: usize) -> Vec<u8> {
-    let mut data = Vec::with_capacity(size);
-    let mut rng = rand::thread_rng();
-
-    for _ in 0..size {
-        // Generate printable ASCII (32-126)
-        data.push(32 + rng.gen_range(0..95));
-    }
-
-    data
 }
 
 /// Generate Modbus RTU read request
@@ -86,12 +59,6 @@ pub fn generate_at_response(lines: &[&str]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_generate_random_data() {
-        let data = generate_random_data(100);
-        assert_eq!(data.len(), 100);
-    }
 
     #[test]
     fn test_generate_pattern_data() {
