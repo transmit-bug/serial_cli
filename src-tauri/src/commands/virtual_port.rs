@@ -7,8 +7,8 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use serial_cli::serial_core::{VirtualConfig, VirtualSerialPair};
 use serial_cli::serial_core::backends::BackendType;
+use serial_cli::serial_core::{VirtualConfig, VirtualSerialPair};
 use tauri::{AppHandle, State};
 
 /// Virtual port information for Tauri frontend

@@ -136,18 +136,16 @@ pub fn handle_config_command(cmd: ConfigCommand) -> Result<()> {
                 }
             }
         }
-        ConfigCommand::Reset => {
-            match config_manager.reset() {
-                Ok(_) => {
-                    println!("\u{2713} Configuration reset to defaults");
-                    println!("Note: Use 'config save' to persist changes");
-                }
-                Err(e) => {
-                    eprintln!("\u{2717} Failed to reset configuration: {}", e);
-                    return Err(e);
-                }
+        ConfigCommand::Reset => match config_manager.reset() {
+            Ok(_) => {
+                println!("\u{2713} Configuration reset to defaults");
+                println!("Note: Use 'config save' to persist changes");
             }
-        }
+            Err(e) => {
+                eprintln!("\u{2717} Failed to reset configuration: {}", e);
+                return Err(e);
+            }
+        },
     }
     Ok(())
 }

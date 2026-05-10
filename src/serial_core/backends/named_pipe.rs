@@ -74,8 +74,8 @@ impl NamedPipeBackend {
 
     /// Create a manual-reset event for signaling shutdown.
     fn create_event() -> Result<HANDLE> {
-        use windows::Win32::System::Threading::CreateEventW;
         use windows::core::PCWSTR;
+        use windows::Win32::System::Threading::CreateEventW;
 
         unsafe {
             let event = CreateEventW(None, true, false, PCWSTR::null());
@@ -93,16 +93,13 @@ impl NamedPipeBackend {
     fn accept_pipe_connection(&self, name: &str) -> Result<HANDLE> {
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
-        use windows::Win32::System::Pipes::{
-            ConnectNamedPipe, CreateNamedPipeW, NMPWAIT_USE_DEFAULT_WAIT,
-            PIPE_ACCESS_DUPLEX, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE,
-            PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
-        };
-        use windows::Win32::System::Threading::{
-            CreateEventW, WaitForSingleObject, INFINITE,
-        };
-        use windows::Win32::System::IO::Overlapped;
         use windows::core::PCWSTR;
+        use windows::Win32::System::Pipes::{
+            ConnectNamedPipe, CreateNamedPipeW, NMPWAIT_USE_DEFAULT_WAIT, PIPE_ACCESS_DUPLEX,
+            PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+        };
+        use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
+        use windows::Win32::System::IO::Overlapped;
 
         let wide_name: Vec<u16> = OsStr::new(name)
             .encode_wide()
@@ -164,10 +161,10 @@ impl NamedPipeBackend {
     fn open_client(name: &str) -> Result<HANDLE> {
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
+        use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::{
             CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING,
         };
-        use windows::core::PCWSTR;
 
         let wide_name: Vec<u16> = OsStr::new(name)
             .encode_wide()
@@ -200,18 +197,14 @@ impl NamedPipeBackend {
         use windows::Win32::Storage::FileSystem::ReadFile;
 
         let mut bytes_read: u32 = 0;
-        let result = unsafe {
-            ReadFile(handle, buf, Some(&mut bytes_read), None)
-        };
+        let result = unsafe { ReadFile(handle, buf, Some(&mut bytes_read), None) };
         if result.as_bool() {
             return Ok(bytes_read as usize);
         }
         let err = std::io::Error::last_os_error();
         // On named pipes, we may get ERROR_BROKEN_PIPE (109) or
         // ERROR_INVALID_HANDLE (6) when the other end closes — treat as EOF.
-        if err.raw_os_error() == Some(109)
-            || err.raw_os_error() == Some(6)
-        {
+        if err.raw_os_error() == Some(109) || err.raw_os_error() == Some(6) {
             return Ok(0);
         }
         Err(err)
@@ -222,9 +215,7 @@ impl NamedPipeBackend {
         use windows::Win32::Storage::FileSystem::WriteFile;
 
         let mut bytes_written: u32 = 0;
-        let result = unsafe {
-            WriteFile(handle, buf, Some(&mut bytes_written), None)
-        };
+        let result = unsafe { WriteFile(handle, buf, Some(&mut bytes_written), None) };
         if result.as_bool() {
             return Ok(());
         }
@@ -344,12 +335,7 @@ impl VirtualBackend for NamedPipeBackend {
 
         // Wait for relay to exit.
         if let Some(task) = self.relay_task.take() {
-            match tokio::time::timeout(
-                std::time::Duration::from_millis(500),
-                task,
-            )
-            .await
-            {
+            match tokio::time::timeout(std::time::Duration::from_millis(500), task).await {
                 Ok(_) => tracing::debug!("NamedPipe relay exited gracefully"),
                 Err(_) => {
                     tracing::debug!("NamedPipe relay did not exit within timeout");
@@ -372,9 +358,7 @@ impl NamedPipeBackend {
         stats: Arc<Mutex<BackendStats>>,
         shutdown_event: HANDLE,
     ) {
-        use windows::Win32::System::Threading::{
-            WaitForMultipleObjects, WAIT_OBJECT_0,
-        };
+        use windows::Win32::System::Threading::{WaitForMultipleObjects, WAIT_OBJECT_0};
 
         let mut buf = vec![0u8; 8192];
 
@@ -424,13 +408,7 @@ impl NamedPipeBackend {
         let t2 = std::thread::spawn(move || {
             let mut buf = buf;
             loop {
-                let wait = unsafe {
-                    WaitForMultipleObjects(
-                        &[shutdown_event],
-                        false,
-                        0,
-                    )
-                };
+                let wait = unsafe { WaitForMultipleObjects(&[shutdown_event], false, 0) };
                 if wait == WAIT_OBJECT_0 {
                     break;
                 }
