@@ -1,0 +1,15 @@
+{
+  "$schema": "https://tauri.app/schemas/2.0/capability.json",
+  "identifier": "default",
+  "description": "Default permissions for the application",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:default",
+    "core:path:default",
+    "core:window:default",
+    "core:app:default",
+    "core:resources:default",
+    "core:webview:default"
+  ]
+}

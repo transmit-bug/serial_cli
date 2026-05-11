@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 pub struct LuaBindings {
     lua: Lua,
     port_manager: Option<Arc<Mutex<PortManager>>>,
-    runtime: RefCell<Option<Arc<tokio::runtime::Runtime>>>,
+    runtime_handle: RefCell<Option<tokio::runtime::Handle>>,
 }
 
 impl LuaBindings {
@@ -23,7 +23,7 @@ impl LuaBindings {
         Ok(Self {
             lua,
             port_manager: None,
-            runtime: RefCell::new(None),
+            runtime_handle: RefCell::new(None),
         })
     }
 
@@ -241,10 +241,22 @@ impl LuaBindings {
 
     /// Ensure runtime is initialized
     fn ensure_runtime(&self) -> Result<()> {
-        if self.runtime.borrow().is_none() {
-            let rt = tokio::runtime::Runtime::new()
-                .map_err(|e| SerialError::Config(format!("Failed to create runtime: {}", e)))?;
-            *self.runtime.borrow_mut() = Some(Arc::new(rt));
+        if self.runtime_handle.borrow().is_none() {
+            // Try to get current runtime handle, or create a new runtime
+            let handle = tokio::runtime::Handle::try_current()
+                .ok_or_else(|| {
+                    // No current runtime, create a new one and get its handle
+                    tokio::runtime::Runtime::new()
+                        .map(|rt| {
+                            *self.runtime_handle.borrow_mut() = Some(rt.handle());
+                            rt
+                        })
+                        .map_err(|e| SerialError::Config(format!("Failed to create runtime: {}", e)))
+                })?;
+
+            if self.runtime_handle.borrow().is_none() {
+                *self.runtime_handle.borrow_mut() = Some(handle);
+            }
         }
         Ok(())
     }
@@ -258,11 +270,11 @@ impl LuaBindings {
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self
-            .runtime
+        let handle = self
+            .runtime_handle
             .borrow()
             .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
             .clone();
 
         let open = self.lua.create_function(
@@ -293,7 +305,7 @@ impl LuaBindings {
                     _ => crate::serial_core::FlowControl::None,
                 };
 
-                let pm_guard = runtime.block_on(port_manager.lock());
+                let pm_guard = handle.block_on(port_manager.lock());
                 let config = crate::serial_core::SerialConfig {
                     baudrate,
                     databits,
@@ -336,7 +348,7 @@ impl LuaBindings {
             .clone();
 
         let close = self.lua.create_function(move |_, port_id: String| {
-            let pm_guard = runtime.block_on(port_manager.lock());
+            let pm_guard = handle.block_on(port_manager.lock());
 
             runtime
                 .block_on(pm_guard.close_port(&port_id))
@@ -368,13 +380,13 @@ impl LuaBindings {
         let send = self
             .lua
             .create_function(move |_, (port_id, data): (String, String)| {
-                let pm_guard = runtime.block_on(port_manager.lock());
+                let pm_guard = handle.block_on(port_manager.lock());
 
-                let port_handle = runtime.block_on(pm_guard.get_port(&port_id)).map_err(
+                let port_handle = handle.block_on(pm_guard.get_port(&port_id)).map_err(
                     |e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()),
                 )?;
 
-                let mut handle = runtime.block_on(port_handle.lock());
+                let mut handle = handle.block_on(port_handle.lock());
                 let bytes =
                     handle
                         .write(data.as_bytes())
@@ -408,9 +420,9 @@ impl LuaBindings {
         let recv = self
             .lua
             .create_function(move |_, (port_id, timeout_ms): (String, u64)| {
-                let pm_guard = runtime.block_on(port_manager.lock());
+                let pm_guard = handle.block_on(port_manager.lock());
 
-                let port_handle = runtime.block_on(pm_guard.get_port(&port_id)).map_err(
+                let port_handle = handle.block_on(pm_guard.get_port(&port_id)).map_err(
                     |e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()),
                 )?;
 
@@ -474,7 +486,7 @@ impl LuaBindings {
             .clone();
 
         let list = self.lua.create_function(move |lua, ()| {
-            let pm_guard = runtime.block_on(port_manager.lock());
+            let pm_guard = handle.block_on(port_manager.lock());
 
             let ports = pm_guard
                 .list_ports()

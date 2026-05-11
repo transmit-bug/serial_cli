@@ -71,7 +71,7 @@ export function ScriptPanel() {
     }
   }, [])
 
-  const createNewScript = () => {
+  const createNewScript = useCallback(() => {
     const newScript: ScriptFile = {
       id: Date.now().toString(),
       name: `untitled-${scripts.length + 1}.lua`,
@@ -85,7 +85,7 @@ export function ScriptPanel() {
     setScriptContent(newScript.content)
     setError(null) // Clear any previous errors
     setErrorDetails(null)
-  }
+  }, [scripts])
 
   const runCurrentScript = async () => {
     if (!scriptContent.trim()) {
