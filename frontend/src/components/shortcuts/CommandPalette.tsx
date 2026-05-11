@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigation } from '@/contexts/NavigationContext'
+import { useNavigationStore } from '@/stores'
 import { usePorts } from '@/contexts/PortContext'
 import { useData } from '@/contexts/DataContext'
 import { useShortcuts } from '@/contexts/ShortcutContext'
@@ -17,7 +17,7 @@ interface Command {
 }
 
 export function CommandPalette() {
-  const { currentView, setCurrentView } = useNavigation()
+  const { currentView, navigateTo } = useNavigationStore()
   const { listPorts } = usePorts()
   const { clearPackets } = useData()
   const { isCommandPaletteOpen, closeCommandPalette, openShortcutsHelp } = useShortcuts()
@@ -34,7 +34,7 @@ export function CommandPalette() {
       icon: '🔌',
       shortcut: '⌘1',
       category: 'Navigation',
-      action: () => setCurrentView('ports'),
+      action: () => navigateTo('ports'),
     },
     {
       id: 'nav-data',
@@ -42,7 +42,7 @@ export function CommandPalette() {
       icon: '📊',
       shortcut: '⌘2',
       category: 'Navigation',
-      action: () => setCurrentView('data'),
+      action: () => navigateTo('data'),
     },
     {
       id: 'nav-scripts',
@@ -50,7 +50,7 @@ export function CommandPalette() {
       icon: '📜',
       shortcut: '⌘3',
       category: 'Navigation',
-      action: () => setCurrentView('scripts'),
+      action: () => navigateTo('scripts'),
     },
     {
       id: 'nav-protocols',
@@ -58,7 +58,7 @@ export function CommandPalette() {
       icon: '🔧',
       shortcut: '⌘4',
       category: 'Navigation',
-      action: () => setCurrentView('protocols'),
+      action: () => navigateTo('protocols'),
     },
     {
       id: 'nav-settings',
@@ -66,7 +66,7 @@ export function CommandPalette() {
       icon: '⚙️',
       shortcut: '⌘5',
       category: 'Navigation',
-      action: () => setCurrentView('settings'),
+      action: () => navigateTo('settings'),
     },
     // Ports
     {
@@ -76,7 +76,7 @@ export function CommandPalette() {
       shortcut: '⌘R',
       category: 'Ports',
       action: () => {
-        setCurrentView('ports')
+        navigateTo('ports')
         listPorts()
       },
     },
@@ -97,7 +97,7 @@ export function CommandPalette() {
       shortcut: '⌘N',
       category: 'Scripts',
       action: () => {
-        setCurrentView('scripts')
+        navigateTo('scripts')
         createNewScript()
       },
     },

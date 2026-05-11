@@ -2,7 +2,6 @@ import React from 'react'
 import { PortProvider } from './contexts/PortContext'
 import { VirtualPortProvider } from './contexts/VirtualPortContext'
 import { DataProvider } from './contexts/DataContext'
-import { ToastProvider } from './contexts/ToastContext'
 import { ShortcutProvider } from './contexts/ShortcutContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { ScriptActionProvider } from './contexts/ScriptActionContext'
@@ -65,23 +64,21 @@ function AppContent() {
 function App() {
   return (
     <React.StrictMode>
-      <ToastProvider>
-        <NotificationProvider>
-          <ShortcutProvider>
-            <ScriptActionProvider>
-              <SettingsProvider>
-                <PortProvider>
-                  <VirtualPortProvider>
-                    <DataProvider>
-                      <AppContent />
-                    </DataProvider>
-                  </VirtualPortProvider>
-                </PortProvider>
-              </SettingsProvider>
-            </ScriptActionProvider>
-          </ShortcutProvider>
-        </NotificationProvider>
-      </ToastProvider>
+      <NotificationProvider>
+        <ShortcutProvider>
+          <ScriptActionProvider>
+            <SettingsProvider>
+              <PortProvider>
+                <VirtualPortProvider>
+                  <DataProvider>
+                    <AppContent />
+                  </DataProvider>
+                </VirtualPortProvider>
+              </PortProvider>
+            </SettingsProvider>
+          </ScriptActionProvider>
+        </ShortcutProvider>
+      </NotificationProvider>
     </React.StrictMode>
   )
 }

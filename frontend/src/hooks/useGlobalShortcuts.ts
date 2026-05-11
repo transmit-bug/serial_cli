@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useNavigation } from '@/contexts/NavigationContext'
+import { useNavigationStore } from '@/stores'
 import { usePorts } from '@/contexts/PortContext'
 import { useData } from '@/contexts/DataContext'
 import { useShortcuts } from '@/contexts/ShortcutContext'
@@ -8,7 +8,7 @@ import { useScriptActions } from '@/contexts/ScriptActionContext'
 import { useWindow } from '@/hooks/useWindow'
 
 export function useGlobalShortcuts() {
-  const { currentView, setCurrentView } = useNavigation()
+  const { currentView, navigateTo } = useNavigationStore()
   const { listPorts } = usePorts()
   const { clearPackets } = useData()
   const { openCommandPalette, openShortcutsHelp } = useShortcuts()
@@ -24,23 +24,27 @@ export function useGlobalShortcuts() {
   // Navigation: Cmd/Ctrl + 1-5
   useHotkeys('mod+1', (e) => {
     e.preventDefault()
-    setCurrentView('ports')
+    navigateTo('ports')
   })
   useHotkeys('mod+2', (e) => {
     e.preventDefault()
-    setCurrentView('data')
+    navigateTo('virtual')
   })
   useHotkeys('mod+3', (e) => {
     e.preventDefault()
-    setCurrentView('scripts')
+    navigateTo('data')
   })
   useHotkeys('mod+4', (e) => {
     e.preventDefault()
-    setCurrentView('protocols')
+    navigateTo('scripts')
   })
   useHotkeys('mod+5', (e) => {
     e.preventDefault()
-    setCurrentView('settings')
+    navigateTo('protocols')
+  })
+  useHotkeys('mod+6', (e) => {
+    e.preventDefault()
+    navigateTo('settings')
   })
 
   // Ports: Cmd/Ctrl + R (only when in ports view or global)
@@ -54,7 +58,7 @@ export function useGlobalShortcuts() {
   // Scripts: Cmd/Ctrl + N
   useHotkeys('mod+n', (e) => {
     e.preventDefault()
-    setCurrentView('scripts')
+    navigateTo('scripts')
     createNewScript()
   })
 
@@ -75,7 +79,7 @@ export function useGlobalShortcuts() {
   // Settings: Cmd/Ctrl + ,
   useHotkeys('mod+,', (e) => {
     e.preventDefault()
-    setCurrentView('settings')
+    navigateTo('settings')
   })
 
   // Shortcuts Help: Cmd/Ctrl + /

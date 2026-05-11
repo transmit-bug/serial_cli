@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type View = 'terminal' | 'virtual' | 'scripts' | 'protocols' | 'settings'
+export type View = 'ports' | 'data' | 'scripts' | 'protocols' | 'settings' | 'virtual' | 'terminal'
 
 interface NavigationState {
   currentView: View
