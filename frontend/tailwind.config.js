@@ -8,6 +8,40 @@ export default {
   theme: {
     extend: {
       colors: {
+        // shadcn/ui semantic colors (mapped to Cyber-Industrial theme)
+        primary: {
+          DEFAULT: '#00ff41',
+          foreground: '#000000',
+        },
+        secondary: {
+          DEFAULT: '#18181b',
+          foreground: '#fafafa',
+        },
+        destructive: {
+          DEFAULT: '#ff4757',
+          foreground: '#fafafa',
+        },
+        muted: {
+          DEFAULT: '#18181b',
+          foreground: '#a0a0a8',
+        },
+        accent: {
+          DEFAULT: '#00ff41',
+          foreground: '#000000',
+        },
+        popover: {
+          DEFAULT: '#0d0d0f',
+          foreground: '#fafafa',
+        },
+        card: {
+          DEFAULT: '#0d0d0f',
+          foreground: '#fafafa',
+        },
+        border: 'rgba(255, 255, 255, 0.1)',
+        input: 'rgba(255, 255, 255, 0.1)',
+        ring: '#00ff41',
+
+        // Original Cyber-Industrial colors
         signal: {
           DEFAULT: '#00ff41',
           dim: 'rgba(0, 255, 65, 0.08)',
@@ -32,7 +66,7 @@ export default {
           elevated: '#1c1c1f',
           floating: '#222226',
         },
-        border: {
+        borderCustom: {
           DEFAULT: 'rgba(255, 255, 255, 0.1)',
           subtle: 'rgba(255, 255, 255, 0.06)',
           strong: 'rgba(255, 255, 255, 0.15)',
@@ -74,6 +108,8 @@ export default {
         'lg': '6px',
         'xl': '12px',
         'full': '9999px',
+        // shadcn/ui radius variable
+        'radiust': '0.25rem',
       },
       boxShadow: {
         'sm': '0 1px 2px rgba(0, 0, 0, 0.4)',
@@ -103,5 +139,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate")],
 }
