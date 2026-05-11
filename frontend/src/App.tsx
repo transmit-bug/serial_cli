@@ -1,7 +1,6 @@
 import React from 'react'
 import { PortProvider } from './contexts/PortContext'
 import { VirtualPortProvider } from './contexts/VirtualPortContext'
-import { DataProvider } from './contexts/DataContext'
 import { ShortcutProvider } from './contexts/ShortcutContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { ScriptActionProvider } from './contexts/ScriptActionContext'
@@ -68,9 +67,7 @@ function App() {
             <SettingsProvider>
               <PortProvider>
                 <VirtualPortProvider>
-                  <DataProvider>
-                    <AppContent />
-                  </DataProvider>
+                  <AppContent />
                 </VirtualPortProvider>
               </PortProvider>
             </SettingsProvider>

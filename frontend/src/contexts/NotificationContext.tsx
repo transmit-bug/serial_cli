@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import { useToast as useToastUI } from './ToastContext'
-import type { ToastType } from './ToastContext'
+import { toast } from 'sonner'
 import { isTauri } from '@/lib/utils'
 import { settingsStorage } from '@/lib/storage'
+
+export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 export interface SystemNotificationOptions {
   title: string
@@ -51,7 +52,6 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const toast = useToastUI()
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS)
   const [permission, setPermission] = useState<NotificationPermission>('default')
 
@@ -145,9 +145,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
 
     // Also show in-app toast for all platforms
-    const toastFn = toast.toast[options.type || 'info']
+    const toastFn = {
+      success: toast.success,
+      error: toast.error,
+      warning: toast.warning,
+      info: toast.info,
+    }[options.type || 'info']
     toastFn(`${options.title}: ${options.body}`)
-  }, [settings, permission, requestNotificationPermission, toast])
+  }, [settings, permission, requestNotificationPermission])
 
   const notify = {
     success: (message: string, title = 'Success') =>

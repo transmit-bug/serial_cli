@@ -1,5 +1,5 @@
 import { usePorts } from '@/contexts/PortContext'
-import { useData } from '@/contexts/DataContext'
+import { useDataStore } from '@/stores'
 import { Activity, Radio, Zap } from 'lucide-react'
 import { useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
@@ -8,19 +8,19 @@ const TRAFFIC_TIMEOUT_MS = 3000
 
 export function TopBar() {
   const { availablePorts, activePorts } = usePorts()
-  const { packets } = useData()
+  const { rxPackets } = useDataStore()
   const [dataFlowRate, setDataFlowRate] = useState(0)
   const [lastPacketCount, setLastPacketCount] = useState(0)
   const [isTrafficActive, setIsTrafficActive] = useState(false)
   const trafficTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const activePortsCount = availablePorts.length
-  const totalPackets = packets.length
+  const totalPackets = rxPackets.length
 
   // Calculate data flow rate (packets per second)
   useEffect(() => {
     const interval = setInterval(() => {
-      const currentCount = packets.length
+      const currentCount = rxPackets.length
       const packetsPerSecond = currentCount - lastPacketCount
       setDataFlowRate(packetsPerSecond)
       setLastPacketCount(currentCount)
@@ -36,7 +36,7 @@ export function TopBar() {
       clearInterval(interval)
       if (trafficTimerRef.current) clearTimeout(trafficTimerRef.current)
     }
-  }, [packets.length, lastPacketCount])
+  }, [rxPackets.length, lastPacketCount])
 
   return (
     <header className="h-14 border-b border-border bg-bg-deep flex items-center justify-between px-6">

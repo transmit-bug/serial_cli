@@ -1,8 +1,7 @@
 import { useEffect } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useNavigationStore } from '@/stores'
+import { useNavigationStore, useDataStore } from '@/stores'
 import { usePorts } from '@/contexts/PortContext'
-import { useData } from '@/contexts/DataContext'
 import { useShortcuts } from '@/contexts/ShortcutContext'
 import { useScriptActions } from '@/contexts/ScriptActionContext'
 import { useWindow } from '@/hooks/useWindow'
@@ -10,7 +9,7 @@ import { useWindow } from '@/hooks/useWindow'
 export function useGlobalShortcuts() {
   const { currentView, navigateTo } = useNavigationStore()
   const { listPorts } = usePorts()
-  const { clearPackets } = useData()
+  const { clearPackets } = useDataStore()
   const { openCommandPalette, openShortcutsHelp } = useShortcuts()
   const { createNewScript, runCurrentScript } = useScriptActions()
   const { hideWindow } = useWindow()

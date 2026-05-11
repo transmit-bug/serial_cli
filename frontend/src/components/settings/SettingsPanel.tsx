@@ -5,7 +5,7 @@ import { useState, useRef, useMemo } from 'react'
 import { RotateCcw, Check, Download, Upload, Settings, Radio, BarChart3, Bell } from 'lucide-react'
 import { exportSettings, importSettings } from '@/lib/storage'
 import { useSettings } from '@/contexts/SettingsContext'
-import { useToast } from '@/contexts/ToastContext'
+import { toast } from 'sonner'
 
 type Tab = 'general' | 'serial' | 'data' | 'notifications'
 
@@ -26,7 +26,6 @@ interface DataConfig {
 
 export function SettingsPanel() {
   const { settings, updateSettings, resetSettings } = useSettings()
-  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<Tab>('general')
   const [isImporting, setIsImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -57,7 +56,7 @@ export function SettingsPanel() {
 
   const resetToDefaults = () => {
     resetSettings()
-    toast.info('已恢复默认设置')
+    toast('已恢复默认设置')
   }
 
   const handleExport = () => {
