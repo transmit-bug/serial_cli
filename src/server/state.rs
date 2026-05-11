@@ -186,3 +186,125 @@ pub fn default_log_path() -> PathBuf {
         PathBuf::from("/tmp/serial-cli-server.log")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::SystemTime;
+
+    fn create_test_connection(id: &str) -> ConnectionContext {
+        ConnectionContext {
+            connection_id: id.to_string(),
+            port_id: None,
+            protocol_name: None,
+            created_at: SystemTime::now(),
+            last_activity: SystemTime::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_max_connections_limit() {
+        let config = ServerConfig {
+            max_connections: 2,
+            ..Default::default()
+        };
+        let state = ServerState::new(config).await;
+
+        // First connection should succeed
+        let ctx1 = create_test_connection("conn1");
+        assert!(state.add_connection(ctx1).await.is_ok());
+
+        // Second connection should succeed
+        let ctx2 = create_test_connection("conn2");
+        assert!(state.add_connection(ctx2).await.is_ok());
+
+        // Third connection should fail (max reached)
+        let ctx3 = create_test_connection("conn3");
+        assert!(state.add_connection(ctx3).await.is_err());
+
+        // Verify we have exactly 2 connections
+        let stats = state.connection_stats().await;
+        assert_eq!(stats.active, 2);
+        assert_eq!(stats.max, 2);
+    }
+
+    #[tokio::test]
+    async fn test_connection_add_remove() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+
+        let ctx = create_test_connection("test_conn");
+
+        // Add connection
+        assert!(state.add_connection(ctx.clone()).await.is_ok());
+
+        // Verify it exists
+        let connections = state.connections.read().await;
+        assert!(connections.contains_key("test_conn"));
+        drop(connections);
+
+        // Remove connection
+        let removed = state.remove_connection("test_conn").await;
+        assert!(removed.is_some());
+
+        // Verify it's gone
+        let connections = state.connections.read().await;
+        assert!(!connections.contains_key("test_conn"));
+    }
+
+    #[tokio::test]
+    async fn test_idle_connection_cleanup() {
+        let config = ServerConfig {
+            max_connections: 10,
+            idle_timeout_secs: 1, // 1 second timeout for testing
+            ..Default::default()
+        };
+        let state = ServerState::new(config).await;
+
+        // Add an old connection (2 seconds ago)
+        let mut old_ctx = create_test_connection("old_conn");
+        old_ctx.last_activity = SystemTime::now()
+            .checked_sub(std::time::Duration::from_secs(2))
+            .unwrap();
+
+        // Add a recent connection
+        let recent_ctx = create_test_connection("recent_conn");
+
+        assert!(state.add_connection(old_ctx).await.is_ok());
+        assert!(state.add_connection(recent_ctx).await.is_ok());
+
+        // Run cleanup
+        let removed = state.cleanup_idle_connections().await;
+
+        // Only the old connection should be removed
+        assert_eq!(removed.len(), 1);
+        assert_eq!(removed[0], "old_conn");
+
+        // Verify only recent connection remains
+        let connections = state.connections.read().await;
+        assert_eq!(connections.len(), 1);
+        assert!(connections.contains_key("recent_conn"));
+    }
+
+    #[tokio::test]
+    async fn test_update_activity() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+
+        let ctx = create_test_connection("test_conn");
+        let original_activity = ctx.last_activity;
+
+        assert!(state.add_connection(ctx).await.is_ok());
+
+        // Wait a bit
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+        // Update activity
+        state.update_activity("test_conn").await;
+
+        // Verify activity was updated
+        let connections = state.connections.read().await;
+        let updated_ctx = connections.get("test_conn").unwrap();
+        assert!(updated_ctx.last_activity > original_activity);
+    }
+}

@@ -502,6 +502,7 @@ fn format_timestamp(time: SystemTime) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::server::state::ServerConfig;
 
     #[test]
     fn test_hex_encode() {
@@ -527,5 +528,79 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains(r#""jsonrpc":"2.0""#));
         assert!(json.contains(r#""result""#));
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_parse_error() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        // Invalid JSON should return parse error
+        let response = dispatcher.handle_request("invalid json{{{").await;
+        assert!(response.contains(r#""code":-32700"#));
+        assert!(response.contains("Parse error"));
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_invalid_version() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        // Invalid JSON-RPC version
+        let request = r#"{"jsonrpc":"1.0","method":"port_list","id":1}"#;
+        let response = dispatcher.handle_request(request).await;
+        assert!(response.contains(r#""code":-32600"#));
+        assert!(response.contains("Invalid Request"));
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_method_not_found() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        // Non-existent method
+        let request = r#"{"jsonrpc":"2.0","method":"nonexistent_method","id":1}"#;
+        let response = dispatcher.handle_request(request).await;
+        assert!(response.contains(r#""code":-32601"#));
+        assert!(response.contains("Method not found"));
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_port_list_format() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        // Valid port_list call
+        let request = r#"{"jsonrpc":"2.0","method":"port_list","params":{},"id":1}"#;
+        let response = dispatcher.handle_request(request).await;
+
+        // Debug: print response to see what we got
+        eprintln!("Response: {}", response);
+
+        // Should be valid JSON-RPC 2.0 response
+        assert!(response.contains(r#""jsonrpc":"2.0""#));
+        assert!(response.contains(r#""id":1"#));
+
+        // Response should be valid JSON (can parse)
+        let _: serde_json::Value = serde_json::from_str(&response)
+            .expect("Response should be valid JSON");
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_response_preserves_id() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        // Test with custom ID
+        let request = r#"{"jsonrpc":"2.0","method":"port_list","params":{},"id":"test-id-123"}"#;
+        let response = dispatcher.handle_request(request).await;
+
+        // Response should preserve the ID
+        assert!(response.contains(r#""id":"test-id-123""#));
     }
 }

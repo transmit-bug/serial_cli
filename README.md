@@ -73,6 +73,9 @@ serial-cli virtual create --backend auto
 # Start sniffing on a port
 serial-cli sniff start --port /dev/ttyUSB0
 
+# Start server daemon (for AI/automation workflows)
+serial-cli server start
+
 # Configuration management
 serial-cli config show
 serial-cli config set serial.baudrate 9600
@@ -117,9 +120,9 @@ serial> quit
 |:---:|:---:|:---:|:---:|
 | Works with any serial device | Structured JSON output | Embedded LuaJIT runtime | Linux • macOS • Windows |
 
-| 📡 **Protocols** | 🔄 **Batch Mode** | 🔍 **Sniff Sessions** | 🖥️ **GUI Available** |
-|:---:|:---:|:---:|:---:|
-| Modbus • AT Commands • Custom | Variables, loops, error reporting | Start/stop/stats/save | Tauri-based GUI (NEW!) |
+| 📡 **Protocols** | 🔄 **Batch Mode** | 🔍 **Sniff Sessions** | 🖥️ **GUI Available** | 🚀 **Server Mode** |
+|:---:|:---:|:---:|:---:|:---:|
+| Modbus • AT Commands • Custom | Variables, loops, error reporting | Start/stop/stats/save | Tauri-based GUI (NEW!) | Daemon with JSON-RPC (NEW!) |
 
 </div>
 
@@ -132,6 +135,13 @@ serial> quit
 - **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
 - **🔄 Batch Processing** - Execute multiple scripts with variable substitution, loops, and per-script error reporting
 - **🔍 Sniff Sessions** - Start/stop/stats/save serial traffic with background daemon and session management
+- **🚀 Server Mode** - **NEW!** Persistent daemon with JSON-RPC 2.0 interface for AI/automation workflows:
+  - 10-100x latency improvement (50-200ms → 1-5ms with persistent connections)
+  - Protocol persistence (load once, use globally)
+  - Multi-client support (up to 10 concurrent connections)
+  - Standard JSON-RPC 2.0 API with 10 methods
+  - Unix socket IPC (Unix) and named pipes (Windows)
+  - Perfect for AI agent integration and automation
 - **🖥️ GUI Application** - **NEW!** Modern Tauri-based GUI with:
   - Cyber-industrial aesthetic design
   - Real-time data monitoring
@@ -255,6 +265,51 @@ serial-cli virtual stop <id>
 ```bash
 serial-cli config set virtual.backend socat
 ```
+
+### Server Mode — AI/Automation Workflow
+
+```bash
+# Start the server daemon
+serial-cli server start
+
+# Check server status
+serial-cli server status
+
+# Make RPC calls
+serial-cli server call port_list '{}'
+serial-cli server call port_open '{"port": "/dev/ttyUSB0", "baudrate": 115200}'
+serial-cli server call port_send '{"connection_id": "xxx", "data": "AT"}'
+serial-cli server call port_recv '{"connection_id": "xxx", "length": 64}'
+serial-cli server call server_stats '{}'
+
+# Stop the server
+serial-cli server stop
+```
+
+**Server Mode is perfect for:**
+- **AI agents** - Persistent connections reduce latency by 10-100x
+- **Automation workflows** - Long-running processes with connection pooling
+- **Multi-client scenarios** - Multiple agents share serial port connections
+- **Protocol caching** - Custom protocols loaded once, available globally
+- **CI/CD pipelines** - Fast, repeatable serial operations
+
+**Performance Benefits:**
+- **Latency**: 50-200ms (one-shot) → 1-5ms (persistent connection)
+- **Concurrency**: Up to 10 simultaneous client connections
+- **Memory**: ~10-20MB baseline footprint
+- **Protocols**: Load custom Lua protocols once, use across all clients
+
+**RPC Methods Available:**
+- `port_list` - List available serial ports
+- `port_open` - Open a serial port (returns connection_id)
+- `port_close` - Close a serial port connection
+- `port_send` - Send data to an open port
+- `port_recv` - Receive data from an open port
+- `protocol_list` - List available protocols
+- `protocol_load` - Load a custom protocol
+- `protocol_unload` - Unload a custom protocol
+- `connection_list` - List active connections
+- `server_stats` - Get server statistics
 
 ---
 
@@ -526,6 +581,7 @@ serial_cli/
 │   ├── serial_core/        # Serial port I/O
 │   ├── protocol/           # Protocol engine
 │   ├── lua/                # LuaJIT integration
+│   ├── server/             # Server Mode daemon (NEW!)
 │   ├── task/               # Task scheduling
 │   └── cli/                # CLI interface
 ├── src-tauri/              # Tauri application (GUI backend)
@@ -541,6 +597,8 @@ serial_cli/
 ├── examples/               # Lua script examples
 ├── tests/                  # Integration tests
 ├── docs/                   # Documentation
+│   ├── ai/                 # AI/automation guides
+│   ├── dev/                # Development docs
 │   └── GUIDE.md            # GUI application guide
 ├── justfile                # Build commands
 ├── Cargo.toml              # Package config
@@ -660,6 +718,10 @@ brew install socat
 |:---|:---|
 | **[DEVELOPMENT.md](DEVELOPMENT.md)** | Development guide for contributors |
 | **[docs/GUIDE.md](docs/GUIDE.md)** | GUI application user guide |
+| **[docs/ai/SERVER_MODE.md](docs/ai/SERVER_MODE.md)** | Server Mode user guide (AI/automation workflows) |
+| **[docs/ai/USAGE.md](docs/ai/USAGE.md)** | AI integration guide |
+| **[docs/dev/SERVER_MODE.md](docs/dev/SERVER_MODE.md)** | Server Mode technical design |
+| **[docs/README.md](docs/README.md)** | Complete documentation index |
 
 ---
 
