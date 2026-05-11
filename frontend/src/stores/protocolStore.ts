@@ -1,14 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-
-// TODO: Import types from existing code
-export interface ProtocolInfo {
-  name: string
-  version: string
-  description: string
-  author: string
-  enabled: boolean
-}
+import { invoke } from '@tauri-apps/api/core'
+import type { ProtocolInfo } from '@/types/tauri'
 
 interface ProtocolState {
   protocols: ProtocolInfo[]
@@ -22,6 +15,7 @@ interface ProtocolState {
   enableProtocol: (name: string) => Promise<void>
   disableProtocol: (name: string) => Promise<void>
   reloadProtocol: (name: string) => Promise<void>
+  clearError: () => void
 }
 
 export const useProtocolStore = create<ProtocolState>()(
@@ -32,48 +26,58 @@ export const useProtocolStore = create<ProtocolState>()(
     loading: false,
     error: null,
 
-    // Actions (TODO: Implement in Phase 2)
+    // Load all protocols
     loadProtocols: async () => {
       set({ loading: true })
       try {
-        // TODO: Invoke Tauri command
-        // const protocols = await invoke('list_protocols')
-        set({ loading: false })
+        const protocols = await invoke<ProtocolInfo[]>('list_protocols')
+        set({ protocols, loading: false, error: null })
       } catch (error) {
-        set({
-          loading: false,
-          error: error instanceof Error ? error.message : String(error),
-        })
+        const errorMsg = error instanceof Error ? error.message : 'Failed to load protocols'
+        set({ loading: false, error: errorMsg })
       }
     },
 
+    // Set active protocol
     setActiveProtocol: (name) => set({ activeProtocol: name }),
 
+    // Enable/load protocol
     enableProtocol: async (name) => {
       try {
-        // TODO: Invoke Tauri command
-        // await invoke('load_protocol', { name })
+        await invoke('load_protocol', { name })
+        await get().loadProtocols()
       } catch (error) {
-        set({ error: error instanceof Error ? error.message : String(error) })
+        const errorMsg = error instanceof Error ? error.message : 'Failed to enable protocol'
+        set({ error: errorMsg })
+        throw error
       }
     },
 
+    // Disable/unload protocol
     disableProtocol: async (name) => {
       try {
-        // TODO: Invoke Tauri command
-        // await invoke('unload_protocol', { name })
+        await invoke('unload_protocol', { name })
+        await get().loadProtocols()
       } catch (error) {
-        set({ error: error instanceof Error ? error.message : String(error) })
+        const errorMsg = error instanceof Error ? error.message : 'Failed to disable protocol'
+        set({ error: errorMsg })
+        throw error
       }
     },
 
+    // Reload protocol
     reloadProtocol: async (name) => {
       try {
-        // TODO: Invoke Tauri command
-        // await invoke('reload_protocol', { name })
+        await invoke('reload_protocol', { name })
+        await get().loadProtocols()
       } catch (error) {
-        set({ error: error instanceof Error ? error.message : String(error) })
+        const errorMsg = error instanceof Error ? error.message : 'Failed to reload protocol'
+        set({ error: errorMsg })
+        throw error
       }
     },
+
+    // Clear error
+    clearError: () => set({ error: null }),
   }))
 )

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
+import { invoke } from '@tauri-apps/api/core'
 
-// TODO: Import types from existing code
 export interface ScriptInfo {
   name: string
   path: string
@@ -30,6 +30,8 @@ interface ScriptState {
   stopScript: () => void
   addOutput: (output: Omit<ScriptOutput, 'id' | 'timestamp'>) => void
   clearOutput: () => void
+  saveScript: (name: string, content: string) => Promise<void>
+  deleteScript: (name: string) => Promise<void>
 }
 
 export const useScriptStore = create<ScriptState>()(
@@ -42,40 +44,39 @@ export const useScriptStore = create<ScriptState>()(
     running: false,
     error: null,
 
-    // Actions (TODO: Implement in Phase 2)
+    // Load all scripts
     loadScripts: async () => {
       set({ loading: true })
       try {
-        // TODO: Invoke Tauri command
-        // const scripts = await invoke('list_scripts')
-        set({ loading: false })
+        const scripts = await invoke<ScriptInfo[]>('list_scripts')
+        set({ scripts, loading: false, error: null })
       } catch (error) {
-        set({
-          loading: false,
-          error: error instanceof Error ? error.message : String(error),
-        })
+        const errorMsg = error instanceof Error ? error.message : 'Failed to load scripts'
+        set({ loading: false, error: errorMsg })
       }
     },
 
+    // Run script
     runScript: async (script) => {
-      set({ running: true, currentScript: script, output: [] })
+      set({ running: true, currentScript: script, output: [], error: null })
       try {
-        // TODO: Invoke Tauri command
-        // const result = await invoke('execute_script', { script })
+        const result = await invoke<string>('execute_script', { script })
+        get().addOutput({ type: 'result', message: result })
         set({ running: false })
       } catch (error) {
-        set({
-          running: false,
-          error: error instanceof Error ? error.message : String(error),
-        })
+        const errorMsg = error instanceof Error ? error.message : 'Failed to run script'
+        get().addOutput({ type: 'error', message: errorMsg })
+        set({ running: false, error: errorMsg })
       }
     },
 
-    stopScript: () => set({ running: false }),
+    // Stop script
+    stopScript: () => set({ running: false, currentScript: null }),
 
+    // Add output line
     addOutput: (output) => {
       set((state) => {
-        const newOutput = {
+        const newOutput: ScriptOutput = {
           ...output,
           id: `${Date.now()}-${Math.random()}`,
           timestamp: Date.now(),
@@ -91,6 +92,31 @@ export const useScriptStore = create<ScriptState>()(
       })
     },
 
+    // Clear output
     clearOutput: () => set({ output: [] }),
+
+    // Save script
+    saveScript: async (name, content) => {
+      try {
+        await invoke('save_script', { name, content })
+        await get().loadScripts()
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Failed to save script'
+        set({ error: errorMsg })
+        throw error
+      }
+    },
+
+    // Delete script
+    deleteScript: async (name) => {
+      try {
+        await invoke('delete_script', { name })
+        await get().loadScripts()
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Failed to delete script'
+        set({ error: errorMsg })
+        throw error
+      }
+    },
   }))
 )
