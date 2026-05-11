@@ -1,5 +1,4 @@
-import React, { useState } from 'react'
-import { NavigationProvider, useNavigation } from './contexts/NavigationContext'
+import React from 'react'
 import { PortProvider } from './contexts/PortContext'
 import { VirtualPortProvider } from './contexts/VirtualPortContext'
 import { DataProvider } from './contexts/DataContext'
@@ -21,16 +20,10 @@ import { Toaster } from './components/ui/toast'
 import { CommandPalette } from './components/shortcuts/CommandPalette'
 import { KeyboardShortcutsHelp } from './components/shortcuts/KeyboardShortcutsHelp'
 import { cn } from './lib/utils'
+import { useNavigationStore } from './stores'
 
 function AppContent() {
-  const { currentView } = useNavigation()
-  const [previousView, setPreviousView] = useState<string>(currentView)
-
-  React.useEffect(() => {
-    if (currentView !== previousView) {
-      setPreviousView(currentView)
-    }
-  }, [currentView, previousView])
+  const { currentView } = useNavigationStore()
 
   // Register global shortcuts
   useGlobalShortcuts()
@@ -77,15 +70,13 @@ function App() {
           <ShortcutProvider>
             <ScriptActionProvider>
               <SettingsProvider>
-                <NavigationProvider>
-                  <PortProvider>
-                    <VirtualPortProvider>
-                      <DataProvider>
-                        <AppContent />
-                      </DataProvider>
-                    </VirtualPortProvider>
-                  </PortProvider>
-                </NavigationProvider>
+                <PortProvider>
+                  <VirtualPortProvider>
+                    <DataProvider>
+                      <AppContent />
+                    </DataProvider>
+                  </VirtualPortProvider>
+                </PortProvider>
               </SettingsProvider>
             </ScriptActionProvider>
           </ShortcutProvider>

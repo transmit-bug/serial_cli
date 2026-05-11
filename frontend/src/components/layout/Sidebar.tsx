@@ -1,4 +1,4 @@
-import { useNavigation } from '@/contexts/NavigationContext'
+import { useNavigationStore } from '@/stores'
 import { cn } from '@/lib/utils'
 import {
   Plug,
@@ -19,7 +19,7 @@ const navItems = [
 ] as const
 
 export function Sidebar() {
-  const { currentView, setCurrentView } = useNavigation()
+  const { currentView, navigateTo } = useNavigationStore()
 
   return (
     <aside className="w-64 border-r border-border bg-bg-deep flex flex-col">
@@ -40,7 +40,7 @@ export function Sidebar() {
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentView(item.id)}
+              onClick={() => navigateTo(item.id as any)}
               className={cn(
                 'group w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-all duration-200',
                 isActive
