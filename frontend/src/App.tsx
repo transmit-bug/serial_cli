@@ -9,9 +9,8 @@ import { SettingsProvider } from './contexts/SettingsContext'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
-import { PortsPanel } from './components/ports/PortsPanel'
+import { TerminalWorkbench } from './components/terminal'
 import { VirtualPortsPanel } from './components/virtual/VirtualPortsPanel'
-import { DataViewer } from './components/data/DataViewer'
 import { ScriptPanel } from './components/scripting/ScriptPanel'
 import { ProtocolPanel } from './components/protocols/ProtocolPanel'
 import { SettingsPanel } from './components/settings/SettingsPanel'
@@ -28,15 +27,14 @@ function AppContent() {
   useGlobalShortcuts()
 
   const viewComponents: Record<string, React.ComponentType> = {
-    ports: PortsPanel,
+    terminal: TerminalWorkbench,
     virtual: VirtualPortsPanel,
-    data: DataViewer,
     scripts: ScriptPanel,
     protocols: ProtocolPanel,
     settings: SettingsPanel,
   }
 
-  const CurrentView = viewComponents[currentView] || PortsPanel
+  const CurrentView = viewComponents[currentView] || TerminalWorkbench
 
   return (
     <div className="app-background h-screen flex flex-col">

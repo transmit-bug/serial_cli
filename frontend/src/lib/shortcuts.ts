@@ -2,7 +2,7 @@
 export interface Shortcut {
   key: string
   description: string
-  category: 'navigation' | 'ports' | 'scripts' | 'data' | 'general'
+  category: 'navigation' | 'terminal' | 'scripts' | 'data' | 'general'
   global?: boolean // Can be used from anywhere in the app
 }
 
@@ -16,13 +16,13 @@ export const shortcuts: Shortcut[] = [
   },
   {
     key: 'mod+1',
-    description: 'Ports View',
+    description: 'Terminal View',
     category: 'navigation',
     global: true,
   },
   {
     key: 'mod+2',
-    description: 'Data Monitor View',
+    description: 'Virtual Ports View',
     category: 'navigation',
     global: true,
   },
@@ -44,11 +44,11 @@ export const shortcuts: Shortcut[] = [
     category: 'navigation',
     global: true,
   },
-  // Ports
+  // Terminal
   {
     key: 'mod+r',
     description: 'Refresh ports',
-    category: 'ports',
+    category: 'terminal',
     global: false,
   },
   // Scripts

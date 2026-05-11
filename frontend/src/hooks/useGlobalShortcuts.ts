@@ -24,7 +24,7 @@ export function useGlobalShortcuts() {
   // Navigation: Cmd/Ctrl + 1-5
   useHotkeys('mod+1', (e) => {
     e.preventDefault()
-    navigateTo('ports')
+    navigateTo('terminal')
   })
   useHotkeys('mod+2', (e) => {
     e.preventDefault()
@@ -32,25 +32,21 @@ export function useGlobalShortcuts() {
   })
   useHotkeys('mod+3', (e) => {
     e.preventDefault()
-    navigateTo('data')
+    navigateTo('scripts')
   })
   useHotkeys('mod+4', (e) => {
     e.preventDefault()
-    navigateTo('scripts')
-  })
-  useHotkeys('mod+5', (e) => {
-    e.preventDefault()
     navigateTo('protocols')
   })
-  useHotkeys('mod+6', (e) => {
+  useHotkeys('mod+5', (e) => {
     e.preventDefault()
     navigateTo('settings')
   })
 
-  // Ports: Cmd/Ctrl + R (only when in ports view or global)
+  // Ports: Cmd/Ctrl + R (only when in terminal view or global)
   useHotkeys('mod+r', (e) => {
     e.preventDefault()
-    if (currentView === 'ports') {
+    if (currentView === 'terminal') {
       listPorts()
     }
   })

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigationStore } from '@/stores'
+import { useNavigationStore, useConnectionStore, useDataStore } from '@/stores'
 import { usePorts } from '@/contexts/PortContext'
-import { useData } from '@/contexts/DataContext'
 import { useShortcuts } from '@/contexts/ShortcutContext'
 import { useScriptActions } from '@/contexts/ScriptActionContext'
 import { cn } from '@/lib/utils'
@@ -19,7 +18,7 @@ interface Command {
 export function CommandPalette() {
   const { currentView, navigateTo } = useNavigationStore()
   const { listPorts } = usePorts()
-  const { clearPackets } = useData()
+  const { clearPackets } = useDataStore()
   const { isCommandPaletteOpen, closeCommandPalette, openShortcutsHelp } = useShortcuts()
   const { createNewScript } = useScriptActions()
   const [query, setQuery] = useState('')
@@ -29,20 +28,20 @@ export function CommandPalette() {
   const commands: Command[] = [
     // Navigation
     {
-      id: 'nav-ports',
-      label: 'Go to Ports',
+      id: 'nav-terminal',
+      label: 'Go to Terminal',
       icon: '🔌',
       shortcut: '⌘1',
       category: 'Navigation',
-      action: () => navigateTo('ports'),
+      action: () => navigateTo('terminal'),
     },
     {
-      id: 'nav-data',
-      label: 'Go to Data Monitor',
-      icon: '📊',
+      id: 'nav-virtual',
+      label: 'Go to Virtual Ports',
+      icon: '🔗',
       shortcut: '⌘2',
       category: 'Navigation',
-      action: () => navigateTo('data'),
+      action: () => navigateTo('virtual'),
     },
     {
       id: 'nav-scripts',
@@ -68,15 +67,15 @@ export function CommandPalette() {
       category: 'Navigation',
       action: () => navigateTo('settings'),
     },
-    // Ports
+    // Terminal
     {
-      id: 'ports-refresh',
+      id: 'terminal-refresh',
       label: 'Refresh Ports',
       icon: '🔄',
       shortcut: '⌘R',
-      category: 'Ports',
+      category: 'Terminal',
       action: () => {
-        navigateTo('ports')
+        navigateTo('terminal')
         listPorts()
       },
     },
