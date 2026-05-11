@@ -243,19 +243,17 @@ impl LuaBindings {
     fn ensure_runtime(&self) -> Result<()> {
         if self.runtime_handle.borrow().is_none() {
             // Try to get current runtime handle, or create a new runtime
-            let handle = tokio::runtime::Handle::try_current()
-                .ok_or_else(|| {
-                    // No current runtime, create a new one and get its handle
-                    tokio::runtime::Runtime::new()
-                        .map(|rt| {
-                            *self.runtime_handle.borrow_mut() = Some(rt.handle());
-                            rt
-                        })
-                        .map_err(|e| SerialError::Config(format!("Failed to create runtime: {}", e)))
-                })?;
-
-            if self.runtime_handle.borrow().is_none() {
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
                 *self.runtime_handle.borrow_mut() = Some(handle);
+            } else {
+                // No current runtime, create a new one and get its handle
+                tokio::runtime::Runtime::new()
+                    .map(|rt| {
+                        *self.runtime_handle.borrow_mut() = Some(rt.handle().clone());
+                        // Drop the runtime explicitly
+                        drop(rt);
+                    })
+                    .map_err(|e| SerialError::Config(format!("Failed to create runtime: {}", e)))?;
             }
         }
         Ok(())
@@ -317,7 +315,7 @@ impl LuaBindings {
                     rts_enable,
                 };
 
-                let port_id = runtime
+                let port_id = handle
                     .block_on(pm_guard.open_port(&port_name, config))
                     .map_err(|e: crate::error::SerialError| {
                         mlua::Error::RuntimeError(e.to_string())
@@ -340,17 +338,17 @@ impl LuaBindings {
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self
-            .runtime
+        let handle = self
+            .runtime_handle
             .borrow()
             .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
             .clone();
 
         let close = self.lua.create_function(move |_, port_id: String| {
             let pm_guard = handle.block_on(port_manager.lock());
 
-            runtime
+            handle
                 .block_on(pm_guard.close_port(&port_id))
                 .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
 
@@ -370,11 +368,11 @@ impl LuaBindings {
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self
-            .runtime
+        let handle = self
+            .runtime_handle
             .borrow()
             .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
             .clone();
 
         let send = self
@@ -386,9 +384,9 @@ impl LuaBindings {
                     |e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()),
                 )?;
 
-                let mut handle = handle.block_on(port_handle.lock());
+                let mut port = handle.block_on(port_handle.lock());
                 let bytes =
-                    handle
+                    port
                         .write(data.as_bytes())
                         .map_err(|e: crate::error::SerialError| {
                             mlua::Error::RuntimeError(e.to_string())
@@ -410,11 +408,11 @@ impl LuaBindings {
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self
-            .runtime
+        let handle = self
+            .runtime_handle
             .borrow()
             .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
             .clone();
 
         let recv = self
@@ -426,17 +424,17 @@ impl LuaBindings {
                     |e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()),
                 )?;
 
-                // Clone runtime for the async block
-                let rt_clone = runtime.clone();
+                // Clone handle for the async block
+                let rt_clone = handle.clone();
 
                 // Wrap synchronous read in async block for timeout
                 let read_future = async move {
                     // Move port_handle into the blocking task
                     let read_result = tokio::task::spawn_blocking(move || {
-                        let mut handle = rt_clone.block_on(port_handle.lock());
+                        let mut port = rt_clone.block_on(port_handle.lock());
                         let mut buffer = vec![0u8; 4096];
 
-                        let n = handle.read(&mut buffer)?;
+                        let n = port.read(&mut buffer)?;
 
                         buffer.truncate(n);
                         Ok(String::from_utf8_lossy(&buffer).to_string())
@@ -455,7 +453,7 @@ impl LuaBindings {
                 let result =
                     tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), read_future);
 
-                let data = runtime
+                let data = handle
                     .block_on(result)
                     .map_err(|_| mlua::Error::RuntimeError("Timeout".to_string()))?
                     .map_err(|e: crate::error::SerialError| {
@@ -478,11 +476,11 @@ impl LuaBindings {
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let runtime = self
-            .runtime
+        let handle = self
+            .runtime_handle
             .borrow()
             .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime not initialized".to_string()))?
+            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
             .clone();
 
         let list = self.lua.create_function(move |lua, ()| {
