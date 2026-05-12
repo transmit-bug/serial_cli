@@ -110,7 +110,9 @@ impl ServerSessionManager {
     #[cfg(windows)]
     pub fn is_process_running(pid: u32) -> bool {
         use windows::Win32::Foundation::CloseHandle;
-        use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, SYNCHRONIZE};
+        use windows::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, SYNCHRONIZE,
+        };
 
         let rights = PROCESS_QUERY_INFORMATION | SYNCHRONIZE;
         unsafe {

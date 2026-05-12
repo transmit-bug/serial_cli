@@ -30,7 +30,11 @@ impl TestRpcClient {
     }
 
     /// Call an RPC method
-    async fn call(&mut self, method: &str, params: serde_json::Value) -> Result<String, Box<dyn std::error::Error>> {
+    async fn call(
+        &mut self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         self.request_id += 1;
 
         let request = serde_json::json!({
@@ -74,22 +78,34 @@ async fn test_server_lifecycle() {
             let mut client = TestRpcClient::connect().await.unwrap();
 
             // Test port_list method
-            let response = client.call("port_list", serde_json::json!({})).await.unwrap();
+            let response = client
+                .call("port_list", serde_json::json!({}))
+                .await
+                .unwrap();
             assert!(response.contains(r#""jsonrpc":"2.0""#));
 
             // Test server_stats method
-            let response = client.call("server_stats", serde_json::json!({})).await.unwrap();
+            let response = client
+                .call("server_stats", serde_json::json!({}))
+                .await
+                .unwrap();
             assert!(response.contains(r#""result""#));
 
             // Test protocol_list method
-            let response = client.call("protocol_list", serde_json::json!({})).await.unwrap();
+            let response = client
+                .call("protocol_list", serde_json::json!({}))
+                .await
+                .unwrap();
             assert!(response.contains(r#""result""#));
         }
         Err(_) => {
             // Server not running, skip RPC tests
             println!("Server not running, skipping RPC call tests");
             println!("To run full integration tests, start the server with:");
-            println!("  serial-cli server start --socket-path {}", TEST_SOCKET_PATH);
+            println!(
+                "  serial-cli server start --socket-path {}",
+                TEST_SOCKET_PATH
+            );
         }
     }
 }

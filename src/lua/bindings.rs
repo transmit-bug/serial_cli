@@ -106,11 +106,9 @@ impl LuaBindings {
             Value::Nil => Ok(serde_json::Value::Null),
             Value::Boolean(b) => Ok(serde_json::Value::Bool(b)),
             Value::Integer(i) => Ok(serde_json::Value::Number(serde_json::Number::from(i))),
-            Value::Number(n) => {
-                serde_json::Number::from_f64(n)
-                    .map(serde_json::Value::Number)
-                    .ok_or_else(|| mlua::Error::RuntimeError("Invalid float value".to_string()))
-            }
+            Value::Number(n) => serde_json::Number::from_f64(n)
+                .map(serde_json::Value::Number)
+                .ok_or_else(|| mlua::Error::RuntimeError("Invalid float value".to_string())),
             Value::String(s) => Ok(serde_json::Value::String(s.to_str()?.to_string())),
             Value::Table(t) => {
                 // Try to detect if it's an array or object
@@ -137,9 +135,11 @@ impl LuaBindings {
                     Ok(serde_json::Value::Object(map))
                 }
             }
-            Value::LightUserData(_) | Value::Function(_) | Value::Thread(_) | Value::UserData(_) | Value::Error(_) => {
-                Ok(serde_json::Value::Null)
-            }
+            Value::LightUserData(_)
+            | Value::Function(_)
+            | Value::Thread(_)
+            | Value::UserData(_)
+            | Value::Error(_) => Ok(serde_json::Value::Null),
         }
     }
 
@@ -386,8 +386,7 @@ impl LuaBindings {
 
                 let mut port = handle.block_on(port_handle.lock());
                 let bytes =
-                    port
-                        .write(data.as_bytes())
+                    port.write(data.as_bytes())
                         .map_err(|e: crate::error::SerialError| {
                             mlua::Error::RuntimeError(e.to_string())
                         })?;

@@ -122,7 +122,10 @@ mod signal_control_tests {
         let result2 = handle2.join().unwrap();
 
         // Both operations must complete successfully under mutex protection
-        assert!(result1 && result2, "Both concurrent operations should succeed");
+        assert!(
+            result1 && result2,
+            "Both concurrent operations should succeed"
+        );
     }
 
     #[test]
@@ -142,10 +145,16 @@ mod signal_control_tests {
         assert!(rts_result.is_ok(), "RTS state change should succeed");
 
         // Verify state actually changed
-        assert_ne!(controller.get_dtr().unwrap(), initial_dtr,
-            "DTR state should have changed");
-        assert_ne!(controller.get_rts().unwrap(), initial_rts,
-            "RTS state should have changed");
+        assert_ne!(
+            controller.get_dtr().unwrap(),
+            initial_dtr,
+            "DTR state should have changed"
+        );
+        assert_ne!(
+            controller.get_rts().unwrap(),
+            initial_rts,
+            "RTS state should have changed"
+        );
     }
 
     #[test]

@@ -100,7 +100,10 @@ impl ServerState {
     }
 
     /// Add a new connection
-    pub async fn add_connection(&self, ctx: ConnectionContext) -> Result<(), crate::error::SerialError> {
+    pub async fn add_connection(
+        &self,
+        ctx: ConnectionContext,
+    ) -> Result<(), crate::error::SerialError> {
         if self.is_max_connections_reached().await {
             return Err(crate::error::SerialError::Io(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
@@ -178,10 +181,7 @@ pub fn default_socket_path() -> PathBuf {
 /// Get default log file path
 pub fn default_log_path() -> PathBuf {
     if let Some(base_dirs) = directories::BaseDirs::new() {
-        base_dirs
-            .cache_dir()
-            .join("serial_cli")
-            .join("server.log")
+        base_dirs.cache_dir().join("serial_cli").join("server.log")
     } else {
         PathBuf::from("/tmp/serial-cli-server.log")
     }

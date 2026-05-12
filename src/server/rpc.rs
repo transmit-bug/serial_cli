@@ -103,7 +103,12 @@ impl RpcDispatcher {
     }
 
     /// Create error response
-    fn error_response(&self, code: i32, message: &str, data: Option<&str>) -> Result<JsonRpcResponse, String> {
+    fn error_response(
+        &self,
+        code: i32,
+        message: &str,
+        data: Option<&str>,
+    ) -> Result<JsonRpcResponse, String> {
         Ok(JsonRpcResponse {
             jsonrpc: "2.0",
             result: None,
@@ -117,7 +122,13 @@ impl RpcDispatcher {
     }
 
     /// Create error response with custom ID
-    fn error_response_with_id(&self, code: i32, message: &str, data: Option<&str>, id: &Value) -> JsonRpcResponse {
+    fn error_response_with_id(
+        &self,
+        code: i32,
+        message: &str,
+        data: Option<&str>,
+        id: &Value,
+    ) -> JsonRpcResponse {
         JsonRpcResponse {
             jsonrpc: "2.0",
             result: None,
@@ -199,7 +210,10 @@ impl RpcDispatcher {
         };
 
         // Store connection
-        self.state.add_connection(ctx).await.map_err(|e| e.to_string())?;
+        self.state
+            .add_connection(ctx)
+            .await
+            .map_err(|e| e.to_string())?;
 
         // Set protocol if specified
         // TODO: Implement protocol attachment to port
@@ -336,12 +350,15 @@ impl RpcDispatcher {
         // Read data with timeout using spawn_blocking
         let timeout_duration = std::time::Duration::from_millis(_timeout_ms);
 
-        let read_result = tokio::time::timeout(timeout_duration, tokio::task::spawn_blocking(move || {
-            let mut buffer = vec![0u8; 4096];
-            let mut handle = port_handle.blocking_lock();
-            let result = handle.read(&mut buffer);
-            (result, buffer)
-        }))
+        let read_result = tokio::time::timeout(
+            timeout_duration,
+            tokio::task::spawn_blocking(move || {
+                let mut buffer = vec![0u8; 4096];
+                let mut handle = port_handle.blocking_lock();
+                let result = handle.read(&mut buffer);
+                (result, buffer)
+            }),
+        )
         .await;
 
         let (data_hex, bytes_read, timed_out) = match read_result {
@@ -423,7 +440,10 @@ impl RpcDispatcher {
             .ok_or("Missing 'name' parameter")?;
 
         let mut manager = self.state.protocol_manager.lock().await;
-        manager.unload_protocol(name).await.map_err(|e| e.to_string())?;
+        manager
+            .unload_protocol(name)
+            .await
+            .map_err(|e| e.to_string())?;
 
         self.success_response(serde_json::json!({
             "success": true,
@@ -481,18 +501,14 @@ fn hex_decode(hex: &str) -> Vec<u8> {
 
     (0..hex.len())
         .step_by(2)
-        .map(|i| {
-            u8::from_str_radix(&hex[i..i + 2], 16).unwrap_or(0)
-        })
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap_or(0))
         .collect()
 }
 
 /// Format SystemTime as ISO 8601 string
 fn format_timestamp(time: SystemTime) -> String {
     use std::time::UNIX_EPOCH;
-    let duration = time
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
+    let duration = time.duration_since(UNIX_EPOCH).unwrap_or_default();
     let secs = duration.as_secs();
     use chrono::{DateTime, Utc};
     let dt = DateTime::<Utc>::from_timestamp(secs as i64, 0).unwrap_or_default();
@@ -586,8 +602,8 @@ mod tests {
         assert!(response.contains(r#""id":1"#));
 
         // Response should be valid JSON (can parse)
-        let _: serde_json::Value = serde_json::from_str(&response)
-            .expect("Response should be valid JSON");
+        let _: serde_json::Value =
+            serde_json::from_str(&response).expect("Response should be valid JSON");
     }
 
     #[tokio::test]

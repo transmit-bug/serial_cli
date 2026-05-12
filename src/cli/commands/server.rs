@@ -6,10 +6,10 @@ use crate::cli::types::ServerCommand;
 use crate::error::{Result, SerialError};
 use crate::server::listener::{run_socket_server, spawn_idle_cleanup_task};
 use crate::server::session::{ServerSessionManager, ServerSessionMeta};
-use crate::server::state::{ServerConfig, ServerState, default_socket_path, default_log_path};
+use crate::server::state::{default_log_path, default_socket_path, ServerConfig, ServerState};
+use std::io;
 use std::path::PathBuf;
 use std::process::Command;
-use std::io;
 
 /// Dispatch a [`ServerCommand`] to the appropriate handler.
 pub async fn handle_server_command(cmd: ServerCommand, json_output: bool) -> Result<()> {
@@ -32,7 +32,11 @@ pub async fn handle_server_command(cmd: ServerCommand, json_output: bool) -> Res
             // This is the entry point for the daemon process
             run_daemon(socket_path, port).await?;
         }
-        ServerCommand::Call { method, args, stdin } => {
+        ServerCommand::Call {
+            method,
+            args,
+            stdin,
+        } => {
             call_rpc(method, args, stdin).await?;
         }
     }
@@ -67,9 +71,7 @@ async fn start_server(
         .map(PathBuf::from)
         .unwrap_or_else(default_socket_path);
 
-    let log_path = log
-        .map(PathBuf::from)
-        .unwrap_or_else(default_log_path);
+    let log_path = log.map(PathBuf::from).unwrap_or_else(default_log_path);
 
     // Spawn daemon process
     let current_exe = std::env::current_exe()?;
@@ -128,13 +130,12 @@ async fn start_server(
 /// Stop the server daemon
 async fn stop_server() -> Result<()> {
     // Load session
-    let meta = ServerSessionManager::load_session()?
-        .ok_or_else(|| {
-            SerialError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Server is not running",
-            ))
-        })?;
+    let meta = ServerSessionManager::load_session()?.ok_or_else(|| {
+        SerialError::Io(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Server is not running",
+        ))
+    })?;
 
     // Check if process is running
     if !ServerSessionManager::is_process_running(meta.pid) {
@@ -171,7 +172,14 @@ async fn show_server_status() -> Result<()> {
             println!("Server Status:");
             println!();
             println!("  PID: {}", meta.pid);
-            println!("  Status: {}", if running { "Running ✓" } else { "Stopped ✗" });
+            println!(
+                "  Status: {}",
+                if running {
+                    "Running ✓"
+                } else {
+                    "Stopped ✗"
+                }
+            );
             println!("  Socket: {}", meta.socket_path.display());
             println!("  TCP Port: {:?}", meta.tcp_port);
             println!("  Log: {}", meta.log_path.display());
@@ -240,8 +248,8 @@ async fn run_daemon(socket_path: Option<String>, port: Option<u16>) -> Result<()
 
 /// Call RPC method
 async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
-    use tokio::net::UnixStream;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::UnixStream;
 
     // Get socket path
     let socket_path = ServerSessionManager::load_session()?
@@ -263,8 +271,8 @@ async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
     };
 
     // Build JSON-RPC request
-    let params: serde_json::Value = serde_json::from_str(&args_str)
-        .unwrap_or(serde_json::Value::Null);
+    let params: serde_json::Value =
+        serde_json::from_str(&args_str).unwrap_or(serde_json::Value::Null);
 
     let request = serde_json::json!({
         "jsonrpc": "2.0",
@@ -289,12 +297,15 @@ async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
     })?;
 
     // Send request
-    stream.write_all(request_str.as_bytes()).await.map_err(|e| {
-        SerialError::Io(io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to send request: {}", e),
-        ))
-    })?;
+    stream
+        .write_all(request_str.as_bytes())
+        .await
+        .map_err(|e| {
+            SerialError::Io(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to send request: {}", e),
+            ))
+        })?;
 
     // Shutdown write side
     stream.shutdown().await.map_err(|e| {

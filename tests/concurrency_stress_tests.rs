@@ -149,9 +149,13 @@ async fn test_high_load_task_execution() {
     // Verify all tasks are accounted for (pending, running, or completed)
     let total_accounted = completed.len() + running + pending;
     assert_eq!(
-        total_accounted, num_tasks,
+        total_accounted,
+        num_tasks,
         "All tasks should be accounted for: expected {}, got completed={} running={} pending={}",
-        num_tasks, completed.len(), running, pending
+        num_tasks,
+        completed.len(),
+        running,
+        pending
     );
 
     // Verify performance (should not be too slow)

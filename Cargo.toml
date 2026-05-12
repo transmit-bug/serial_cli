@@ -70,10 +70,6 @@ rand = { version = "0.10", features = ["std"] }
 libc = "0.2"
 tempfile = "3.8"
 
-[[example]]
-name = "virtual_port_demo"
-path = "examples/virtual_port_demo.rs"
-
 [[bin]]
 name = "serial-cli"
 path = "src/main.rs"

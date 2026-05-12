@@ -2,14 +2,14 @@
 //!
 //! Accepts client connections and dispatches requests to the RPC handler.
 
+use crate::error::Result;
 use crate::server::rpc::RpcDispatcher;
 use crate::server::state::ServerState;
-use crate::error::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::net::UnixListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::{info, error};
+use tokio::net::UnixListener;
+use tracing::{error, info};
 
 /// Run the Unix socket server
 pub async fn run_socket_server(state: ServerState, socket_path: PathBuf) -> Result<()> {

@@ -152,7 +152,11 @@ pub async fn send_data(port: &str, data: &str, json_output: bool) -> Result<()> 
     } else {
         println!("Sent {} bytes", bytes_written);
         if bytes_read > 0 {
-            println!("Received response ({} bytes): {}", bytes_read, response.as_ref().unwrap());
+            println!(
+                "Received response ({} bytes): {}",
+                bytes_read,
+                response.as_ref().unwrap()
+            );
         } else {
             println!("No response received");
         }
