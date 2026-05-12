@@ -2,16 +2,24 @@
 //!
 //! Accepts client connections and dispatches requests to the RPC handler.
 
+#[cfg(unix)]
 use crate::error::Result;
+#[cfg(unix)]
 use crate::server::rpc::RpcDispatcher;
+#[cfg(unix)]
 use crate::server::state::ServerState;
 use std::path::PathBuf;
+#[cfg(unix)]
 use std::sync::Arc;
+#[cfg(unix)]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(unix)]
 use tokio::net::UnixListener;
+#[cfg(unix)]
 use tracing::{error, info};
 
 /// Run the Unix socket server
+#[cfg(unix)]
 pub async fn run_socket_server(state: ServerState, socket_path: PathBuf) -> Result<()> {
     // Remove existing socket file
     if socket_path.exists() {
@@ -65,6 +73,7 @@ pub async fn run_socket_server(state: ServerState, socket_path: PathBuf) -> Resu
 }
 
 /// Spawn a background cleanup task for idle connections
+#[cfg(unix)]
 pub fn spawn_idle_cleanup_task(state: ServerState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));

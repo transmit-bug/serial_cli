@@ -110,23 +110,20 @@ impl ServerSessionManager {
     #[cfg(windows)]
     pub fn is_process_running(pid: u32) -> bool {
         use windows::Win32::Foundation::CloseHandle;
-        use windows::Win32::System::Threading::{
-            OpenProcess, PROCESS_QUERY_INFORMATION, SYNCHRONIZE,
-        };
+        use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION};
 
-        let rights = PROCESS_QUERY_INFORMATION | SYNCHRONIZE;
+        let rights = PROCESS_QUERY_INFORMATION;
         unsafe {
-            let handle = OpenProcess(rights, false, pid);
-            if handle.is_ok() {
-                let h = handle.unwrap();
-                if h.is_invalid() {
-                    false
-                } else {
-                    CloseHandle(h).ok();
-                    true
+            match OpenProcess(rights, false, pid) {
+                Ok(handle) => {
+                    if handle.is_invalid() {
+                        false
+                    } else {
+                        let _ = CloseHandle(&handle);
+                        true
+                    }
                 }
-            } else {
-                false
+                Err(_) => false,
             }
         }
     }
@@ -159,7 +156,7 @@ impl ServerSessionManager {
         })?;
         unsafe {
             let result = TerminateProcess(&handle, 1);
-            CloseHandle(&handle).ok();
+            let _ = CloseHandle(&handle);
             if result.is_ok() {
                 Ok(())
             } else {

@@ -103,21 +103,20 @@ pub fn is_process_running(pid: u32) -> bool {
 
 #[cfg(windows)]
 pub fn is_process_running(pid: u32) -> bool {
-    use windows::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, SYNCHRONIZE};
-    let rights = PROCESS_QUERY_INFORMATION | SYNCHRONIZE;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION};
+    let rights = PROCESS_QUERY_INFORMATION;
     unsafe {
-        let handle = OpenProcess(rights, false, pid);
-        if handle.is_ok() {
-            let h = handle.unwrap();
-            if h.0.is_null() {
-                false
-            } else {
-                CloseHandle(h).ok();
-                true
+        match OpenProcess(rights, false, pid) {
+            Ok(handle) => {
+                if handle.is_invalid() {
+                    false
+                } else {
+                    CloseHandle(&handle).ok();
+                    true
+                }
             }
-        } else {
-            false
+            Err(_) => false,
         }
     }
 }
@@ -138,7 +137,7 @@ pub fn stop_process(pid: u32) -> Result<()> {
 
 #[cfg(windows)]
 pub fn stop_process(pid: u32) -> Result<()> {
-    use windows::Win32::Foundation::{CloseHandle, HANDLE, WIN32_ERROR};
+    use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
     let rights = PROCESS_TERMINATE;
     let handle = unsafe { OpenProcess(rights, false, pid) }.map_err(|e| {
@@ -148,8 +147,8 @@ pub fn stop_process(pid: u32) -> Result<()> {
         ))
     })?;
     unsafe {
-        let result = TerminateProcess(HANDLE(handle.0), 1);
-        CloseHandle(HANDLE(handle.0)).ok();
+        let result = TerminateProcess(&handle, 1);
+        let _ = CloseHandle(&handle);
         if result.is_ok() {
             Ok(())
         } else {

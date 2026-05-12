@@ -2,16 +2,21 @@
 //!
 //! Handles `serial-cli server start|stop|status|call` commands.
 
+#[cfg(unix)]
 use crate::cli::types::ServerCommand;
 use crate::error::{Result, SerialError};
+#[cfg(unix)]
 use crate::server::listener::{run_socket_server, spawn_idle_cleanup_task};
+#[cfg(unix)]
 use crate::server::session::{ServerSessionManager, ServerSessionMeta};
+#[cfg(unix)]
 use crate::server::state::{default_log_path, default_socket_path, ServerConfig, ServerState};
 use std::io;
 use std::path::PathBuf;
 use std::process::Command;
 
 /// Dispatch a [`ServerCommand`] to the appropriate handler.
+#[cfg(unix)]
 pub async fn handle_server_command(cmd: ServerCommand, json_output: bool) -> Result<()> {
     match cmd {
         ServerCommand::Start {
@@ -43,7 +48,20 @@ pub async fn handle_server_command(cmd: ServerCommand, json_output: bool) -> Res
     Ok(())
 }
 
+/// Server mode is not supported on Windows
+#[cfg(windows)]
+pub async fn handle_server_command(
+    _cmd: crate::cli::types::ServerCommand,
+    _json_output: bool,
+) -> Result<()> {
+    Err(SerialError::Io(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "Server mode is not supported on Windows. Unix sockets are required for server mode.",
+    )))
+}
+
 /// Start the server daemon
+#[cfg(unix)]
 async fn start_server(
     socket_path: Option<String>,
     port: Option<u16>,
