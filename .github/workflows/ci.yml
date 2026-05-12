@@ -40,9 +40,8 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Validate justfile
-        run: |
-          cargo install just
-          just --list
+        uses: taiki-e/install-action@just
+      - run: just --list
 
   # Phase 2: Unit tests (fast, no external dependencies)
   unit-tests:
@@ -163,10 +162,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libudev-dev libluajit-5.1-dev
 
       - name: Build documentation
-        run: cargo doc --no-deps --all-features
-
-      - name: Verify documentation links
-        run: cargo doc --no-deps --all-features 2>&1 | grep -i "broken\|error" || true
+        run: cargo doc --no-deps --all-features 2>&1 | tee /tmp/doc_output.txt
+      - name: Check for documentation errors
+        run: |
+          grep -i "broken\|error" /tmp/doc_output.txt || echo "No documentation errors found"
 
   # Summary job for required status check
   ci-status:

@@ -38,6 +38,12 @@ jobs:
         with:
           arguments: --all-features
 
+      - name: Check for outdated dependencies
+        run: |
+          cargo install cargo-outdated
+          cargo outdated --root-deps-only --exit-code 1 || \
+            echo "⚠ Some dependencies are outdated. Review and update as needed."
+
   trivy-scan:
     name: Trivy Vulnerability Scanner
     runs-on: ubuntu-latest
