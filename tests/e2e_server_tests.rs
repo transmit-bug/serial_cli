@@ -10,7 +10,7 @@
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
 /// Unique socket path per test run to avoid conflicts
@@ -22,22 +22,82 @@ fn unique_socket_path(test_name: &str) -> PathBuf {
     ))
 }
 
-/// Build and start the server as a background child process
+/// Timeout for server startup — longer in CI where compilation is slower
+fn server_startup_timeout_secs() -> u64 {
+    if std::env::var("CI").is_ok() {
+        60
+    } else {
+        15
+    }
+}
+
+/// Build the server binary if needed (checks mtime to avoid unnecessary rebuilds)
+fn ensure_server_binary() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let binary_path = manifest_dir.join("target/debug/serial-cli");
+
+    let needs_build = if !binary_path.exists() {
+        true
+    } else {
+        // Check if any source file is newer than the binary
+        let binary_mtime = std::fs::metadata(&binary_path)
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+
+        let src_dir = manifest_dir.join("src");
+        let cargo_toml = manifest_dir.join("Cargo.toml");
+        let cargo_lock = manifest_dir.join("Cargo.lock");
+
+        fn is_newer(path: &PathBuf, threshold: std::time::SystemTime) -> bool {
+            std::fs::metadata(path)
+                .and_then(|m| m.modified())
+                .map(|t| t > threshold)
+                .unwrap_or(false)
+        }
+
+        is_newer(&cargo_toml, binary_mtime)
+            || is_newer(&cargo_lock, binary_mtime)
+            || dir_has_newer_file(&src_dir, binary_mtime)
+    };
+
+    if needs_build {
+        let status = Command::new("cargo")
+            .args(["build", "--bin", "serial-cli", "--quiet"])
+            .status()
+            .expect("cargo should be available");
+        assert!(status.success(), "cargo build failed");
+    }
+}
+
+/// Recursively check if any file in directory is newer than threshold
+fn dir_has_newer_file(dir: &PathBuf, threshold: std::time::SystemTime) -> bool {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if dir_has_newer_file(&path, threshold) {
+                    return true;
+                }
+            } else if let Ok(metadata) = std::fs::metadata(&path) {
+                if let Ok(modified) = metadata.modified() {
+                    if modified > threshold {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Start the server as a background child process (assumes binary is built)
 fn start_server(socket_path: &PathBuf) -> Child {
     // Ensure clean socket path
     if socket_path.exists() {
         let _ = std::fs::remove_file(socket_path);
     }
 
-    // Build the binary first (only if needed)
-    let build_status = Command::new("cargo")
-        .args(["build", "--bin", "serial-cli"])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .expect("cargo build should be available");
-
-    assert!(build_status.success(), "cargo build failed");
+    ensure_server_binary();
 
     let binary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("target/debug/serial-cli");
@@ -171,11 +231,12 @@ impl E2EClient {
 
 /// Test 1: Server starts and accepts connections
 #[tokio::test]
+#[ignore] // Run with: cargo test --test e2e_server_tests -- --ignored
 async fn e2e_server_starts_and_accepts_connections() {
     let socket_path = unique_socket_path("starts");
     let server = start_server(&socket_path);
 
-    let result = wait_for_server(&socket_path, 10).await;
+    let result = wait_for_server(&socket_path, server_startup_timeout_secs()).await;
 
     // Clean up regardless of outcome
     stop_server(server);
@@ -186,11 +247,12 @@ async fn e2e_server_starts_and_accepts_connections() {
 
 /// Test 2: Server responds to valid JSON-RPC requests
 #[tokio::test]
+#[ignore]
 async fn e2e_server_responds_to_port_list() {
     let socket_path = unique_socket_path("port_list");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, 10).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
         stop_server(server);
         panic!("Server did not start in time");
     }
@@ -207,11 +269,12 @@ async fn e2e_server_responds_to_port_list() {
 
 /// Test 3: Server responds to server_stats
 #[tokio::test]
+#[ignore]
 async fn e2e_server_stats_returns_connection_info() {
     let socket_path = unique_socket_path("stats");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, 10).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
         stop_server(server);
         panic!("Server did not start in time");
     }
@@ -231,11 +294,12 @@ async fn e2e_server_stats_returns_connection_info() {
 
 /// Test 4: Server responds to protocol_list
 #[tokio::test]
+#[ignore]
 async fn e2e_protocol_list_returns_empty_list() {
     let socket_path = unique_socket_path("proto_list");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, 10).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
         stop_server(server);
         panic!("Server did not start in time");
     }
@@ -254,36 +318,51 @@ async fn e2e_protocol_list_returns_empty_list() {
     assert!(protocols.is_empty() || protocols.len() > 0); // Either empty or has built-ins
 }
 
-/// Test 5: Server returns error for invalid JSON-RPC
+/// Test 5: Server returns error for invalid JSON
 #[tokio::test]
+#[ignore]
 async fn e2e_server_returns_error_for_invalid_json() {
     let socket_path = unique_socket_path("invalid_json");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, 10).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
         stop_server(server);
         panic!("Server did not start in time");
     }
 
-    let mut client = E2EClient::connect(&socket_path).await.expect("should connect");
+    // Send raw malformed JSON directly via socket
+    let mut stream = UnixStream::connect(&socket_path)
+        .await
+        .expect("should connect");
 
-    // Send malformed JSON
-    let response_str = client.call_raw("__raw__", serde_json::json!({})).await;
-    // We need to send raw malformed data, so do it directly
+    stream.write_all(b"{{{invalid json}}").await.unwrap();
+    stream.flush().await.unwrap();
+
+    let mut response = String::new();
+    stream.read_to_string(&mut response).await.unwrap();
 
     stop_server(server);
 
-    // This test verifies the client can handle error responses
-    // For raw malformed JSON, we'd need a lower-level send
+    let response: serde_json::Value = serde_json::from_str(&response).expect("valid JSON response");
+    assert!(
+        response.get("error").is_some() && !response["error"].is_null(),
+        "Should return error for invalid JSON"
+    );
+    assert_eq!(
+        response["error"]["code"].as_i64(),
+        Some(-32700),
+        "Should be parse error code"
+    );
 }
 
 /// Test 6: Multiple sequential RPC calls work correctly
 #[tokio::test]
+#[ignore]
 async fn e2e_multiple_sequential_calls() {
     let socket_path = unique_socket_path("multi_call");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, 10).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
         stop_server(server);
         panic!("Server did not start in time");
     }
@@ -317,11 +396,12 @@ async fn e2e_multiple_sequential_calls() {
 
 /// Test 7: Server handles connection_list with no active connections
 #[tokio::test]
+#[ignore]
 async fn e2e_connection_list_empty() {
     let socket_path = unique_socket_path("conn_list");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, 10).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
         stop_server(server);
         panic!("Server did not start in time");
     }
@@ -342,11 +422,12 @@ async fn e2e_connection_list_empty() {
 
 /// Test 8: Server handles method not found error
 #[tokio::test]
+#[ignore]
 async fn e2e_method_not_found_error() {
     let socket_path = unique_socket_path("method_not_found");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, 10).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
         stop_server(server);
         panic!("Server did not start in time");
     }
@@ -369,11 +450,12 @@ async fn e2e_method_not_found_error() {
 
 /// Test 9: Server handles JSON-RPC version validation
 #[tokio::test]
+#[ignore]
 async fn e2e_invalid_jsonrpc_version() {
     let socket_path = unique_socket_path("bad_version");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, 10).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
         stop_server(server);
         panic!("Server did not start in time");
     }
