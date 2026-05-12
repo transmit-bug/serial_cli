@@ -22,4 +22,4 @@ jobs:
 
       - uses: wagoid/commitlint-github-action@v6
         with:
-          configFile: .github/commitlint.config.js
+          configFile: .github/commitlint.config.mjs
