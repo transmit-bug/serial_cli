@@ -17,7 +17,7 @@ use std::process::Command;
 
 /// Dispatch a [`ServerCommand`] to the appropriate handler.
 #[cfg(unix)]
-pub async fn handle_server_command(cmd: ServerCommand, json_output: bool) -> Result<()> {
+pub async fn handle_server_command(cmd: ServerCommand, _json_output: bool) -> Result<()> {
     match cmd {
         ServerCommand::Start {
             socket_path,
@@ -119,8 +119,7 @@ async fn start_server(
         Ok(Some(status)) => {
             println!("✗ Server failed to start");
             println!("  Exit status: {}", status);
-            return Err(SerialError::Io(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(SerialError::Io(io::Error::other(
                 "Server process exited",
             )));
         }
@@ -300,8 +299,7 @@ async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
     });
 
     let request_str = serde_json::to_string(&request).map_err(|e| {
-        SerialError::Io(io::Error::new(
-            io::ErrorKind::Other,
+        SerialError::Io(io::Error::other(
             format!("Failed to serialize request: {}", e),
         ))
     })?;
@@ -319,16 +317,14 @@ async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
         .write_all(request_str.as_bytes())
         .await
         .map_err(|e| {
-            SerialError::Io(io::Error::new(
-                io::ErrorKind::Other,
+            SerialError::Io(io::Error::other(
                 format!("Failed to send request: {}", e),
             ))
         })?;
 
     // Shutdown write side
     stream.shutdown().await.map_err(|e| {
-        SerialError::Io(io::Error::new(
-            io::ErrorKind::Other,
+        SerialError::Io(io::Error::other(
             format!("Failed to shutdown stream: {}", e),
         ))
     })?;
@@ -336,8 +332,7 @@ async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
     // Read response
     let mut response_buffer = vec![0u8; 8192];
     let n = stream.read(&mut response_buffer).await.map_err(|e| {
-        SerialError::Io(io::Error::new(
-            io::ErrorKind::Other,
+        SerialError::Io(io::Error::other(
             format!("Failed to read response: {}", e),
         ))
     })?;

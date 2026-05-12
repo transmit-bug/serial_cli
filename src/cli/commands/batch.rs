@@ -12,7 +12,7 @@ use crate::error::{Result, SerialError};
 /// # Errors
 ///
 /// Propagates errors from the underlying batch execution or listing logic.
-pub async fn handle_batch_command(cmd: BatchCommand, json_output: bool) -> Result<()> {
+pub async fn handle_batch_command(cmd: BatchCommand, _json_output: bool) -> Result<()> {
     match cmd {
         BatchCommand::Run {
             script,

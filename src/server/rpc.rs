@@ -286,8 +286,8 @@ impl RpcDispatcher {
         };
 
         // Decode data (assume hex or plain string)
-        let data = if data_str.starts_with("hex:") {
-            hex_decode(&data_str[4..])
+        let data = if let Some(hex_str) = data_str.strip_prefix("hex:") {
+            hex_decode(hex_str)
         } else {
             data_str.as_bytes().to_vec()
         };
@@ -326,7 +326,7 @@ impl RpcDispatcher {
         let _timeout_ms = params
             .get("timeout")
             .and_then(|v| v.as_u64())
-            .unwrap_or(1000) as u64;
+            .unwrap_or(1000);
 
         // Get connection context
         let port_id = {
@@ -414,7 +414,7 @@ impl RpcDispatcher {
             .and_then(|v| v.as_str())
             .ok_or("Missing 'path' parameter")?;
 
-        let name = params.get("name").and_then(|v| v.as_str());
+        let _name = params.get("name").and_then(|v| v.as_str());
 
         let path_buf = std::path::PathBuf::from(path);
         let mut manager = self.state.protocol_manager.lock().await;
@@ -495,7 +495,7 @@ fn hex_encode(data: &[u8]) -> String {
 
 /// Decode hex string to bytes
 fn hex_decode(hex: &str) -> Vec<u8> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return Vec::new();
     }
 

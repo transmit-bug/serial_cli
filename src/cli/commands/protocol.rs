@@ -119,7 +119,7 @@ fn list_protocols(detailed: bool, json_output: bool) -> Result<()> {
     Ok(())
 }
 
-fn show_protocol_info(name: &str, json_output: bool) -> Result<()> {
+fn show_protocol_info(name: &str, _json_output: bool) -> Result<()> {
     println!("Protocol: {}", name);
 
     // Check built-in
@@ -148,7 +148,7 @@ fn show_protocol_info(name: &str, json_output: bool) -> Result<()> {
     )))
 }
 
-fn validate_protocol(path: &Path, json_output: bool) -> Result<()> {
+fn validate_protocol(path: &Path, _json_output: bool) -> Result<()> {
     use crate::protocol::ProtocolValidator;
 
     println!("Validating protocol script: {}", path.display());
@@ -162,7 +162,7 @@ fn validate_protocol(path: &Path, json_output: bool) -> Result<()> {
     Ok(())
 }
 
-fn load_protocol(path: &Path, name: Option<String>, json_output: bool) -> Result<()> {
+fn load_protocol(path: &Path, name: Option<String>, _json_output: bool) -> Result<()> {
     use crate::protocol::ProtocolValidator;
 
     // Validate script first
@@ -203,7 +203,7 @@ fn load_protocol(path: &Path, name: Option<String>, json_output: bool) -> Result
     Ok(())
 }
 
-fn unload_protocol(name: &str, json_output: bool) -> Result<()> {
+fn unload_protocol(name: &str, _json_output: bool) -> Result<()> {
     // Check it's not a built-in
     if BUILT_IN_PROTOCOLS.iter().any(|(n, _)| *n == name) {
         return Err(SerialError::Config(format!(
@@ -223,7 +223,7 @@ fn unload_protocol(name: &str, json_output: bool) -> Result<()> {
     Ok(())
 }
 
-fn reload_protocol(name: &str, json_output: bool) -> Result<()> {
+fn reload_protocol(name: &str, _json_output: bool) -> Result<()> {
     use crate::protocol::ProtocolValidator;
 
     let config_manager = ConfigManager::load_with_fallback();
@@ -260,7 +260,7 @@ fn reload_protocol(name: &str, json_output: bool) -> Result<()> {
     Ok(())
 }
 
-fn handle_hot_reload(action: &str, json_output: bool) -> Result<()> {
+fn handle_hot_reload(action: &str, _json_output: bool) -> Result<()> {
     let config_manager = ConfigManager::load_with_fallback();
 
     match action {
