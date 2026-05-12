@@ -6,10 +6,19 @@ on:
   pull_request:
     branches: [main, master]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,51 +26,32 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: llvm-tools-preview
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libluajit-5.1-dev
 
-      - name: Install dependencies
-        run: |
-          cargo install cargo-tarpaulin
+      - name: Install system dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install luajit
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Generate coverage report
         run: |
-          cargo tarpaulin \
-            --out Xml \
-            --output-dir ./coverage \
-            --timeout 300 \
-            --all-features \
-            --tests
+          cargo llvm-cov --all-features --lcov --output-path lcov.info
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage/cobertura.xml
-          flags: unittests
-          name: codecov-umbrella
+          files: lcov.info
+          flags: ${{ matrix.os }}
+          name: codecov-${{ matrix.os }}
           fail_ci_if_error: false
 
-      - name: Archive coverage reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: ./coverage/
-
-  coverage-summary:
-    name: Coverage Summary
-    runs-on: ubuntu-latest
-    needs: coverage
-    steps:
-      - name: Download coverage report
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report
-          path: ./coverage
-
-      - name: Display coverage summary
+      - name: Print coverage summary
         run: |
-          echo "## Code Coverage Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Coverage reports have been generated and uploaded to Codecov." >> $GITHUB_STEP_SUMMARY
+          echo "## Coverage Summary (${{ matrix.os }})" >> $GITHUB_STEP_SUMMARY
+          cargo llvm-cov --all-features --summary-only 2>&1 | tee -a $GITHUB_STEP_SUMMARY || true
