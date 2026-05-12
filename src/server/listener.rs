@@ -94,9 +94,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_socket_path_creation() {
+    fn test_socket_path_has_correct_extension() {
         let path = PathBuf::from("/tmp/test-serial-cli.sock");
-        assert_eq!(path.extension(), None);
-        assert!(path.to_str().unwrap().ends_with(".sock"));
+        assert_eq!(path.extension().unwrap(), "sock");
     }
 }
