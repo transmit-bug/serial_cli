@@ -95,11 +95,12 @@ impl NamedPipeBackend {
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
         use windows::Win32::System::Pipes::{
-            ConnectNamedPipe, CreateNamedPipeW, NMPWAIT_USE_DEFAULT_WAIT, PIPE_ACCESS_DUPLEX,
+            ConnectNamedPipe, CreateNamedPipeW, NMPWAIT_USE_DEFAULT_WAIT,
             PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
         };
+        use windows::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
         use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
-        use windows::Win32::System::IO::Overlapped;
+        use windows::Win32::System::IO::OVERLAPPED;
 
         let wide_name: Vec<u16> = OsStr::new(name)
             .encode_wide()
@@ -134,7 +135,7 @@ impl NamedPipeBackend {
             ));
         }
 
-        let mut overlapped = Overlapped::default();
+        let mut overlapped = OVERLAPPED::default();
         overlapped.hEvent = event;
 
         let result = unsafe { ConnectNamedPipe(server, Some(&mut overlapped)) };
@@ -358,7 +359,8 @@ impl NamedPipeBackend {
         stats: Arc<Mutex<BackendStats>>,
         shutdown_event: HANDLE,
     ) {
-        use windows::Win32::System::Threading::{WaitForMultipleObjects, WAIT_OBJECT_0};
+        use windows::Win32::Foundation::WAIT_OBJECT_0;
+        use windows::Win32::System::Threading::WaitForMultipleObjects;
 
         let mut buf = vec![0u8; 8192];
 
