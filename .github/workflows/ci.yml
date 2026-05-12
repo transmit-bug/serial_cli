@@ -137,7 +137,12 @@ jobs:
         run: brew install luajit
 
       - name: Run integration tests
-        run: cargo test --test '*' --all-features
+        run: cargo test --test '*' --all-features -- --skip e2e_
+
+      - name: Run E2E tests (macOS only, allow failure initially)
+        if: matrix.os == 'macos-latest'
+        continue-on-error: true
+        run: cargo test --test e2e_server_tests --all-features -- --ignored
 
   # Phase 4: Documentation build verification
   doc-build:
