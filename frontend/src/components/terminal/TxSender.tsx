@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
-import { useConnectionStore, useDataStore } from '@/stores'
+import { useConnectionStore, useDataStore, useProtocolStore } from '@/stores'
 import { Send, FileText, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -11,9 +11,11 @@ import { toast } from 'sonner'
 export function TxSender() {
   const { portId } = useConnectionStore()
   const { addTxPacket } = useDataStore()
+  const { protocols, activeProtocol } = useProtocolStore()
   const [inputMode, setInputMode] = useState<'hex' | 'ascii'>('hex')
   const [inputData, setInputData] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [useProtocolEncode, setUseProtocolEncode] = useState(false)
 
   const handleSend = async () => {
     if (!portId) {
@@ -23,6 +25,11 @@ export function TxSender() {
 
     if (!inputData.trim()) {
       toast.error('请输入要发送的数据')
+      return
+    }
+
+    if (useProtocolEncode && !activeProtocol) {
+      toast.error('请先选择要使用的协议')
       return
     }
 
@@ -42,6 +49,20 @@ export function TxSender() {
         }
       } else {
         data = Array.from(new TextEncoder().encode(inputData))
+      }
+
+      // Apply protocol encoding if enabled
+      if (useProtocolEncode && activeProtocol) {
+        try {
+          const encodedData = await invoke<number[]>('protocol_encode', {
+            protocolName: activeProtocol,
+            data,
+          })
+          data = encodedData
+        } catch (encodeError) {
+          toast.error(`协议编码失败: ${encodeError instanceof Error ? encodeError.message : '未知错误'}`)
+          return
+        }
       }
 
       // Invoke Tauri command to send data to serial port
@@ -90,6 +111,21 @@ export function TxSender() {
               </button>
             ))}
           </div>
+
+          {/* 协议编码开关 */}
+          {activeProtocol && (
+            <button
+              onClick={() => setUseProtocolEncode(!useProtocolEncode)}
+              className={
+                'px-3 py-1 text-xs font-medium rounded-md border transition-colors ' +
+                (useProtocolEncode
+                  ? 'bg-amber/20 text-amber border-amber/30'
+                  : 'bg-bg-base text-text-secondary border-border hover:text-text-primary hover:bg-bg-elevated')
+              }
+            >
+              {useProtocolEncode ? `✓ ${activeProtocol}` : activeProtocol}
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

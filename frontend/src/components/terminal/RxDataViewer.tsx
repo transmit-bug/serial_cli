@@ -1,17 +1,60 @@
-import { useDataStore } from '@/stores'
+import { useDataStore, useProtocolStore } from '@/stores'
 import { VirtualList } from '@/components/ui/virtual-list'
 import { Button } from '@/components/ui/button'
-import { Trash2, Download, Search } from 'lucide-react'
-import { useState } from 'react'
+import { Trash2, Download, Search, ChevronDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { invoke } from '@tauri-apps/api/core'
 
 /**
  * RxDataViewer - RX 数据显示区
  */
 export function RxDataViewer() {
   const { rxPackets, clearPackets, setDisplayFormat, displayFormat } = useDataStore()
+  const { activeProtocol } = useProtocolStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
+  const [useProtocolDecode, setUseProtocolDecode] = useState(false)
+  const [decodedData, setDecodedData] = useState<Map<string, string>>(new Map())
+  const [isDecoding, setIsDecoding] = useState(false)
+  const [exportFormat, setExportFormat] = useState<'txt' | 'csv' | 'json'>('txt')
+  const [showExportMenu, setShowExportMenu] = useState(false)
+
+  // Auto-decode new packets when protocol decode is enabled
+  useEffect(() => {
+    const decodePackets = async () => {
+      if (!useProtocolDecode || !activeProtocol) return
+
+      setIsDecoding(true)
+      try {
+        const newDecodedData = new Map(decodedData)
+
+        for (const packet of rxPackets) {
+          const packetKey = `${packet.timestamp}-${packet.data.length}`
+          if (newDecodedData.has(packetKey)) continue
+
+          try {
+            const decoded = await invoke<string>('protocol_decode', {
+              protocolName: activeProtocol,
+              data: packet.data,
+            })
+            newDecodedData.set(packetKey, decoded)
+          } catch (decodeError) {
+            console.error('Decode error:', decodeError)
+            newDecodedData.set(packetKey, `Decode error: ${decodeError instanceof Error ? decodeError.message : 'Unknown error'}`)
+          }
+        }
+
+        setDecodedData(newDecodedData)
+      } finally {
+        setIsDecoding(false)
+      }
+    }
+
+    if (useProtocolDecode && activeProtocol && rxPackets.length > 0) {
+      decodePackets()
+    }
+  })
 
   const filteredPackets = searchQuery
     ? rxPackets.filter(p => {
@@ -21,7 +64,16 @@ export function RxDataViewer() {
       })
     : rxPackets
 
-  const formatData = (data: number[]) => {
+  const formatData = (data: number[], timestamp: number) => {
+    // Check if decoded data is available
+    if (useProtocolDecode && activeProtocol) {
+      const packetKey = `${timestamp}-${data.length}`
+      const decoded = decodedData.get(packetKey)
+      if (decoded) {
+        return decoded
+      }
+    }
+
     if (displayFormat === 'hex') {
       return new Uint8Array(data).reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
     } else if (displayFormat === 'ascii') {
@@ -34,19 +86,53 @@ export function RxDataViewer() {
   }
 
   const handleExport = () => {
-    const text = filteredPackets
-      .map(p => '[' + new Date(p.timestamp).toISOString() + '] ' + formatData(p.data))
-      .join('\n')
+    let content: string
+    let filename: string
+    let mimeType: string
 
-    const blob = new Blob([text], { type: 'text/plain' })
+    if (exportFormat === 'csv') {
+      // CSV format with headers
+      const headers = ['Timestamp', 'Direction', 'Length', 'Data']
+      const rows = filteredPackets.map(p => [
+        new Date(p.timestamp).toISOString(),
+        'RX',
+        p.data.length.toString(),
+        formatData(p.data, p.timestamp)
+      ])
+      content = [headers.join(','), ...rows.map(row => row.map(cell => `"${cell}"`).join(','))].join('\n')
+      filename = `rx-data-${Date.now()}.csv`
+      mimeType = 'text/csv'
+    } else if (exportFormat === 'json') {
+      // JSON format
+      const json = filteredPackets.map(p => ({
+        timestamp: new Date(p.timestamp).toISOString(),
+        direction: 'RX',
+        length: p.data.length,
+        data: formatData(p.data, p.timestamp),
+        rawBytes: p.data
+      }))
+      content = JSON.stringify(json, null, 2)
+      filename = `rx-data-${Date.now()}.json`
+      mimeType = 'application/json'
+    } else {
+      // Plain text format (default)
+      content = filteredPackets
+        .map(p => '[' + new Date(p.timestamp).toISOString() + '] ' + formatData(p.data, p.timestamp))
+        .join('\n')
+      filename = `rx-data-${Date.now()}.txt`
+      mimeType = 'text/plain'
+    }
+
+    const blob = new Blob([content], { type: mimeType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'rx-data-' + Date.now() + '.txt'
+    a.download = filename
     a.click()
     URL.revokeObjectURL(url)
 
-    toast.success('数据已导出')
+    toast.success(`数据已导出为 ${exportFormat.toUpperCase()} 格式`)
+    setShowExportMenu(false)
   }
 
   return (
@@ -79,6 +165,27 @@ export function RxDataViewer() {
             ))}
           </div>
 
+          {/* 协议解码开关 */}
+          {activeProtocol && (
+            <button
+              onClick={() => {
+                setUseProtocolDecode(!useProtocolDecode)
+                if (!useProtocolDecode) {
+                  setDecodedData(new Map())
+                }
+              }}
+              disabled={isDecoding}
+              className={
+                'px-3 py-1 text-xs font-medium rounded-md border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' +
+                (useProtocolDecode
+                  ? 'bg-amber/20 text-amber border-amber/30'
+                  : 'bg-bg-base text-text-secondary border-border hover:text-text-primary hover:bg-bg-elevated')
+              }
+            >
+              {isDecoding ? 'Decoding...' : useProtocolDecode ? `✓ ${activeProtocol}` : activeProtocol}
+            </button>
+          )}
+
           {/* 搜索按钮 */}
           <Button
             variant="ghost"
@@ -101,13 +208,39 @@ export function RxDataViewer() {
           </Button>
 
           {/* 导出按钮 */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleExport}
-          >
-            <Download className="w-4 h-4" />
-          </Button>
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+            >
+              <Download className="w-4 h-4" />
+              <ChevronDown className="w-3 h-3 ml-1" />
+            </Button>
+
+            {/* 导出格式下拉菜单 */}
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-32 bg-bg-base border border-border rounded-md shadow-lg z-10">
+                <div className="py-1">
+                  {(['txt', 'csv', 'json'] as const).map((format) => (
+                    <button
+                      key={format}
+                      onClick={() => {
+                        setExportFormat(format)
+                        handleExport()
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-bg-elevated transition-colors flex items-center justify-between"
+                    >
+                      <span className="text-text-secondary">{format.toUpperCase()}</span>
+                      {exportFormat === format && (
+                        <span className="text-signal">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -136,7 +269,7 @@ export function RxDataViewer() {
                   {new Date(packet.timestamp).toLocaleTimeString()}
                 </span>
                 <span className="flex-1 font-mono text-sm text-text-primary break-all">
-                  {formatData(packet.data)}
+                  {formatData(packet.data, packet.timestamp)}
                 </span>
                 <span className="text-xs text-text-tertiary">
                   {packet.data.length} B

@@ -1,11 +1,11 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2, StopCircle, AlertCircle } from 'lucide-react'
+import { Play, FilePlus, Save, FolderOpen, Trash2, Download, Upload, Loader2, StopCircle, AlertCircle, CheckCircle } from 'lucide-react'
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import Editor from '@monaco-editor/react'
 import { invoke } from '@tauri-apps/api/core'
 import { scriptsStorage } from '@/lib/storage'
-import { getErrorSolution } from '@/lib/errors'
+import { parseError } from '@/lib/errors'
 import { useScriptActions } from '@/contexts/ScriptActionContext'
 import { useTranslation } from 'react-i18next'
 
@@ -53,10 +53,10 @@ export function ScriptPanel() {
   const [activeScriptId, setActiveScriptId] = useState<string | null>(null)
   const [scriptContent, setScriptContent] = useState(DEFAULT_SCRIPT)
   const [isRunning, setIsRunning] = useState(false)
+  const [isValidating, setIsValidating] = useState(false)
   const [output, setOutput] = useState<string[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [errorDetails, setErrorDetails] = useState<ReturnType<typeof getErrorSolution> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { registerCallbacks } = useScriptActions()
 
@@ -86,7 +86,6 @@ export function ScriptPanel() {
     setActiveScriptId(newScript.id)
     setScriptContent(newScript.content)
     setError(null) // Clear any previous errors
-    setErrorDetails(null)
   }, [scripts])
 
   const runCurrentScript = async () => {
@@ -108,6 +107,9 @@ export function ScriptPanel() {
       createNewScript,
       runCurrentScript: () => {
         if (scriptContentRef.current.trim()) runScript()
+      },
+      validateCurrentScript: () => {
+        if (scriptContentRef.current.trim()) validateScript()
       },
     })
     return unregister
@@ -159,15 +161,49 @@ export function ScriptPanel() {
         console.error = originalError
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      setError(errorMsg)
-      setErrorDetails(getErrorSolution(err instanceof Error ? err : new Error(errorMsg)))
+      const appError = parseError(err)
+      setError(appError.message)
       setOutput(prev => {
-        const newOutput = [...prev, `[${new Date().toLocaleTimeString()}] ✗ Script execution failed`, `[${new Date().toLocaleTimeString()}] Error: ${errorMsg}`]
+        const newOutput = [...prev, `[${new Date().toLocaleTimeString()}] ✗ Script execution failed`, `[${new Date().toLocaleTimeString()}] Error: ${appError.message}`]
         return newOutput.length > MAX_OUTPUT_LINES ? newOutput.slice(-MAX_OUTPUT_LINES) : newOutput
       })
     } finally {
       setIsRunning(false)
+    }
+  }
+
+  const validateCurrentScript = async () => {
+    if (!scriptContent.trim()) {
+      setError(t('toast.emptyScript'))
+      return
+    }
+    await validateScript()
+  }
+
+  const validateScript = async () => {
+    if (isValidating) return
+    setIsValidating(true)
+    setError(null)
+    setOutput(prev => {
+      const newOutput = [...prev, `[${new Date().toLocaleTimeString()}] Starting script validation...`]
+      return newOutput.length > MAX_OUTPUT_LINES ? newOutput.slice(-MAX_OUTPUT_LINES) : newOutput
+    })
+
+    try {
+      const result = await invoke<string>('validate_script', { script: scriptContent })
+      setOutput(prev => {
+        const newOutput = [...prev, `[${new Date().toLocaleTimeString()}] ✓ ${result}`]
+        return newOutput.length > MAX_OUTPUT_LINES ? newOutput.slice(-MAX_OUTPUT_LINES) : newOutput
+      })
+    } catch (err) {
+      const appError = parseError(err)
+      setError(appError.message)
+      setOutput(prev => {
+        const newOutput = [...prev, `[${new Date().toLocaleTimeString()}] ✗ Script validation failed`, `[${new Date().toLocaleTimeString()}] Error: ${appError.message}`]
+        return newOutput.length > MAX_OUTPUT_LINES ? newOutput.slice(-MAX_OUTPUT_LINES) : newOutput
+      })
+    } finally {
+      setIsValidating(false)
     }
   }
 
@@ -339,6 +375,19 @@ export function ScriptPanel() {
                 <Download size={14} strokeWidth={1.5} />
               </button>
               <button
+                onClick={validateScript}
+                disabled={isValidating}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-amber/10 text-amber border border-amber/30 hover:bg-amber/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Validate script syntax"
+              >
+                {isValidating ? (
+                  <Loader2 size={12} strokeWidth={1.5} className="animate-spin" />
+                ) : (
+                  <CheckCircle size={12} strokeWidth={1.5} />
+                )}
+                {isValidating ? 'Validating...' : 'Validate'}
+              </button>
+              <button
                 onClick={runScript}
                 disabled={isRunning}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -375,27 +424,13 @@ export function ScriptPanel() {
 
       {/* Output Console */}
       <Panel title={t('scripts.output')} variant="default" className="w-full">
-        {(error || errorDetails) && (
+        {error && (
           <div className="mb-3 p-3 rounded-md bg-alert/10 border border-alert/30">
             <div className="flex items-start gap-2">
               <AlertCircle size={16} strokeWidth={1.5} className="mt-0.5 flex-shrink-0 text-alert" />
               <div className="flex-1">
-                {errorDetails ? (
-                  <>
-                    <p className="text-sm text-alert font-medium">{errorDetails.title}</p>
-                    <p className="text-xs text-alert/80 mt-1">{errorDetails.description}</p>
-                    <div className="mt-2 space-y-1">
-                      {errorDetails.steps.map((step, i) => (
-                        <p key={i} className="text-xs text-alert/70">{step}</p>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-alert font-medium">{t('scripts.executionError')}</p>
-                    <p className="text-xs text-alert mt-1 font-mono">{error}</p>
-                  </>
-                )}
+                <p className="text-sm text-alert font-medium">{t('scripts.executionError')}</p>
+                <p className="text-xs text-alert mt-1 font-mono">{error}</p>
               </div>
             </div>
           </div>

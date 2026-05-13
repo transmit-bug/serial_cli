@@ -14,6 +14,7 @@ import { VirtualPortsPanel } from './components/virtual/VirtualPortsPanel'
 import { ScriptPanel } from './components/scripting/ScriptPanel'
 import { ProtocolPanel } from './components/protocols/ProtocolPanel'
 import { SettingsPanel } from './components/settings/SettingsPanel'
+import { ErrorEventToast } from './components/error/ErrorEventToast'
 import { Toaster } from './components/ui/toast'
 import { CommandPalette } from './components/shortcuts/CommandPalette'
 import { KeyboardShortcutsHelp } from './components/shortcuts/KeyboardShortcutsHelp'
@@ -56,6 +57,7 @@ function AppContent() {
       <Toaster />
 
       {/* Global overlays */}
+      <ErrorEventToast />
       <CommandPalette />
       <KeyboardShortcutsHelp />
     </div>

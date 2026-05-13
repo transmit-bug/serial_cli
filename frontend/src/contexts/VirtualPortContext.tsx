@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { CapturedPacket, VirtualPortConfig, VirtualPortInfo, VirtualPortStats } from '../types/tauri'
+import type { VirtualPortEventData } from '../hooks/useEvents'
 
 interface VirtualPortContextType {
   virtualPorts: Map<string, VirtualPortInfo>
@@ -196,7 +197,7 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
     const unlisteners: Promise<() => void>[] = []
 
     // Listen for virtual port created events
-    const unlistenCreated = listen('virtual-port-created', (event: any) => {
+    const unlistenCreated = listen<VirtualPortEventData>('virtual-port-created', (event) => {
       console.log('Virtual port created event:', event.payload)
       // Refresh the list to get the new port
       listVirtualPorts().catch(err => {
@@ -206,7 +207,7 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
     unlisteners.push(unlistenCreated)
 
     // Listen for virtual port stopped events
-    const unlistenStopped = listen('virtual-port-stopped', (event: any) => {
+    const unlistenStopped = listen<VirtualPortEventData>('virtual-port-stopped', (event) => {
       console.log('Virtual port stopped event:', event.payload)
       const portId = event.payload.port_id
       // Remove from local state
@@ -224,9 +225,11 @@ export function VirtualPortProvider({ children }: { children: React.ReactNode })
     unlisteners.push(unlistenStopped)
 
     // Listen for stats updated events
-    const unlistenStats = listen('virtual-port-stats-updated', (event: any) => {
+    const unlistenStats = listen<VirtualPortEventData>('virtual-port-stats-updated', (event) => {
       console.log('Virtual port stats updated event:', event.payload)
       const stats = event.payload.stats
+      if (!stats) return
+
       // Update stats in local state
       setPortStats(prev => {
         const next = new Map(prev)

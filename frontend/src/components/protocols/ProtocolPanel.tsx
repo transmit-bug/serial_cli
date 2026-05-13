@@ -1,11 +1,13 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { FileCode, Upload, Trash2, AlertCircle } from 'lucide-react'
+import { FileCode, Upload, Trash2, AlertCircle, RefreshCw, Loader2 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { protocolsStorage } from '@/lib/storage'
 import { useProtocolStore } from '@/stores/protocolStore'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import type { ProtocolInfo } from '@/types/tauri'
 
 interface CustomProtocol {
   id: string
@@ -19,9 +21,10 @@ interface CustomProtocol {
 
 export function ProtocolPanel() {
   const { t } = useTranslation()
-  const { protocols, activeProtocol, setActiveProtocol, loadProtocols, enableProtocol, disableProtocol, loading } = useProtocolStore()
+  const { protocols, activeProtocol, setActiveProtocol, loadProtocols, enableProtocol, disableProtocol, reloadProtocol, loading } = useProtocolStore()
   const [customProtocols, setCustomProtocols] = useState<CustomProtocol[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [reloadingProtocol, setReloadingProtocol] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [validationStatus, setValidationStatus] = useState<Map<string, 'valid' | 'invalid'>>(new Map())
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -41,6 +44,24 @@ export function ProtocolPanel() {
 
   const handleSelectProtocol = (id: string) => {
     setActiveProtocol(id)
+  }
+
+  const handleReloadProtocol = async (protocolName: string, type: 'built-in' | 'custom') => {
+    setReloadingProtocol(protocolName)
+    setError(null)
+
+    try {
+      await reloadProtocol(protocolName)
+
+      // Show success toast
+      toast.success(`${type === 'built-in' ? '内置' : '自定义'}协议 "${protocolName}" 重载成功`)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : t('protocol.toggleFailed')
+      setError(errorMsg)
+      toast.error(`重载协议失败: ${errorMsg}`)
+    } finally {
+      setReloadingProtocol(null)
+    }
   }
 
   const toggleProtocol = async (id: string, type: 'built-in' | 'custom') => {
@@ -120,7 +141,7 @@ export function ProtocolPanel() {
       }
 
       // Load protocol via Tauri using absolute file path
-      const protocolInfo = await invoke<any>('load_protocol', { path: filePath })
+      const protocolInfo = await invoke<ProtocolInfo>('load_protocol', { path: filePath })
 
       const newProtocol: CustomProtocol = {
         id: `custom-${Date.now()}`,
@@ -198,15 +219,17 @@ export function ProtocolPanel() {
                   <div
                     key={protocol.name}
                     className={cn(
-                      'group p-3 rounded-md border transition-all duration-200 cursor-pointer',
+                      'group p-3 rounded-md border transition-all duration-200',
                       isActive
                         ? 'bg-signal/10 border-signal/30'
                         : 'bg-bg-deep border-border hover:border-signal/30 hover:bg-bg-elevated'
                     )}
-                    onClick={() => handleSelectProtocol(protocol.name)}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
+                      <div
+                        className="flex items-center gap-3 flex-1 cursor-pointer"
+                        onClick={() => handleSelectProtocol(protocol.name)}
+                      >
                         <div className="p-2 rounded-md bg-bg-elevated">
                           <FileCode size={18} strokeWidth={1.5} className="text-text-tertiary" />
                         </div>
@@ -215,9 +238,26 @@ export function ProtocolPanel() {
                           <p className="text-xs text-text-tertiary mt-0.5">{protocol.description}</p>
                         </div>
                       </div>
-                      <span className="px-2.5 py-1 text-xs rounded-md bg-bg-elevated text-text-tertiary border border-border">
-                        {t('protocol.builtIn')}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 text-xs rounded-md bg-bg-elevated text-text-tertiary border border-border">
+                          {t('protocol.builtIn')}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleReloadProtocol(protocol.name, 'built-in')
+                          }}
+                          disabled={reloadingProtocol === protocol.name}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-signal/20 text-text-tertiary hover:text-signal transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Reload protocol"
+                        >
+                          {reloadingProtocol === protocol.name ? (
+                            <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                          ) : (
+                            <RefreshCw size={14} strokeWidth={1.5} />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )
@@ -266,15 +306,17 @@ export function ProtocolPanel() {
                   <div
                     key={protocol.id}
                     className={cn(
-                      'group p-3 rounded-md border transition-all duration-200 cursor-pointer',
+                      'group p-3 rounded-md border transition-all duration-200',
                       isActive
                         ? 'bg-amber/10 border-amber/30'
                         : 'bg-bg-deep border-border hover:border-amber/30 hover:bg-bg-elevated'
                     )}
-                    onClick={() => handleSelectProtocol(protocol.id)}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
+                      <div
+                        className="flex items-center gap-3 flex-1 cursor-pointer"
+                        onClick={() => handleSelectProtocol(protocol.id)}
+                      >
                         <div className={cn(
                           'p-2 rounded-md',
                           protocol.status === 'active' ? 'bg-amber/20' : 'bg-bg-elevated'
@@ -312,6 +354,21 @@ export function ProtocolPanel() {
                           )}
                         >
                           {protocol.status === 'active' ? t('protocol.active') : t('protocol.enable')}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleReloadProtocol(protocol.name, 'custom')
+                          }}
+                          disabled={reloadingProtocol === protocol.name}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-amber/20 text-text-tertiary hover:text-amber transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Reload protocol"
+                        >
+                          {reloadingProtocol === protocol.name ? (
+                            <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                          ) : (
+                            <RefreshCw size={14} strokeWidth={1.5} />
+                          )}
                         </button>
                         <button
                           onClick={(e) => {

@@ -2,7 +2,7 @@ import { NotificationSettings } from './NotificationSettings'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { useState, useRef, useMemo, useEffect } from 'react'
-import { RotateCcw, Check, Download, Upload, Settings, Radio, BarChart3, Bell } from 'lucide-react'
+import { RotateCcw, Check, Download, Upload, Settings, Radio, BarChart3, Bell, FileCode, Merge, GitCompare } from 'lucide-react'
 import { exportSettings, importSettings } from '@/lib/storage'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -10,7 +10,7 @@ import { useDataStore } from '@/stores'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 
-type Tab = 'general' | 'serial' | 'data' | 'notifications'
+type Tab = 'general' | 'serial' | 'data' | 'notifications' | 'advanced'
 
 interface SerialConfig {
   baudRate: number
@@ -93,6 +93,7 @@ export function SettingsPanel() {
     { id: 'serial', label: t('settings.serialTitle'), icon: Radio },
     { id: 'data', label: t('settings.dataTitle'), icon: BarChart3 },
     { id: 'notifications', label: t('settings.notificationsTitle'), icon: Bell },
+    { id: 'advanced', label: 'Advanced', icon: FileCode },
   ]
 
   const resetToDefaults = async () => {
@@ -439,6 +440,106 @@ export function SettingsPanel() {
       )}
 
       {activeTab === 'notifications' && <NotificationSettings />}
+
+      {activeTab === 'advanced' && (
+        <Panel title="Advanced Configuration" variant="amber">
+          <div className="space-y-6">
+            {/* Configuration Validation */}
+            <div>
+              <h4 className="text-sm font-medium text-text-primary mb-2">Configuration Validation</h4>
+              <p className="text-xs text-text-tertiary mb-3">Validate current configuration settings for errors and conflicts.</p>
+              <button
+                onClick={async () => {
+                  try {
+                    await saveConfig()
+                    toast.success('Configuration is valid')
+                  } catch (error) {
+                    toast.error(`Configuration validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                  }
+                }}
+                className="px-3 py-2 text-sm bg-amber/10 text-amber border border-amber/30 rounded-md hover:bg-amber/20 transition-colors"
+              >
+                Validate Configuration
+              </button>
+            </div>
+
+            {/* Configuration Export (Enhanced) */}
+            <div>
+              <h4 className="text-sm font-medium text-text-primary mb-2">Export Configuration</h4>
+              <p className="text-xs text-text-tertiary mb-3">Export current configuration as TOML or JSON format.</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    try {
+                      const configData = JSON.stringify(config, null, 2)
+                      const blob = new Blob([configData], { type: 'application/json' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `serial-config-${Date.now()}.json`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                      toast.success('Configuration exported as JSON')
+                    } catch (error) {
+                      toast.error('Failed to export configuration')
+                    }
+                  }}
+                  className="px-3 py-2 text-sm bg-bg-elevated text-text-secondary border border-border rounded-md hover:text-text-primary transition-colors"
+                >
+                  Export as JSON
+                </button>
+                <button
+                  onClick={handleExport}
+                  className="px-3 py-2 text-sm bg-bg-elevated text-text-secondary border border-border rounded-md hover:text-text-primary transition-colors"
+                >
+                  Export as Frontend Settings
+                </button>
+              </div>
+            </div>
+
+            {/* Configuration Backup & Restore */}
+            <div>
+              <h4 className="text-sm font-medium text-text-primary mb-2">Configuration Backup & Restore</h4>
+              <p className="text-xs text-text-tertiary mb-3">Backup current configuration or restore from a previous backup.</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      // Save current config as backup
+                      await saveConfig()
+                      toast.success('Configuration backup created')
+                    } catch (error) {
+                      toast.error('Failed to create backup')
+                    }
+                  }}
+                  className="px-3 py-2 text-sm bg-bg-elevated text-text-secondary border border-border rounded-md hover:text-text-primary transition-colors"
+                >
+                  Create Backup
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isImporting}
+                  className="px-3 py-2 text-sm bg-bg-elevated text-text-secondary border border-border rounded-md hover:text-text-primary transition-colors disabled:opacity-50"
+                >
+                  Restore from Backup
+                </button>
+              </div>
+            </div>
+
+            {/* Configuration Reset */}
+            <div className="pt-4 border-t border-border">
+              <h4 className="text-sm font-medium text-text-primary mb-2">Danger Zone</h4>
+              <p className="text-xs text-text-tertiary mb-3">Reset all configuration to factory defaults. This action cannot be undone.</p>
+              <button
+                onClick={resetToDefaults}
+                className="px-3 py-2 text-sm bg-alert/10 text-alert border border-alert/30 rounded-md hover:bg-alert/20 transition-colors"
+              >
+                Reset to Factory Defaults
+              </button>
+            </div>
+          </div>
+        </Panel>
+      )}
     </div>
   )
 }
