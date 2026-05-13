@@ -140,9 +140,10 @@ pub async fn start_sniffing(
                                 last_activity = std::time::Instant::now();
 
                                 // Update stats
-                                stats_clone
-                                    .bytes_received
-                                    .fetch_add(bytes_read as u64, std::sync::atomic::Ordering::Relaxed);
+                                stats_clone.bytes_received.fetch_add(
+                                    bytes_read as u64,
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
                                 stats_clone
                                     .packets_received
                                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);

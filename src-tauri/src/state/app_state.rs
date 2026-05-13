@@ -10,11 +10,10 @@ use serial_cli::protocol::{ProtocolManager, ProtocolRegistry};
 use serial_cli::serial_core::{PortManager, VirtualSerialPair};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
-
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Per-port statistics tracked by the backend
 pub struct PortStatsTracker {
