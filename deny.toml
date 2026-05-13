@@ -45,12 +45,7 @@ wildcards = "allow"
 # 高亮所有显示
 highlight = "all"
 
-# 跳过特定的重复版本
-[[bans.skip]]
-name = "libc"
-version = "0.2.137"
-
-# 跳过特定的树重复
+# Skip-tree for known duplicate packages that are safe to ignore
 [[bans.skip-tree]]
 name = "windows-sys"
 

@@ -25,6 +25,9 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libluajit-5.1-dev
+
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
