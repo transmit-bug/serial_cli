@@ -17,7 +17,7 @@ struct JsonRpcRequest {
     id: Value,
 }
 
-/// JSON-RPC 2.0 response
+/// JSON-RPC 2.0 response (built at dispatch time, not deserialized)
 #[derive(Debug, Serialize)]
 struct JsonRpcResponse {
     jsonrpc: &'static str,
@@ -35,8 +35,7 @@ struct JsonRpcError {
     data: Option<Value>,
 }
 
-/// Structured error returned by method handlers.
-#[allow(dead_code)] // Reserved for v0.6.0 protocol integration
+/// Structured error returned by method handlers: (code, message, optional data).
 type MethodError = (i32, String, Option<Value>);
 
 /// JSON-RPC dispatcher
@@ -54,23 +53,28 @@ impl RpcDispatcher {
     /// Appends `\n` to every response so clients can use line-based framing
     /// instead of tracking brace nesting on persistent connections.
     pub async fn handle_request(&self, request: &str) -> String {
-        // Parse JSON-RPC request
         let req = match serde_json::from_str::<JsonRpcRequest>(request) {
             Ok(req) => req,
             Err(_) => {
-                let resp = self.error_response(-32700, "Parse error", None);
-                return Self::format_response(resp);
+                return Self::serialize_response(Self::error_resp(
+                    -32700,
+                    "Parse error",
+                    None,
+                    &Value::Null,
+                ));
             }
         };
 
-        // Validate JSON-RPC version
         if req.jsonrpc != "2.0" {
-            let response = self.error_response_with_id(-32600, "Invalid Request", None, &req.id);
-            return Self::format_response(Ok(response));
+            return Self::serialize_response(Self::error_resp(
+                -32600,
+                "Invalid Request",
+                None,
+                &req.id,
+            ));
         }
 
-        // Dispatch to method handler
-        let result = match req.method.as_str() {
+        let result: Result<Value, MethodError> = match req.method.as_str() {
             "port_list" => self.port_list(req.params).await,
             "port_open" => self.port_open(req.params).await,
             "port_close" => self.port_close(req.params).await,
@@ -81,99 +85,53 @@ impl RpcDispatcher {
             "protocol_unload" => self.protocol_unload(req.params).await,
             "connection_list" => self.connection_list(req.params).await,
             "server_stats" => self.server_stats(req.params).await,
-            _ => self.error_response(-32601, "Method not found", None),
+            _ => Err((-32601, "Method not found".to_string(), None)),
         };
 
-        // Add request ID to response and serialize
-        match result {
-            Ok(mut resp) => {
-                resp.id = req.id;
-                Self::format_response(Ok(resp))
-            }
-            Err(_) => {
-                // Internal error — construct fallback response directly
-                let resp = JsonRpcResponse {
-                    jsonrpc: "2.0",
-                    result: None,
-                    error: Some(JsonRpcError {
-                        code: -32603,
-                        message: "Internal error".to_string(),
-                        data: None,
-                    }),
-                    id: req.id,
-                };
-                Self::format_response(Ok(resp))
-            }
-        }
+        let response = match result {
+            Ok(value) => Self::success_resp(value, &req.id),
+            Err((code, message, data)) => Self::error_resp(code, &message, data, &req.id),
+        };
+        Self::serialize_response(response)
     }
 
-    /// Create success response
-    fn success_response(&self, result: Value) -> Result<JsonRpcResponse, String> {
-        Ok(JsonRpcResponse {
+    fn success_resp(result: Value, id: &Value) -> JsonRpcResponse {
+        JsonRpcResponse {
             jsonrpc: "2.0",
             result: Some(result),
             error: None,
-            id: Value::Null,
-        })
+            id: id.clone(),
+        }
     }
 
-    /// Create error response
-    fn error_response(
-        &self,
-        code: i32,
-        message: &str,
-        data: Option<&str>,
-    ) -> Result<JsonRpcResponse, String> {
-        Ok(JsonRpcResponse {
-            jsonrpc: "2.0",
-            result: None,
-            error: Some(JsonRpcError {
-                code,
-                message: message.to_string(),
-                data: data.map(|d| Value::String(d.to_string())),
-            }),
-            id: Value::Null,
-        })
-    }
-
-    /// Create error response with custom ID
-    fn error_response_with_id(
-        &self,
-        code: i32,
-        message: &str,
-        data: Option<&str>,
-        id: &Value,
-    ) -> JsonRpcResponse {
+    fn error_resp(code: i32, message: &str, data: Option<Value>, id: &Value) -> JsonRpcResponse {
         JsonRpcResponse {
             jsonrpc: "2.0",
             result: None,
             error: Some(JsonRpcError {
                 code,
                 message: message.to_string(),
-                data: data.map(|d| Value::String(d.to_string())),
+                data,
             }),
             id: id.clone(),
         }
     }
 
-    // === Method handlers ===
-
-    /// Serialize a JSON-RPC response and append `\n` for line-based framing.
-    /// This lets clients use `read_line` instead of tracking brace nesting
-    /// on persistent connections.
-    fn format_response(resp: Result<JsonRpcResponse, String>) -> String {
-        match resp {
-            Ok(r) => format!("{}\n", serde_json::to_string(&r).unwrap_or_default()),
-            Err(_) => String::new(),
-        }
+    fn serialize_response(resp: JsonRpcResponse) -> String {
+        format!("{}\n", serde_json::to_string(&resp).unwrap_or_default())
     }
 
+    // === Method handlers ===
+    // Each returns Result<Value, MethodError> where MethodError = (code, message, data)
+
     /// List available serial ports
-    async fn port_list(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
-        let _ = params; // Not used
+    async fn port_list(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        let _ = params;
 
         let manager = self.state.port_manager.lock().await;
-        let ports = manager.list_ports().map_err(|e| e.to_string())?;
+        let ports = manager
+            .list_ports()
+            .map_err(|e| (-32603, e.to_string(), None))?;
 
         let port_list: Vec<Value> = ports
             .into_iter()
@@ -185,17 +143,18 @@ impl RpcDispatcher {
             })
             .collect();
 
-        self.success_response(serde_json::json!({ "ports": port_list }))
+        Ok(serde_json::json!({ "ports": port_list }))
     }
 
     /// Open a serial port
-    async fn port_open(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
-        let params = params.ok_or("Missing params")?;
+    async fn port_open(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
 
-        let port = params
-            .get("port")
-            .and_then(|v| v.as_str())
-            .ok_or("Missing 'port' parameter")?;
+        let port = params.get("port").and_then(|v| v.as_str()).ok_or((
+            -32602,
+            "Missing 'port' parameter".to_string(),
+            None,
+        ))?;
 
         let baudrate = params
             .get("baudrate")
@@ -204,12 +163,10 @@ impl RpcDispatcher {
 
         let protocol = params.get("protocol").and_then(|v| v.as_str());
 
-        // Check max connections
         if self.state.is_max_connections_reached().await {
-            return self.error_response(-32000, "Max connections reached", None);
+            return Err((-32000, "Max connections reached".to_string(), None));
         }
 
-        // Open port
         let config = SerialConfig {
             baudrate,
             ..Default::default()
@@ -222,9 +179,8 @@ impl RpcDispatcher {
             .await
             .open_port(port, config)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| (-32603, e.to_string(), None))?;
 
-        // Create connection context
         let connection_id = port_id.clone();
         let ctx = ConnectionContext {
             connection_id: connection_id.clone(),
@@ -234,20 +190,19 @@ impl RpcDispatcher {
             last_activity: SystemTime::now(),
         };
 
-        // Store connection
         self.state
             .add_connection(ctx)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| (-32603, e.to_string(), None))?;
 
-        // Protocol name is already stored in ConnectionContext.protocol_name (line 220).
+        // Protocol name is already stored in ConnectionContext.protocol_name.
         // v0.6.0 TODO: Use the protocol for encode/decode in port_send/port_recv:
         //   - Get a fresh protocol instance from state.protocol_registry.get_protocol(protocol_name)
         //   - In port_send: encode(data) before writing to the port
         //   - In port_recv: parse(raw_bytes) before returning to the client
         //   This requires a per-connection protocol instance cache to avoid factory churn.
 
-        self.success_response(serde_json::json!({
+        Ok(serde_json::json!({
             "connection_id": connection_id,
             "port": port,
             "protocol": protocol,
@@ -255,22 +210,24 @@ impl RpcDispatcher {
     }
 
     /// Close a serial port
-    async fn port_close(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
-        let params = params.ok_or("Missing params")?;
+    async fn port_close(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
 
         let connection_id = params
             .get("connection_id")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'connection_id' parameter")?;
+            .ok_or((
+                -32602,
+                "Missing 'connection_id' parameter".to_string(),
+                None,
+            ))?;
 
-        // Remove from connections
-        let ctx = self
-            .state
-            .remove_connection(connection_id)
-            .await
-            .ok_or("Connection not found")?;
+        let ctx = self.state.remove_connection(connection_id).await.ok_or((
+            -32603,
+            "Connection not found".to_string(),
+            None,
+        ))?;
 
-        // Close port
         if let Some(port_id) = ctx.port_id {
             self.state
                 .port_manager
@@ -278,47 +235,53 @@ impl RpcDispatcher {
                 .await
                 .close_port(&port_id)
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| (-32603, e.to_string(), None))?;
         }
 
-        self.success_response(serde_json::json!({
+        Ok(serde_json::json!({
             "success": true,
             "connection_id": connection_id,
         }))
     }
 
     /// Send data to a port
-    async fn port_send(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
-        let params = params.ok_or("Missing params")?;
+    async fn port_send(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
 
         let connection_id = params
             .get("connection_id")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'connection_id' parameter")?
+            .ok_or((
+                -32602,
+                "Missing 'connection_id' parameter".to_string(),
+                None,
+            ))?
             .to_string();
 
-        let data_str = params
-            .get("data")
-            .and_then(|v| v.as_str())
-            .ok_or("Missing 'data' parameter")?;
+        let data_str = params.get("data").and_then(|v| v.as_str()).ok_or((
+            -32602,
+            "Missing 'data' parameter".to_string(),
+            None,
+        ))?;
 
-        // Get connection context
         let port_id = {
             let connections = self.state.connections.read().await;
-            let ctx = connections
-                .get(&connection_id)
-                .ok_or("Connection not found")?;
-            ctx.port_id.clone().ok_or("No port associated")?
+            let ctx = connections.get(&connection_id).ok_or((
+                -32603,
+                "Connection not found".to_string(),
+                None,
+            ))?;
+            ctx.port_id
+                .clone()
+                .ok_or((-32603, "No port associated".to_string(), None))?
         };
 
-        // Decode data (assume hex or plain string)
         let data = if let Some(hex_str) = data_str.strip_prefix("hex:") {
             hex_decode(hex_str)
         } else {
             data_str.as_bytes().to_vec()
         };
 
-        // Get port handle and send
         let port_handle = self
             .state
             .port_manager
@@ -326,44 +289,51 @@ impl RpcDispatcher {
             .await
             .get_port(&port_id)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| (-32603, e.to_string(), None))?;
 
         let mut handle = port_handle.lock().await;
-        let bytes_sent = handle.write(&data).map_err(|e| e.to_string())?;
+        let bytes_sent = handle
+            .write(&data)
+            .map_err(|e| (-32603, e.to_string(), None))?;
 
-        // Update activity
         self.state.update_activity(&connection_id).await;
 
-        self.success_response(serde_json::json!({
+        Ok(serde_json::json!({
             "bytes_sent": bytes_sent,
         }))
     }
 
     /// Receive data from a port
-    async fn port_recv(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
-        let params = params.ok_or("Missing params")?;
+    async fn port_recv(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
 
         let connection_id = params
             .get("connection_id")
             .and_then(|v| v.as_str())
-            .ok_or("Missing 'connection_id' parameter")?
+            .ok_or((
+                -32602,
+                "Missing 'connection_id' parameter".to_string(),
+                None,
+            ))?
             .to_string();
 
-        let _timeout_ms = params
+        let timeout_ms = params
             .get("timeout")
             .and_then(|v| v.as_u64())
             .unwrap_or(1000);
 
-        // Get connection context
         let port_id = {
             let connections = self.state.connections.read().await;
-            let ctx = connections
-                .get(&connection_id)
-                .ok_or("Connection not found")?;
-            ctx.port_id.clone().ok_or("No port associated")?
+            let ctx = connections.get(&connection_id).ok_or((
+                -32603,
+                "Connection not found".to_string(),
+                None,
+            ))?;
+            ctx.port_id
+                .clone()
+                .ok_or((-32603, "No port associated".to_string(), None))?
         };
 
-        // Get port handle
         let port_handle = self
             .state
             .port_manager
@@ -371,10 +341,9 @@ impl RpcDispatcher {
             .await
             .get_port(&port_id)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| (-32603, e.to_string(), None))?;
 
-        // Read data with timeout using spawn_blocking
-        let timeout_duration = std::time::Duration::from_millis(_timeout_ms);
+        let timeout_duration = std::time::Duration::from_millis(timeout_ms);
 
         let read_result = tokio::time::timeout(
             timeout_duration,
@@ -389,11 +358,10 @@ impl RpcDispatcher {
 
         let (data_hex, bytes_read, timed_out) = match read_result {
             Ok(Ok((Ok(n), buffer))) => (hex_encode(&buffer), n, false),
-            Ok(Ok((Err(e), _))) => return Err(e.to_string()),
-            Ok(Err(e)) => return Err(format!("Task join error: {:?}", e)),
+            Ok(Ok((Err(e), _))) => return Err((-32603, e.to_string(), None)),
+            Ok(Err(e)) => return Err((-32603, format!("Task join error: {:?}", e), None)),
             Err(_) => {
-                // Timeout occurred
-                return self.success_response(serde_json::json!({
+                return Ok(serde_json::json!({
                     "data": "",
                     "bytes_read": 0,
                     "timeout": true,
@@ -401,10 +369,9 @@ impl RpcDispatcher {
             }
         };
 
-        // Update activity
         self.state.update_activity(&connection_id).await;
 
-        self.success_response(serde_json::json!({
+        Ok(serde_json::json!({
             "data": data_hex,
             "bytes_read": bytes_read,
             "timeout": timed_out,
@@ -412,7 +379,7 @@ impl RpcDispatcher {
     }
 
     /// List available protocols
-    async fn protocol_list(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
+    async fn protocol_list(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let _ = params;
 
         let registry = self.state.protocol_registry.lock().await;
@@ -428,17 +395,18 @@ impl RpcDispatcher {
             })
             .collect();
 
-        self.success_response(serde_json::json!({ "protocols": protocol_list }))
+        Ok(serde_json::json!({ "protocols": protocol_list }))
     }
 
     /// Load a custom protocol
-    async fn protocol_load(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
-        let params = params.ok_or("Missing params")?;
+    async fn protocol_load(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
 
-        let path = params
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or("Missing 'path' parameter")?;
+        let path = params.get("path").and_then(|v| v.as_str()).ok_or((
+            -32602,
+            "Missing 'path' parameter".to_string(),
+            None,
+        ))?;
 
         let _name = params.get("name").and_then(|v| v.as_str());
 
@@ -448,37 +416,38 @@ impl RpcDispatcher {
         let info = manager
             .load_protocol(&path_buf)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| (-32603, e.to_string(), None))?;
 
-        self.success_response(serde_json::json!({
+        Ok(serde_json::json!({
             "name": info.name,
             "description": info.description,
         }))
     }
 
     /// Unload a custom protocol
-    async fn protocol_unload(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
-        let params = params.ok_or("Missing params")?;
+    async fn protocol_unload(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
 
-        let name = params
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or("Missing 'name' parameter")?;
+        let name = params.get("name").and_then(|v| v.as_str()).ok_or((
+            -32602,
+            "Missing 'name' parameter".to_string(),
+            None,
+        ))?;
 
         let mut manager = self.state.protocol_manager.lock().await;
         manager
             .unload_protocol(name)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| (-32603, e.to_string(), None))?;
 
-        self.success_response(serde_json::json!({
+        Ok(serde_json::json!({
             "success": true,
             "name": name,
         }))
     }
 
     /// List active connections
-    async fn connection_list(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
+    async fn connection_list(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let _ = params;
 
         let connections = self.state.connections.read().await;
@@ -493,18 +462,18 @@ impl RpcDispatcher {
             }));
         }
 
-        self.success_response(serde_json::json!({
+        Ok(serde_json::json!({
             "connections": connection_list,
         }))
     }
 
     /// Get server statistics
-    async fn server_stats(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
+    async fn server_stats(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let _ = params;
 
         let stats = self.state.connection_stats().await;
 
-        self.success_response(serde_json::json!({
+        Ok(serde_json::json!({
             "connections": stats,
             "max_connections": self.state.config.max_connections,
         }))
@@ -558,30 +527,16 @@ mod tests {
         assert_eq!(hex_decode("00ff"), b"\x00\xff");
     }
 
-    #[test]
-    fn test_json_rpc_response() {
-        let response = JsonRpcResponse {
-            jsonrpc: "2.0",
-            result: Some(serde_json::json!({"test": "data"})),
-            error: None,
-            id: Value::Number(1.into()),
-        };
-
-        let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains(r#""jsonrpc":"2.0""#));
-        assert!(json.contains(r#""result""#));
-    }
-
     #[tokio::test]
     async fn test_jsonrpc_parse_error() {
         let config = ServerConfig::default();
         let state = ServerState::new(config).await;
         let dispatcher = RpcDispatcher::new(state);
 
-        // Invalid JSON should return parse error
         let response = dispatcher.handle_request("invalid json{{{").await;
         assert!(response.contains(r#""code":-32700"#));
         assert!(response.contains("Parse error"));
+        assert!(response.ends_with('\n'), "Response should end with newline");
     }
 
     #[tokio::test]
@@ -590,11 +545,11 @@ mod tests {
         let state = ServerState::new(config).await;
         let dispatcher = RpcDispatcher::new(state);
 
-        // Invalid JSON-RPC version
         let request = r#"{"jsonrpc":"1.0","method":"port_list","id":1}"#;
         let response = dispatcher.handle_request(request).await;
         assert!(response.contains(r#""code":-32600"#));
         assert!(response.contains("Invalid Request"));
+        assert!(response.ends_with('\n'), "Response should end with newline");
     }
 
     #[tokio::test]
@@ -603,7 +558,6 @@ mod tests {
         let state = ServerState::new(config).await;
         let dispatcher = RpcDispatcher::new(state);
 
-        // Non-existent method
         let request = r#"{"jsonrpc":"2.0","method":"nonexistent_method","id":1}"#;
         let response = dispatcher.handle_request(request).await;
         assert!(response.contains(r#""code":-32601"#));
@@ -616,20 +570,18 @@ mod tests {
         let state = ServerState::new(config).await;
         let dispatcher = RpcDispatcher::new(state);
 
-        // Valid port_list call
         let request = r#"{"jsonrpc":"2.0","method":"port_list","params":{},"id":1}"#;
         let response = dispatcher.handle_request(request).await;
 
-        // Debug: print response to see what we got
         eprintln!("Response: {}", response);
 
-        // Should be valid JSON-RPC 2.0 response
         assert!(response.contains(r#""jsonrpc":"2.0""#));
         assert!(response.contains(r#""id":1"#));
+        assert!(response.ends_with('\n'), "Response should end with newline");
 
-        // Response should be valid JSON (can parse)
+        let json_str = response.trim_end();
         let _: serde_json::Value =
-            serde_json::from_str(&response).expect("Response should be valid JSON");
+            serde_json::from_str(json_str).expect("Response should be valid JSON");
     }
 
     #[tokio::test]
@@ -638,11 +590,9 @@ mod tests {
         let state = ServerState::new(config).await;
         let dispatcher = RpcDispatcher::new(state);
 
-        // Test with custom ID
         let request = r#"{"jsonrpc":"2.0","method":"port_list","params":{},"id":"test-id-123"}"#;
         let response = dispatcher.handle_request(request).await;
 
-        // Response should preserve the ID
         assert!(response.contains(r#""id":"test-id-123""#));
     }
 }

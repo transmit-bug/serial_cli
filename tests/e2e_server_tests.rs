@@ -11,7 +11,7 @@
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 
 /// Unique socket path per test run to avoid conflicts
@@ -162,57 +162,18 @@ async fn wait_for_server(socket_path: &PathBuf, timeout_secs: u64) -> Result<(),
     }
 }
 
-/// Read a complete top-level JSON object from a persistent stream.
-/// Tracks brace nesting and string escaping to detect the end of the object.
-async fn read_json_object<R: AsyncReadExt + Unpin>(
-    stream: &mut R,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut buf = String::new();
-    let mut depth = 0;
-    let mut in_string = false;
-    let mut escaped = false;
-    let mut found_opening = false;
-
-    loop {
-        let mut byte_buf = [0u8; 1];
-        let n = stream.read(&mut byte_buf).await?;
-        if n == 0 {
-            return Err("Unexpected EOF while reading JSON object".into());
-        }
-        let b = byte_buf[0] as char;
-        buf.push(b);
-
-        if escaped {
-            escaped = false;
-            continue;
-        }
-
-        if in_string {
-            match b {
-                '\\' => escaped = true,
-                '"' => in_string = false,
-                _ => {}
-            }
-            continue;
-        }
-
-        match b {
-            '{' => {
-                if !found_opening {
-                    found_opening = true;
-                }
-                depth += 1;
-            }
-            '}' => {
-                depth -= 1;
-                if depth == 0 && found_opening {
-                    return Ok(buf);
-                }
-            }
-            '"' => in_string = true,
-            _ => {}
-        }
+/// Read a single line (terminated by `\n`) from the stream.
+/// The server now appends `\n` to every response for line-based framing.
+async fn read_response_line(stream: &mut UnixStream) -> Result<String, Box<dyn std::error::Error>> {
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+    let n = reader.read_line(&mut line).await?;
+    if n == 0 {
+        return Err("Unexpected EOF while reading response".into());
     }
+    // Strip the trailing newline
+    line.pop(); // remove \n
+    Ok(line)
 }
 
 /// Simple JSON-RPC 2.0 client for E2E testing
@@ -231,8 +192,7 @@ impl E2EClient {
     }
 
     /// Send a JSON-RPC request and parse the response.
-    /// Reads until a complete top-level JSON object is received (brace-balanced),
-    /// since the server keeps the connection open and does not close it per response.
+    /// Reads a single `\n`-terminated line since the server uses line-based framing.
     async fn call(
         &mut self,
         method: &str,
@@ -252,10 +212,10 @@ impl E2EClient {
         self.stream.write_all(request_str.as_bytes()).await?;
         self.stream.flush().await?;
 
-        // Read until we have a complete top-level JSON object
-        let response = read_json_object(&mut self.stream).await?;
+        // Read a single \n-terminated line
+        let response_str = read_response_line(&mut self.stream).await?;
 
-        let response: serde_json::Value = serde_json::from_str(&response)?;
+        let response: serde_json::Value = serde_json::from_str(&response_str)?;
         Ok(response)
     }
 
@@ -402,7 +362,7 @@ async fn e2e_server_returns_error_for_invalid_json() {
     stream.write_all(b"{{{invalid json}}").await.unwrap();
     stream.flush().await.unwrap();
 
-    let response_str = read_json_object(&mut stream).await.unwrap();
+    let response_str = read_response_line(&mut stream).await.unwrap();
 
     stop_server(server, &socket_path);
 
@@ -554,7 +514,7 @@ async fn e2e_invalid_jsonrpc_version() {
     stream.write_all(bad_request.as_bytes()).await.unwrap();
     stream.flush().await.unwrap();
 
-    let response_str = read_json_object(&mut stream).await.unwrap();
+    let response_str = read_response_line(&mut stream).await.unwrap();
 
     stop_server(server, &socket_path);
 
