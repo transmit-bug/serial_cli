@@ -6,11 +6,13 @@
 //! - Socat backend (cross-platform)
 
 mod named_pipe;
+#[cfg(unix)]
 mod pty;
 mod socat;
 mod r#trait;
 
 pub use named_pipe::NamedPipeBackend;
+#[cfg(unix)]
 pub use pty::PtyBackend;
 pub use r#trait::{BackendStats, BridgeErrorRx, BridgeStats, VirtualBackend, VirtualPortEnd};
 pub use socat::SocatBackend;
