@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Card } from '@/components/ui/card'
-import { useConnectionStore, useDataStore } from '@/stores'
+import { useConnectionStore, useDataStore, useProtocolStore } from '@/stores'
 import { Activity, Cpu, Zap, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 export function SidePanel() {
   const { portName, config } = useConnectionStore()
   const { rxPackets, txPackets, clearPackets } = useDataStore()
+  const { activeProtocol } = useProtocolStore()
 
   // Compute stats from packet data
   const stats = useMemo(() => {
@@ -128,9 +129,18 @@ export function SidePanel() {
             <Cpu className="w-4 h-4 text-amber" />
             <h3 className="text-sm font-medium text-text-primary">协议控制</h3>
           </div>
-          <div className="text-xs text-text-tertiary text-center py-2">
-            无活动协议
-          </div>
+          {activeProtocol ? (
+            <div className="text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-text-tertiary">活动协议</span>
+                <span className="text-text-primary font-mono">{activeProtocol}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-text-tertiary text-center py-2">
+              无活动协议
+            </div>
+          )}
         </Card>
 
         {/* 快捷操作卡片 */}

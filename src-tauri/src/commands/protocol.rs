@@ -97,7 +97,6 @@ pub async fn validate_protocol(path: String) -> Result<(), String> {
 }
 
 /// Encode data using protocol
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn protocol_encode(
     protocol: String,
@@ -119,7 +118,6 @@ pub async fn protocol_encode(
 }
 
 /// Decode data using protocol
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn protocol_decode(
     protocol: String,

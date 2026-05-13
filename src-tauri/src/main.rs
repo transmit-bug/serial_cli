@@ -46,6 +46,8 @@ async fn main() {
             commands::protocol::unload_protocol,
             commands::protocol::reload_protocol,
             commands::protocol::validate_protocol,
+            commands::protocol::protocol_encode,
+            commands::protocol::protocol_decode,
             commands::protocol::get_protocol_info,
             // Script commands
             commands::script::execute_script,

@@ -1,10 +1,12 @@
 import { NotificationSettings } from './NotificationSettings'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { RotateCcw, Check, Download, Upload, Settings, Radio, BarChart3, Bell } from 'lucide-react'
 import { exportSettings, importSettings } from '@/lib/storage'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useSettingsStore } from '@/stores/settingsStore'
+import { useDataStore } from '@/stores'
 import { toast } from 'sonner'
 
 type Tab = 'general' | 'serial' | 'data' | 'notifications'
@@ -26,9 +28,46 @@ interface DataConfig {
 
 export function SettingsPanel() {
   const { settings, updateSettings, resetSettings } = useSettings()
+  const { config, loadConfig, saveConfig, resetConfig, error: backendError } = useSettingsStore()
+  const { setDisplayFormat, setShowTimestamp, setMaxPackets } = useDataStore()
   const [activeTab, setActiveTab] = useState<Tab>('general')
   const [isImporting, setIsImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Load backend config on mount
+  useEffect(() => {
+    loadConfig()
+  }, [loadConfig])
+
+  // Sync backend config to frontend settings
+  useEffect(() => {
+    if (!config) return
+
+    // Sync serial config
+    updateSettings({
+      serial: {
+        baudRate: config.serial.defaultBaudrate,
+        // Timeout from backend -> not directly mapped to frontend
+      },
+      display: {
+        showTimestamp: config.display.showTimestamp,
+        maxPackets: config.display.maxPackets,
+        format: config.display.format,
+      },
+    })
+
+    // Sync data store
+    setDisplayFormat(config.display.format === 'both' ? 'mixed' : config.display.format)
+    setShowTimestamp(config.display.showTimestamp)
+    setMaxPackets(config.display.maxPackets)
+  }, [config]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show backend errors
+  useEffect(() => {
+    if (backendError) {
+      toast.warning(`后端配置: ${backendError}`)
+    }
+  }, [backendError])
 
   // Derived serial config from global settings
   const serialConfig = useMemo(() => ({
@@ -54,9 +93,14 @@ export function SettingsPanel() {
     { id: 'notifications', label: 'Notifications', icon: Bell },
   ]
 
-  const resetToDefaults = () => {
+  const resetToDefaults = async () => {
     resetSettings()
-    toast('已恢复默认设置')
+    try {
+      await resetConfig()
+      toast('已恢复默认设置并同步到后端')
+    } catch {
+      toast('已恢复默认设置（后端同步失败）')
+    }
   }
 
   const handleExport = () => {
@@ -96,6 +140,21 @@ export function SettingsPanel() {
           <p className="text-sm text-text-tertiary mt-0.5">Configure application preferences</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              try {
+                await saveConfig()
+                toast.success('设置已保存到后端')
+              } catch {
+                toast.error('保存到后端失败')
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-signal text-black border border-signal hover:opacity-90 transition-colors"
+            title="Save settings to config file"
+          >
+            <Check size={14} strokeWidth={1.5} />
+            Save
+          </button>
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-bg-elevated text-text-secondary border border-border hover:text-text-primary transition-colors"
