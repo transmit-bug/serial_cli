@@ -1,107 +1,67 @@
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
-import { Plus, FileCode, Settings, Play, Trash2, Upload, Check, AlertCircle } from 'lucide-react'
+import { FileCode, Upload, Trash2, AlertCircle } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { protocolsStorage } from '@/lib/storage'
+import { useProtocolStore } from '@/stores/protocolStore'
 
-interface Protocol {
+interface CustomProtocol {
   id: string
   name: string
   version: string
   description: string
-  type: 'built-in' | 'custom'
+  type: 'custom'
   status: 'active' | 'inactive'
-  filePath?: string  // Absolute path to the .lua file on disk (custom only)
+  filePath?: string  // Absolute path to the .lua file on disk
 }
 
-const BUILTIN_PROTOCOLS: Protocol[] = [
-  {
-    id: 'modbus-rtu',
-    name: 'Modbus RTU',
-    version: '1.0',
-    description: 'Modbus RTU protocol for industrial devices',
-    type: 'built-in',
-    status: 'inactive',
-  },
-  {
-    id: 'modbus-ascii',
-    name: 'Modbus ASCII',
-    version: '1.0',
-    description: 'Modbus ASCII protocol variant',
-    type: 'built-in',
-    status: 'inactive',
-  },
-  {
-    id: 'at-commands',
-    name: 'AT Commands',
-    version: '1.0',
-    description: 'Hayes AT command set for modems',
-    type: 'built-in',
-    status: 'inactive',
-  },
-  {
-    id: 'line-based',
-    name: 'Line-Based',
-    version: '1.0',
-    description: 'Simple newline-terminated protocol',
-    type: 'built-in',
-    status: 'active',
-  },
-]
-
 export function ProtocolPanel() {
-  const [protocols, setProtocols] = useState<Protocol[]>(BUILTIN_PROTOCOLS)
-  const [activeProtocolId, setActiveProtocolId] = useState<string>('line-based')
-  const [customProtocols, setCustomProtocols] = useState<Protocol[]>([])
+  const { protocols, activeProtocol, setActiveProtocol, loadProtocols, enableProtocol, disableProtocol, loading } = useProtocolStore()
+  const [customProtocols, setCustomProtocols] = useState<CustomProtocol[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationStatus, setValidationStatus] = useState<Map<string, 'valid' | 'invalid'>>(new Map())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load custom protocols from storage on mount
+  // Load built-in protocols from backend on mount
+  useEffect(() => {
+    loadProtocols()
+  }, [loadProtocols])
+
+  // Load custom protocols from localStorage on mount
   useEffect(() => {
     const saved = protocolsStorage.get()
     if (saved.length > 0) {
-      setCustomProtocols(saved)
+      setCustomProtocols(saved.filter(p => p.type === 'custom') as CustomProtocol[])
     }
   }, [])
 
-  const activeProtocol = [...protocols, ...customProtocols].find(p => p.id === activeProtocolId)
+  const handleSelectProtocol = (id: string) => {
+    setActiveProtocol(id)
+  }
 
-  const toggleProtocol = async (id: string) => {
-    const allProtocols = [...protocols, ...customProtocols]
-    const target = allProtocols.find(p => p.id === id)
-    if (!target) return
-
+  const toggleProtocol = async (id: string, type: 'built-in' | 'custom') => {
     try {
-      if (target.status === 'active') {
-        // Deactivate: unload protocol
-        await invoke('unload_protocol', { name: target.name })
-        if (target.type === 'built-in') {
-          setProtocols(prev => prev.map(p =>
-            p.id === id ? { ...p, status: 'inactive' } : p
-          ))
-        } else {
+      if (type === 'built-in') {
+        const proto = protocols.find(p => p.name === id)
+        if (!proto) return
+        // Built-in protocols are always loaded — toggle UI state only
+        // In a future version, backend could track active state per protocol
+      } else {
+        const custom = customProtocols.find(p => p.id === id)
+        if (!custom) return
+        if (custom.status === 'active') {
+          await invoke('unload_protocol', { name: custom.name })
           setCustomProtocols(prev => prev.map(p =>
             p.id === id ? { ...p, status: 'inactive' } : p
           ))
-        }
-      } else {
-        // Activate: load protocol
-        const path = target.type === 'custom'
-          ? target.filePath
-          : null
-
-        if (path) {
-          await invoke('load_protocol', { path })
-        }
-        // Built-in protocols don't need loading - they're always available in the backend
-        if (target.type === 'built-in') {
-          setProtocols(prev => prev.map(p =>
-            p.id === id ? { ...p, status: 'active' } : p
-          ))
         } else {
+          if (!custom.filePath) {
+            setError(`Cannot load protocol "${custom.name}": file path missing`)
+            return
+          }
+          await invoke('load_protocol', { path: custom.filePath })
           setCustomProtocols(prev => prev.map(p =>
             p.id === id ? { ...p, status: 'active' } : p
           ))
@@ -121,8 +81,8 @@ export function ProtocolPanel() {
       lastModified: Date.now(),
     })))
 
-    if (activeProtocolId === id) {
-      setActiveProtocolId('line-based')
+    if (activeProtocol === id) {
+      setActiveProtocol(null)
     }
 
     if (protocol) {
@@ -160,7 +120,7 @@ export function ProtocolPanel() {
       // Load protocol via Tauri using absolute file path
       const protocolInfo = await invoke<any>('load_protocol', { path: filePath })
 
-      const newProtocol: Protocol = {
+      const newProtocol: CustomProtocol = {
         id: `custom-${Date.now()}`,
         name: file.name.replace('.lua', ''),
         version: '1.0',
@@ -176,7 +136,7 @@ export function ProtocolPanel() {
         ...p,
         lastModified: Date.now(),
       })))
-      setActiveProtocolId(newProtocol.id)
+      setActiveProtocol(newProtocol.id)
 
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
@@ -193,6 +153,12 @@ export function ProtocolPanel() {
       loadCustomProtocol(file)
     }
   }
+
+  // All protocols merged: built-in from store + custom from localStorage
+  const allProtocols = [
+    ...protocols.map(p => ({ ...p, type: 'built-in' as const })),
+    ...customProtocols,
+  ]
 
   return (
     <div className="space-y-6">
@@ -211,53 +177,51 @@ export function ProtocolPanel() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
         {/* Built-in Protocols */}
         <Panel title="Built-in Protocols" variant="signal" actions={
-          <span className="text-xs text-text-tertiary font-mono">{protocols.length} protocols</span>
+          <span className="text-xs text-text-tertiary font-mono">
+            {loading ? 'Loading...' : `${protocols.length} protocols`}
+          </span>
         }>
-          <div className="space-y-2">
-            {protocols.map(protocol => (
-              <div
-                key={protocol.id}
-                className={cn(
-                  'group p-3 rounded-md border transition-all duration-200 cursor-pointer',
-                  activeProtocolId === protocol.id
-                    ? 'bg-signal/10 border-signal/30'
-                    : 'bg-bg-deep border-border hover:border-signal/30 hover:bg-bg-elevated'
-                )}
-                onClick={() => setActiveProtocolId(protocol.id)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      'p-2 rounded-md',
-                      protocol.status === 'active' ? 'bg-signal/20' : 'bg-bg-elevated'
-                    )}>
-                      <FileCode size={18} strokeWidth={1.5} className={cn(
-                        protocol.status === 'active' ? 'text-signal' : 'text-text-tertiary'
-                      )} />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm text-text-primary">{protocol.name}</h4>
-                      <p className="text-xs text-text-tertiary mt-0.5">{protocol.description}</p>
+          {loading ? (
+            <div className="py-8 text-center text-xs text-text-tertiary">Loading protocols...</div>
+          ) : protocols.length === 0 ? (
+            <div className="py-8 text-center text-xs text-text-tertiary">
+              <p>No built-in protocols available</p>
+              <p className="mt-1">Check backend protocol configuration</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {protocols.map(protocol => {
+                const isActive = activeProtocol === protocol.name
+                return (
+                  <div
+                    key={protocol.name}
+                    className={cn(
+                      'group p-3 rounded-md border transition-all duration-200 cursor-pointer',
+                      isActive
+                        ? 'bg-signal/10 border-signal/30'
+                        : 'bg-bg-deep border-border hover:border-signal/30 hover:bg-bg-elevated'
+                    )}
+                    onClick={() => handleSelectProtocol(protocol.name)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-md bg-bg-elevated">
+                          <FileCode size={18} strokeWidth={1.5} className="text-text-tertiary" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm text-text-primary">{protocol.name}</h4>
+                          <p className="text-xs text-text-tertiary mt-0.5">{protocol.description}</p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 text-xs rounded-md bg-bg-elevated text-text-tertiary border border-border">
+                        Built-in
+                      </span>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleProtocol(protocol.id)
-                    }}
-                    className={cn(
-                      'px-2.5 py-1 text-xs rounded-md border transition-colors',
-                      protocol.status === 'active'
-                        ? 'bg-signal/20 text-signal border-signal/30'
-                        : 'bg-bg-elevated text-text-tertiary border-border hover:text-text-primary'
-                    )}
-                  >
-                    {protocol.status === 'active' ? 'Active' : 'Enable'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </Panel>
 
         {/* Custom Protocols */}
@@ -270,6 +234,7 @@ export function ProtocolPanel() {
                 onClick={() => fileInputRef.current?.click()}
                 className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors"
                 title="Load protocol"
+                disabled={isLoading}
               >
                 <Upload size={14} strokeWidth={1.5} />
               </button>
@@ -293,70 +258,73 @@ export function ProtocolPanel() {
             </div>
           ) : (
             <div className="space-y-2">
-              {customProtocols.map(protocol => (
-                <div
-                  key={protocol.id}
-                  className={cn(
-                    'group p-3 rounded-md border transition-all duration-200 cursor-pointer',
-                    activeProtocolId === protocol.id
-                      ? 'bg-amber/10 border-amber/30'
-                      : 'bg-bg-deep border-border hover:border-amber/30 hover:bg-bg-elevated'
-                  )}
-                  onClick={() => setActiveProtocolId(protocol.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        'p-2 rounded-md',
-                        protocol.status === 'active' ? 'bg-amber/20' : 'bg-bg-elevated'
-                      )}>
-                        <FileCode size={18} strokeWidth={1.5} className={cn(
-                          protocol.status === 'active' ? 'text-amber' : 'text-text-tertiary'
-                        )} />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-sm text-text-primary">{protocol.name}</h4>
-                        <p className="text-xs text-text-tertiary mt-0.5">{protocol.description}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {validationStatus.get(protocol.name) && (
-                        <span className={cn(
-                          'px-1.5 py-0.5 text-[10px] rounded font-medium',
-                          validationStatus.get(protocol.name) === 'valid'
-                            ? 'bg-signal/10 text-signal'
-                            : 'bg-alert/10 text-alert'
+              {customProtocols.map(protocol => {
+                const isActive = activeProtocol === protocol.id
+                return (
+                  <div
+                    key={protocol.id}
+                    className={cn(
+                      'group p-3 rounded-md border transition-all duration-200 cursor-pointer',
+                      isActive
+                        ? 'bg-amber/10 border-amber/30'
+                        : 'bg-bg-deep border-border hover:border-amber/30 hover:bg-bg-elevated'
+                    )}
+                    onClick={() => handleSelectProtocol(protocol.id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          'p-2 rounded-md',
+                          protocol.status === 'active' ? 'bg-amber/20' : 'bg-bg-elevated'
                         )}>
-                          {validationStatus.get(protocol.name) === 'valid' ? '✓ Valid' : '✗ Invalid'}
-                        </span>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleProtocol(protocol.id)
-                        }}
-                        className={cn(
-                          'px-2.5 py-1 text-xs rounded-md border transition-colors',
-                          protocol.status === 'active'
-                            ? 'bg-amber/20 text-amber border-amber/30'
-                            : 'bg-bg-elevated text-text-tertiary border-border hover:text-text-primary'
+                          <FileCode size={18} strokeWidth={1.5} className={cn(
+                            protocol.status === 'active' ? 'text-amber' : 'text-text-tertiary'
+                          )} />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm text-text-primary">{protocol.name}</h4>
+                          <p className="text-xs text-text-tertiary mt-0.5">{protocol.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {validationStatus.get(protocol.name) && (
+                          <span className={cn(
+                            'px-1.5 py-0.5 text-[10px] rounded font-medium',
+                            validationStatus.get(protocol.name) === 'valid'
+                              ? 'bg-signal/10 text-signal'
+                              : 'bg-alert/10 text-alert'
+                          )}>
+                            {validationStatus.get(protocol.name) === 'valid' ? '✓ Valid' : '✗ Invalid'}
+                          </span>
                         )}
-                      >
-                        {protocol.status === 'active' ? 'Active' : 'Enable'}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          deleteCustomProtocol(protocol.id)
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-alert/20 text-text-tertiary hover:text-alert transition-all"
-                      >
-                        <Trash2 size={14} strokeWidth={1.5} />
-                      </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleProtocol(protocol.id, 'custom')
+                          }}
+                          className={cn(
+                            'px-2.5 py-1 text-xs rounded-md border transition-colors',
+                            protocol.status === 'active'
+                              ? 'bg-amber/20 text-amber border-amber/30'
+                              : 'bg-bg-elevated text-text-tertiary border-border hover:text-text-primary'
+                          )}
+                        >
+                          {protocol.status === 'active' ? 'Active' : 'Enable'}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteCustomProtocol(protocol.id)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-alert/20 text-text-tertiary hover:text-alert transition-all"
+                        >
+                          <Trash2 size={14} strokeWidth={1.5} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </Panel>
@@ -369,22 +337,18 @@ export function ProtocolPanel() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider">Name</label>
-                <p className="font-medium text-text-primary mt-1">{activeProtocol.name}</p>
-              </div>
-              <div>
-                <label className="text-xs text-text-tertiary uppercase tracking-wider">Version</label>
-                <p className="font-mono text-text-primary mt-1">{activeProtocol.version}</p>
+                <p className="font-medium text-text-primary mt-1">{activeProtocol}</p>
               </div>
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider">Type</label>
                 <p className="mt-1">
                   <span className={cn(
                     'px-2 py-1 text-xs rounded-md',
-                    activeProtocol.type === 'built-in'
-                      ? 'bg-signal/10 text-signal'
-                      : 'bg-amber/10 text-amber'
+                    customProtocols.find(p => p.id === activeProtocol)
+                      ? 'bg-amber/10 text-amber'
+                      : 'bg-signal/10 text-signal'
                   )}>
-                    {activeProtocol.type === 'built-in' ? 'Built-in' : 'Custom'}
+                    {customProtocols.find(p => p.id === activeProtocol) ? 'Custom' : 'Built-in'}
                   </span>
                 </p>
               </div>
@@ -392,18 +356,24 @@ export function ProtocolPanel() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider">Description</label>
-                <p className="text-sm text-text-secondary mt-1">{activeProtocol.description}</p>
+                <p className="text-sm text-text-secondary mt-1">
+                  {customProtocols.find(p => p.id === activeProtocol)?.description ||
+                   protocols.find(p => p.name === activeProtocol)?.description ||
+                   'No description available'}
+                </p>
               </div>
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider">Status</label>
                 <p className="mt-1">
                   <span className={cn(
                     'px-2 py-1 text-xs rounded-md',
-                    activeProtocol.status === 'active'
-                      ? 'bg-signal/10 text-signal'
-                      : 'bg-bg-elevated text-text-tertiary'
+                    customProtocols.find(p => p.id === activeProtocol)?.status === 'active'
+                      ? 'bg-amber/10 text-amber'
+                      : 'bg-signal/10 text-signal'
                   )}>
-                    {activeProtocol.status === 'active' ? 'Active' : 'Inactive'}
+                    {customProtocols.find(p => p.id === activeProtocol)?.status === 'active'
+                      ? 'Active'
+                      : 'Selected'}
                   </span>
                 </p>
               </div>

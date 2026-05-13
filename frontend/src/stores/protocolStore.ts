@@ -11,7 +11,7 @@ interface ProtocolState {
 
   // Actions
   loadProtocols: () => Promise<void>
-  setActiveProtocol: (name: string) => void
+  setActiveProtocol: (name: string | null) => void
   enableProtocol: (name: string) => Promise<void>
   disableProtocol: (name: string) => Promise<void>
   reloadProtocol: (name: string) => Promise<void>

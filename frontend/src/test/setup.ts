@@ -1,3 +1,4 @@
+/// <reference types="vitest/globals" />
 import '@testing-library/jest-dom/vitest';
 
 // Mock @tauri-apps/api for tests running in jsdom

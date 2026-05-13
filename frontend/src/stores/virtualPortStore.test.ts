@@ -94,7 +94,7 @@ describe('virtualPortStore', () => {
       // Add port to state first
       useVirtualPortStore.setState({
         ports: new Map([['vp-001', mockPort]]),
-        portStats: new Map([['vp-001', { packets_captured: 10 }]]),
+        portStats: new Map([['vp-001', mockStats]]),
         capturedPackets: new Map([['vp-001', [{ data: [1, 2], direction: 'rx', timestamp_millis: Date.now() }]]]),
       });
 
