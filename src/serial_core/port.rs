@@ -727,17 +727,21 @@ mod tests {
 
     #[test]
     fn test_config_custom_baudrate() {
-        let mut config = SerialConfig::default();
-        config.baudrate = 9600;
+        let config = SerialConfig {
+            baudrate: 9600,
+            ..Default::default()
+        };
         assert_eq!(config.baudrate, 9600);
     }
 
     #[test]
     fn test_config_all_fields() {
-        let mut config = SerialConfig::default();
-        config.baudrate = 57600;
-        config.databits = 7;
-        config.parity = Parity::Even;
+        let config = SerialConfig {
+            baudrate: 57600,
+            databits: 7,
+            parity: Parity::Even,
+            ..Default::default()
+        };
         assert_eq!(config.baudrate, 57600);
         assert_eq!(config.databits, 7);
         assert!(matches!(config.parity, Parity::Even));

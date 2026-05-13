@@ -1,6 +1,7 @@
 //! Test data generation utilities
 
 /// Generate repeating pattern data
+#[allow(dead_code)]
 pub fn generate_pattern_data(size: usize, pattern: u8) -> Vec<u8> {
     vec![pattern; size]
 }
@@ -12,6 +13,7 @@ pub fn generate_pattern_data(size: usize, pattern: u8) -> Vec<u8> {
 ///   function_code: Modbus function (e.g., 0x03 for read holding registers)
 ///   start_addr: Starting register address
 ///   quantity: Number of registers to read
+#[allow(dead_code)]
 pub fn generate_modbus_request(
     slave_id: u8,
     function_code: u8,
@@ -30,6 +32,7 @@ pub fn generate_modbus_request(
 }
 
 /// Calculate Modbus CRC16
+#[allow(dead_code)]
 fn calculate_modbus_crc(data: &[u8]) -> u16 {
     let mut crc: u16 = 0xFFFF;
     for &byte in data {
@@ -46,11 +49,13 @@ fn calculate_modbus_crc(data: &[u8]) -> u16 {
 }
 
 /// Generate AT command string
+#[allow(dead_code)]
 pub fn generate_at_command(command: &str) -> String {
     format!("{}\r\n", command)
 }
 
 /// Generate multi-line AT response
+#[allow(dead_code)]
 pub fn generate_at_response(lines: &[&str]) -> Vec<u8> {
     let response = lines.join("\r\n");
     format!("{}\r\nOK\r\n", response).into_bytes()
@@ -58,6 +63,7 @@ pub fn generate_at_response(lines: &[&str]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

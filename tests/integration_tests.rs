@@ -36,20 +36,20 @@ mod signal_control_tests {
         let mut controller = get_controller!();
 
         // Test initial state
-        assert_eq!(controller.get_dtr().unwrap(), true);
+        assert!(controller.get_dtr().unwrap());
 
         // Test state changes
         let result = controller.set_dtr(false);
         assert!(result.is_ok());
 
         match result.unwrap() {
-            SignalState::Set(state) => assert_eq!(state, false),
+            SignalState::Set(state) => assert!(!state),
             SignalState::NotSupported => {
                 // Expected on platforms without hardware support
             }
             SignalState::Failed => {
                 // Hardware control failed but state was updated
-                assert_eq!(controller.get_dtr().unwrap(), false);
+                assert!(!controller.get_dtr().unwrap());
             }
         }
     }
@@ -59,20 +59,20 @@ mod signal_control_tests {
         let mut controller = get_controller!();
 
         // Test initial state
-        assert_eq!(controller.get_rts().unwrap(), true);
+        assert!(controller.get_rts().unwrap());
 
         // Test state changes
         let result = controller.set_rts(false);
         assert!(result.is_ok());
 
         match result.unwrap() {
-            SignalState::Set(state) => assert_eq!(state, false),
+            SignalState::Set(state) => assert!(!state),
             SignalState::NotSupported => {
                 // Expected on platforms without hardware support
             }
             SignalState::Failed => {
                 // Hardware control failed but state was updated
-                assert_eq!(controller.get_rts().unwrap(), false);
+                assert!(!controller.get_rts().unwrap());
             }
         }
     }

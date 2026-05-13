@@ -492,8 +492,8 @@ mod tests {
         let mut controller = FallbackSignalController::new();
         assert!(controller.set_dtr(true).is_ok());
         assert!(controller.set_rts(false).is_ok());
-        assert_eq!(controller.get_dtr().unwrap(), true);
-        assert_eq!(controller.get_rts().unwrap(), false);
+        assert!(controller.get_dtr().unwrap());
+        assert!(!controller.get_rts().unwrap());
     }
 
     #[test]
@@ -514,8 +514,8 @@ mod tests {
         #[cfg(unix)]
         {
             let controller = UnixSignalController::new();
-            assert_eq!(controller.get_dtr().unwrap(), true);
-            assert_eq!(controller.get_rts().unwrap(), true);
+            assert!(controller.get_dtr().unwrap());
+            assert!(controller.get_rts().unwrap());
         }
     }
 
@@ -524,8 +524,8 @@ mod tests {
         #[cfg(windows)]
         {
             let controller = WindowsSignalController::new();
-            assert_eq!(controller.get_dtr().unwrap(), true);
-            assert_eq!(controller.get_rts().unwrap(), true);
+            assert!(controller.get_dtr().unwrap());
+            assert!(controller.get_rts().unwrap());
         }
     }
 }

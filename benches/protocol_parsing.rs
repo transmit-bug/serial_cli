@@ -116,7 +116,7 @@ fn bench_modbus_rtu_decoding(c: &mut Criterion) {
         let mut protocol = ModbusProtocol::new(ModbusMode::Rtu);
         // Create response: [slave_id, function_code, byte_count, data... , crc_lo, crc_hi]
         let mut response = vec![1, 0x03, 20]; // 20 bytes = 10 registers * 2
-        response.extend_from_slice(&vec![0u8; 20]);
+        response.extend_from_slice(&[0u8; 20]);
         // Calculate and append CRC
         let crc_data = &response.clone();
         let crc = calculate_crc_for_modbus(crc_data);
@@ -213,7 +213,7 @@ fn bench_modbus_ascii_decoding(c: &mut Criterion) {
         let mut protocol = ModbusProtocol::new(ModbusMode::Ascii);
         // Create payload: slave_id + func_code + data
         let mut payload = vec![1, 0x03, 20];
-        payload.extend_from_slice(&vec![0u8; 20]);
+        payload.extend_from_slice(&[0u8; 20]);
 
         // Use encode to build a valid ASCII frame
         let ascii_frame = protocol.encode(&payload).unwrap();
