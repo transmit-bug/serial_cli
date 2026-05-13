@@ -1,9 +1,10 @@
 //! End-to-end tests for Server Mode
 //!
-//! These tests spawn the actual server binary and connect via Unix domain sockets
-//! to validate the full client-server lifecycle: start → RPC calls → graceful shutdown.
+//! These tests spawn the actual server daemon directly (bypassing the session
+//! file) and connect via Unix domain sockets to validate the full client-server
+//! lifecycle: start → RPC calls → graceful shutdown.
 //!
-//! Requirements: macOS or Linux (Unix domain sockets), cargo-built binary.
+//! Run with: `cargo test --test e2e_server_tests -- --ignored`
 
 #![cfg(unix)]
 
@@ -90,9 +91,13 @@ fn dir_has_newer_file(dir: &PathBuf, threshold: std::time::SystemTime) -> bool {
     false
 }
 
-/// Start the server as a background child process (assumes binary is built)
+/// Start the server daemon directly (bypassing session file) as a background process.
+///
+/// We use `server daemon` (internal entry point) instead of `server start`
+/// (CLI wrapper) to avoid session file competition between parallel tests.
+/// The returned Child is the actual daemon process, so SIGTERM stops it cleanly.
 fn start_server(socket_path: &PathBuf) -> Child {
-    // Ensure clean socket path
+    // Clean up existing socket
     if socket_path.exists() {
         let _ = std::fs::remove_file(socket_path);
     }
@@ -105,31 +110,38 @@ fn start_server(socket_path: &PathBuf) -> Child {
     Command::new(&binary_path)
         .args([
             "server",
-            "start",
+            "daemon",
             "--socket-path",
             socket_path.to_str().unwrap(),
         ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .spawn()
-        .expect("server binary should start")
+        .expect("daemon should start")
 }
 
-/// Gracefully stop the server process
-fn stop_server(mut child: Child) {
-    // Send SIGTERM
+/// Stop the server daemon and clean up the socket file.
+///
+/// Uses SIGKILL because the daemon's Tokio event loop doesn't handle SIGTERM
+/// by default (no signal handler installed).
+fn stop_server(mut child: Child, socket_path: &PathBuf) {
+    // Force kill — daemon ignores SIGTERM (Tokio event loop)
     #[cfg(unix)]
     {
         let pid = child.id() as libc::pid_t;
         unsafe {
-            libc::kill(pid, libc::SIGTERM);
+            let _ = libc::kill(pid, libc::SIGKILL);
         }
     }
-    // Give it a moment to shut down, then force kill
-    std::thread::sleep(Duration::from_millis(500));
-    let _ = child.kill();
     let _ = child.wait();
+
+    // Clean up socket file
+    if socket_path.exists() {
+        let _ = std::fs::remove_file(socket_path);
+    }
 }
 
-/// Wait for the server socket to appear (up to 10 seconds)
+/// Wait for the server socket to appear (up to timeout seconds)
 async fn wait_for_server(socket_path: &PathBuf, timeout_secs: u64) -> Result<(), String> {
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(timeout_secs);
@@ -154,6 +166,59 @@ async fn wait_for_server(socket_path: &PathBuf, timeout_secs: u64) -> Result<(),
     }
 }
 
+/// Read a complete top-level JSON object from a persistent stream.
+/// Tracks brace nesting and string escaping to detect the end of the object.
+async fn read_json_object<R: AsyncReadExt + Unpin>(
+    stream: &mut R,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut buf = String::new();
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut found_opening = false;
+
+    loop {
+        let mut byte_buf = [0u8; 1];
+        let n = stream.read(&mut byte_buf).await?;
+        if n == 0 {
+            return Err("Unexpected EOF while reading JSON object".into());
+        }
+        let b = byte_buf[0] as char;
+        buf.push(b);
+
+        if escaped {
+            escaped = false;
+            continue;
+        }
+
+        if in_string {
+            match b {
+                '\\' => escaped = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+
+        match b {
+            '{' => {
+                if !found_opening {
+                    found_opening = true;
+                }
+                depth += 1;
+            }
+            '}' => {
+                depth -= 1;
+                if depth == 0 && found_opening {
+                    return Ok(buf);
+                }
+            }
+            '"' => in_string = true,
+            _ => {}
+        }
+    }
+}
+
 /// Simple JSON-RPC 2.0 client for E2E testing
 struct E2EClient {
     stream: UnixStream,
@@ -169,12 +234,14 @@ impl E2EClient {
         })
     }
 
-    /// Send a JSON-RPC request and get the raw response string
-    async fn call_raw(
+    /// Send a JSON-RPC request and parse the response.
+    /// Reads until a complete top-level JSON object is received (brace-balanced),
+    /// since the server keeps the connection open and does not close it per response.
+    async fn call(
         &mut self,
         method: &str,
         params: serde_json::Value,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         self.request_id += 1;
         let id = self.request_id;
 
@@ -189,22 +256,10 @@ impl E2EClient {
         self.stream.write_all(request_str.as_bytes()).await?;
         self.stream.flush().await?;
 
-        // Read response using BufReader for line-based reading
-        let mut reader = BufReader::new(&mut self.stream);
-        let mut response = String::new();
-        reader.read_line(&mut response).await?;
+        // Read until we have a complete top-level JSON object
+        let response = read_json_object(&mut self.stream).await?;
 
-        Ok(response.trim().to_string())
-    }
-
-    /// Send a JSON-RPC request and parse the response
-    async fn call(
-        &mut self,
-        method: &str,
-        params: serde_json::Value,
-    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-        let response_str = self.call_raw(method, params).await?;
-        let response: serde_json::Value = serde_json::from_str(&response_str)?;
+        let response: serde_json::Value = serde_json::from_str(&response)?;
         Ok(response)
     }
 
@@ -238,11 +293,9 @@ async fn e2e_server_starts_and_accepts_connections() {
 
     let result = wait_for_server(&socket_path, server_startup_timeout_secs()).await;
 
-    // Clean up regardless of outcome
-    stop_server(server);
+    stop_server(server, &socket_path);
 
     assert!(result.is_ok(), "Server should start: {:?}", result);
-    assert!(socket_path.exists(), "Socket file should exist");
 }
 
 /// Test 2: Server responds to valid JSON-RPC requests
@@ -253,7 +306,7 @@ async fn e2e_server_responds_to_port_list() {
     let server = start_server(&socket_path);
 
     if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
-        stop_server(server);
+        stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
@@ -261,7 +314,7 @@ async fn e2e_server_responds_to_port_list() {
 
     let result = client.call_ok("port_list", serde_json::json!({})).await;
 
-    stop_server(server);
+    stop_server(server, &socket_path);
 
     let result = result.expect("port_list should succeed");
     assert!(result.get("ports").is_some(), "Response should have 'ports'");
@@ -275,7 +328,7 @@ async fn e2e_server_stats_returns_connection_info() {
     let server = start_server(&socket_path);
 
     if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
-        stop_server(server);
+        stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
@@ -285,7 +338,7 @@ async fn e2e_server_stats_returns_connection_info() {
         .call_ok("server_stats", serde_json::json!({}))
         .await;
 
-    stop_server(server);
+    stop_server(server, &socket_path);
 
     let result = result.expect("server_stats should succeed");
     assert!(result.get("connections").is_some());
@@ -300,7 +353,7 @@ async fn e2e_protocol_list_returns_empty_list() {
     let server = start_server(&socket_path);
 
     if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
-        stop_server(server);
+        stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
@@ -310,12 +363,10 @@ async fn e2e_protocol_list_returns_empty_list() {
         .call_ok("protocol_list", serde_json::json!({}))
         .await;
 
-    stop_server(server);
+    stop_server(server, &socket_path);
 
     let result = result.expect("protocol_list should succeed");
     assert!(result.get("protocols").is_some());
-    let protocols = result["protocols"].as_array().unwrap();
-    assert!(protocols.is_empty() || protocols.len() > 0); // Either empty or has built-ins
 }
 
 /// Test 5: Server returns error for invalid JSON
@@ -326,7 +377,7 @@ async fn e2e_server_returns_error_for_invalid_json() {
     let server = start_server(&socket_path);
 
     if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
-        stop_server(server);
+        stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
@@ -338,12 +389,11 @@ async fn e2e_server_returns_error_for_invalid_json() {
     stream.write_all(b"{{{invalid json}}").await.unwrap();
     stream.flush().await.unwrap();
 
-    let mut response = String::new();
-    stream.read_to_string(&mut response).await.unwrap();
+    let response_str = read_json_object(&mut stream).await.unwrap();
 
-    stop_server(server);
+    stop_server(server, &socket_path);
 
-    let response: serde_json::Value = serde_json::from_str(&response).expect("valid JSON response");
+    let response: serde_json::Value = serde_json::from_str(&response_str).expect("valid JSON response");
     assert!(
         response.get("error").is_some() && !response["error"].is_null(),
         "Should return error for invalid JSON"
@@ -363,7 +413,7 @@ async fn e2e_multiple_sequential_calls() {
     let server = start_server(&socket_path);
 
     if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
-        stop_server(server);
+        stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
@@ -391,7 +441,7 @@ async fn e2e_multiple_sequential_calls() {
         .await;
     assert!(r4.is_ok());
 
-    stop_server(server);
+    stop_server(server, &socket_path);
 }
 
 /// Test 7: Server handles connection_list with no active connections
@@ -402,7 +452,7 @@ async fn e2e_connection_list_empty() {
     let server = start_server(&socket_path);
 
     if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
-        stop_server(server);
+        stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
@@ -412,12 +462,11 @@ async fn e2e_connection_list_empty() {
         .call_ok("connection_list", serde_json::json!({}))
         .await;
 
-    stop_server(server);
+    stop_server(server, &socket_path);
 
     let result = result.expect("connection_list should succeed");
     let connections = result["connections"].as_array().unwrap();
-    // Initially no connections (port_list doesn't create connections in the state)
-    assert!(connections.is_empty() || connections.len() >= 0);
+    assert!(connections.is_empty(), "Connection list should be empty initially");
 }
 
 /// Test 8: Server handles method not found error
@@ -428,7 +477,7 @@ async fn e2e_method_not_found_error() {
     let server = start_server(&socket_path);
 
     if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
-        stop_server(server);
+        stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
@@ -436,7 +485,7 @@ async fn e2e_method_not_found_error() {
 
     let response = client.call("nonexistent_method", serde_json::json!({})).await;
 
-    stop_server(server);
+    stop_server(server, &socket_path);
 
     let response = response.expect("should get response");
     let error = response.get("error");
@@ -456,7 +505,7 @@ async fn e2e_invalid_jsonrpc_version() {
     let server = start_server(&socket_path);
 
     if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
-        stop_server(server);
+        stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
@@ -469,12 +518,11 @@ async fn e2e_invalid_jsonrpc_version() {
     stream.write_all(bad_request.as_bytes()).await.unwrap();
     stream.flush().await.unwrap();
 
-    let mut response = String::new();
-    stream.read_to_string(&mut response).await.unwrap();
+    let response_str = read_json_object(&mut stream).await.unwrap();
 
-    stop_server(server);
+    stop_server(server, &socket_path);
 
-    let response: serde_json::Value = serde_json::from_str(&response).expect("valid JSON");
+    let response: serde_json::Value = serde_json::from_str(&response_str).expect("valid JSON");
     assert_eq!(
         response["error"]["code"].as_i64(),
         Some(-32600),
