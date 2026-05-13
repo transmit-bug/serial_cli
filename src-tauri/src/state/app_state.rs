@@ -14,12 +14,58 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Per-port statistics tracked by the backend
+pub struct PortStatsTracker {
+    /// Bytes received (RX)
+    pub bytes_received: Arc<AtomicU64>,
+    /// Bytes sent (TX)
+    pub bytes_sent: Arc<AtomicU64>,
+    /// Packets received (RX event count)
+    pub packets_received: Arc<AtomicU64>,
+    /// Packets sent (TX event count)
+    pub packets_sent: Arc<AtomicU64>,
+    /// Last activity timestamp (Unix millis)
+    pub last_activity: Arc<AtomicU64>,
+}
+
+impl PortStatsTracker {
+    pub fn new() -> Self {
+        Self {
+            bytes_received: Arc::new(AtomicU64::new(0)),
+            bytes_sent: Arc::new(AtomicU64::new(0)),
+            packets_received: Arc::new(AtomicU64::new(0)),
+            packets_sent: Arc::new(AtomicU64::new(0)),
+            last_activity: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    pub fn snapshot(&self) -> (u64, u64, u64, u64, u64) {
+        (
+            self.bytes_received.load(Ordering::Relaxed),
+            self.bytes_sent.load(Ordering::Relaxed),
+            self.packets_received.load(Ordering::Relaxed),
+            self.packets_sent.load(Ordering::Relaxed),
+            self.last_activity.load(Ordering::Relaxed),
+        )
+    }
+}
+
+impl Default for PortStatsTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Data sniffer for monitoring serial port data
 pub struct DataSniffer {
     /// Join handle for the sniffer task
     pub task_handle: JoinHandle<()>,
     /// Channel to stop the sniffer
     pub stop_tx: tokio::sync::oneshot::Sender<()>,
+    /// Statistics for this port
+    pub stats: Arc<PortStatsTracker>,
 }
 
 /// Global application state shared across all Tauri commands
@@ -33,6 +79,8 @@ pub struct AppState {
     pub protocol_manager: Arc<Mutex<ProtocolManager>>,
     /// Active data sniffers per port (port_id -> DataSniffer)
     pub active_sniffers: Arc<Mutex<HashMap<String, DataSniffer>>>,
+    /// Port statistics (port_id -> PortStatsTracker) — survives sniffer stop
+    pub port_stats: Arc<Mutex<HashMap<String, PortStatsTracker>>>,
     /// Virtual port registry (id -> VirtualSerialPair)
     pub virtual_port_registry: Arc<RwLock<HashMap<String, VirtualSerialPair>>>,
     /// Directory for storing custom protocol files
@@ -58,6 +106,7 @@ impl AppState {
             protocol_registry,
             protocol_manager,
             active_sniffers: Arc::new(Mutex::new(HashMap::new())),
+            port_stats: Arc::new(Mutex::new(HashMap::new())),
             virtual_port_registry: Arc::new(RwLock::new(HashMap::new())),
             protocols_dir,
         }

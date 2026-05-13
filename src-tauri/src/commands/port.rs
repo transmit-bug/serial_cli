@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::state::app_state::AppState;
+use crate::state::app_state::{AppState, PortStatsTracker};
 use crate::state::port_state::{PortStats, PortStatus, SerialConfig};
 use serial_cli::serial_core::{FlowControl, Parity, PortManager, SerialConfig as CoreSerialConfig};
 use tauri::State;
@@ -140,6 +140,24 @@ pub async fn get_port_status(
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
     let handle = port_handle.lock().await;
 
+    // Get tracked stats
+    let stats_snapshot = {
+        let port_stats = state.port_stats.lock().await;
+        port_stats
+            .get(&port_id)
+            .map(|s| {
+                let (br, bs, pr, ps, la) = s.snapshot();
+                PortStats {
+                    bytes_received: br,
+                    bytes_sent: bs,
+                    packets_received: pr,
+                    packets_sent: ps,
+                    last_activity: if la > 0 { Some(la) } else { None },
+                }
+            })
+            .unwrap_or_default()
+    };
+
     Ok(PortStatus {
         id: port_id,
         port_name: handle.name().to_string(),
@@ -152,7 +170,7 @@ pub async fn get_port_status(
             timeout_ms: handle.config().timeout_ms,
             flow_control: format!("{:?}", handle.config().flow_control),
         }),
-        stats: PortStats::default(),
+        stats: stats_snapshot,
     })
 }
 

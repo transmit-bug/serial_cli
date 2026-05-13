@@ -38,11 +38,14 @@ interface ConnectionState {
   config: SerialConfig | null
   error: string | null
   portStatus: PortStatus | null
+  statsPollingInterval: number
 
   // Actions
   connect: (portName: string, config: SerialConfig) => Promise<void>
   disconnect: () => Promise<void>
   checkHealth: () => Promise<boolean>
+  refreshPortStatus: () => Promise<void>
+  setStatsPollingInterval: (intervalMs: number) => void
   setStatus: (status: ConnectionStatus) => void
   setError: (error: string | null) => void
 }
@@ -56,6 +59,22 @@ export const useConnectionStore = create<ConnectionState>()(
     config: null,
     error: null,
     portStatus: null,
+    statsPollingInterval: 2000, // 2s default
+
+    // Refresh port status from backend
+    refreshPortStatus: async () => {
+      const { portId } = get()
+      if (!portId) return
+      try {
+        const status = await invoke<PortStatus>('get_port_status', { portId })
+        set({ portStatus: status })
+      } catch (error) {
+        // Silently ignore — port may be closed
+        console.warn('Failed to refresh port status:', error)
+      }
+    },
+
+    setStatsPollingInterval: (intervalMs) => set({ statsPollingInterval: intervalMs }),
 
     // Connect to a serial port
     connect: async (portName, config) => {

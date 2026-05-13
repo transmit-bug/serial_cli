@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::state::app_state::{AppState, DataSniffer};
+use crate::state::app_state::{AppState, DataSniffer, PortStatsTracker};
 use log::{debug, error, info};
 use std::time::Duration;
 use tauri::{AppHandle, State};
@@ -29,6 +29,21 @@ pub async fn send_data(
     let bytes_written = handle
         .write(&data)
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+
+    // Track bytes sent
+    let port_stats = state.port_stats.lock().await;
+    if let Some(stats) = port_stats.get(&port_id) {
+        stats.bytes_sent.fetch_add(bytes_written as u64, std::sync::atomic::Ordering::Relaxed);
+        stats.packets_sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        stats.last_activity.store(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+    }
+    drop(port_stats);
 
     // Emit data-sent event
     if let Err(e) = crate::events::emitter::emit_data_sent(app, port_id, data).await {
@@ -74,6 +89,14 @@ pub async fn start_sniffing(
         return Err(format!("Already sniffing port: {}", port_id));
     }
 
+    // Create or get port stats
+    let mut port_stats = state.port_stats.lock().await;
+    let stats = port_stats
+        .entry(port_id.clone())
+        .or_insert_with(PortStatsTracker::new);
+    let stats_clone = Arc::clone(stats);
+    drop(port_stats);
+
     // Create a channel to stop the sniffer
     let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -111,6 +134,23 @@ pub async fn start_sniffing(
                                 let data = buffer[..bytes_read].to_vec();
                                 debug!("Received {} bytes from port {}", bytes_read, port_id_clone);
                                 last_activity = std::time::Instant::now();
+
+                                // Update stats
+                                stats_clone.bytes_received.fetch_add(
+                                    bytes_read as u64,
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
+                                stats_clone.packets_received.fetch_add(
+                                    1,
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
+                                stats_clone.last_activity.store(
+                                    std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_millis() as u64,
+                                    std::sync::atomic::Ordering::Relaxed,
+                                );
 
                                 // Emit data-received event
                                 if let Err(e) = crate::events::emitter::emit_data_received(
@@ -154,6 +194,7 @@ pub async fn start_sniffing(
         DataSniffer {
             task_handle,
             stop_tx,
+            stats: stats_clone,
         },
     );
 

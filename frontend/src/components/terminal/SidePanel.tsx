@@ -1,48 +1,61 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { useConnectionStore, useDataStore, useProtocolStore, useNavigationStore } from '@/stores'
 import { Activity, Cpu, Zap, Settings } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 
 /**
  * SidePanel - 右侧辅助面板
  *
  * 包含：
  * - 端口详情卡片
- * - 数据统计卡片
+ * - 数据统计卡片（后端真实统计）
  * - 协议控制卡片
  * - 快捷操作卡片
  */
 export function SidePanel() {
-  const { portName, config } = useConnectionStore()
-  const { rxPackets, txPackets, clearPackets } = useDataStore()
+  const { portName, config, portStatus, refreshPortStatus, statsPollingInterval } = useConnectionStore()
+  const { rxPackets, txPackets, clearRxPackets, clearTxPackets } = useDataStore()
   const { activeProtocol } = useProtocolStore()
   const { navigateTo } = useNavigationStore()
+  const { t } = useTranslation()
 
-  // Compute stats from packet data
-  const stats = useMemo(() => {
-    let rxBytes = 0
-    let txBytes = 0
-    for (const p of rxPackets) rxBytes += p.data.length
-    for (const p of txPackets) txBytes += p.data.length
+  // Poll backend for real stats every 2s
+  useEffect(() => {
+    refreshPortStatus()
+    const interval = setInterval(refreshPortStatus, statsPollingInterval)
+    return () => clearInterval(interval)
+  }, [refreshPortStatus, statsPollingInterval])
+
+  // Backend stats (real byte counts from port)
+  const backendStats = useMemo(() => {
+    const s = portStatus?.stats
     return {
-      rxPackets: rxPackets.length,
-      txPackets: txPackets.length,
-      rxBytes,
-      txBytes,
+      rxBytes: s?.bytes_received ?? 0,
+      txBytes: s?.bytes_sent ?? 0,
+      rxPackets: s?.packets_received ?? 0,
+      txPackets: s?.packets_sent ?? 0,
+      lastActivity: s?.last_activity ?? null,
+    }
+  }, [portStatus])
+
+  // Frontend packet counts (for display in data store, complementary)
+  const frontendPacketCount = useMemo(() => {
+    return {
+      rx: rxPackets.length,
+      tx: txPackets.length,
     }
   }, [rxPackets, txPackets])
 
   const handleClearRx = () => {
-    clearPackets()
-    toast.success('已清空接收数据')
+    clearRxPackets()
+    toast.success(t('terminal.clearRxSuccess'))
   }
 
   const handleClearTx = () => {
-    // Clear only TX packets by temporarily swapping
-    // Since clearPackets clears both, we re-add RX packets
-    clearPackets()
-    toast.success('已清空发送数据')
+    clearTxPackets()
+    toast.success(t('terminal.clearTxSuccess'))
   }
 
   const handleExport = () => {
@@ -62,7 +75,7 @@ export function SidePanel() {
     a.download = `serial-capture-${Date.now()}.txt`
     a.click()
     URL.revokeObjectURL(url)
-    toast.success('已导出数据')
+    toast.success(t('terminal.exportSuccess'))
   }
 
   return (
@@ -72,27 +85,27 @@ export function SidePanel() {
         <Card className="p-4 border-border/50">
           <div className="flex items-center gap-2 mb-3">
             <Activity className="w-4 h-4 text-signal" />
-            <h3 className="text-sm font-medium text-text-primary">端口详情</h3>
+            <h3 className="text-sm font-medium text-text-primary">{t('terminal.portDetails')}</h3>
           </div>
           <div className="space-y-2 text-xs">
             <div className="flex justify-between">
-              <span className="text-text-tertiary">端口</span>
+              <span className="text-text-tertiary">{t('terminal.port')}</span>
               <span className="text-text-primary font-mono">{portName || '-'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-tertiary">波特率</span>
-              <span className="text-text-primary font-mono">{config?.baudrate || '-'} bps</span>
+              <span className="text-text-tertiary">{t('terminal.baudrate')}</span>
+              <span className="text-text-primary font-mono">{config?.baudrate || '-'} {t('connection.bps')}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-tertiary">数据位</span>
-              <span className="text-text-primary font-mono">{config?.databits || '-'} bit</span>
+              <span className="text-text-tertiary">{t('terminal.dataBits')}</span>
+              <span className="text-text-primary font-mono">{config?.databits || '-'} {t('terminal.bit')}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-tertiary">停止位</span>
+              <span className="text-text-tertiary">{t('terminal.stopBits')}</span>
               <span className="text-text-primary font-mono">{config?.stopbits || '-'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-tertiary">校验位</span>
+              <span className="text-text-tertiary">{t('terminal.parity')}</span>
               <span className="text-text-primary font-mono">{config?.parity || '-'}</span>
             </div>
           </div>
@@ -102,25 +115,33 @@ export function SidePanel() {
         <Card className="p-4 border-border/50">
           <div className="flex items-center gap-2 mb-3">
             <Activity className="w-4 h-4 text-info" />
-            <h3 className="text-sm font-medium text-text-primary">数据统计</h3>
+            <h3 className="text-sm font-medium text-text-primary">{t('terminal.dataStats')}</h3>
           </div>
           <div className="space-y-2 text-xs">
             <div className="flex justify-between">
-              <span className="text-text-tertiary">RX 包</span>
-              <span className="text-text-primary font-mono">{stats.rxPackets}</span>
+              <span className="text-text-tertiary">{t('terminal.rxPackets')}</span>
+              <span className="text-text-primary font-mono">{backendStats.rxPackets}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-tertiary">TX 包</span>
-              <span className="text-text-primary font-mono">{stats.txPackets}</span>
+              <span className="text-text-tertiary">{t('terminal.txPackets')}</span>
+              <span className="text-text-primary font-mono">{backendStats.txPackets}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-tertiary">RX 字节</span>
-              <span className="text-text-primary font-mono">{stats.rxBytes}</span>
+              <span className="text-text-tertiary">{t('terminal.rxBytes')}</span>
+              <span className="text-text-primary font-mono">{backendStats.rxBytes}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-tertiary">TX 字节</span>
-              <span className="text-text-primary font-mono">{stats.txBytes}</span>
+              <span className="text-text-tertiary">{t('terminal.txBytes')}</span>
+              <span className="text-text-primary font-mono">{backendStats.txBytes}</span>
             </div>
+            {backendStats.lastActivity && (
+              <div className="flex justify-between">
+                <span className="text-text-tertiary">{t('terminal.lastActivity')}</span>
+                <span className="text-text-primary font-mono">
+                  {new Date(backendStats.lastActivity).toLocaleTimeString()}
+                </span>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -128,18 +149,18 @@ export function SidePanel() {
         <Card className="p-4 border-border/50">
           <div className="flex items-center gap-2 mb-3">
             <Cpu className="w-4 h-4 text-amber" />
-            <h3 className="text-sm font-medium text-text-primary">协议控制</h3>
+            <h3 className="text-sm font-medium text-text-primary">{t('terminal.protocolControl')}</h3>
           </div>
           {activeProtocol ? (
             <div className="text-xs space-y-1">
               <div className="flex justify-between">
-                <span className="text-text-tertiary">活动协议</span>
+                <span className="text-text-tertiary">{t('terminal.activeProtocol')}</span>
                 <span className="text-text-primary font-mono">{activeProtocol}</span>
               </div>
             </div>
           ) : (
             <div className="text-xs text-text-tertiary text-center py-2">
-              无活动协议
+              {t('terminal.noActiveProtocol')}
             </div>
           )}
         </Card>
@@ -148,26 +169,26 @@ export function SidePanel() {
         <Card className="p-4 border-border/50">
           <div className="flex items-center gap-2 mb-3">
             <Zap className="w-4 h-4 text-signal" />
-            <h3 className="text-sm font-medium text-text-primary">快捷操作</h3>
+            <h3 className="text-sm font-medium text-text-primary">{t('terminal.quickActions')}</h3>
           </div>
           <div className="space-y-2">
             <button
               className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors"
               onClick={handleClearRx}
             >
-              清空接收数据
+              {t('terminal.clearRx')}
             </button>
             <button
               className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors"
               onClick={handleClearTx}
             >
-              清空发送数据
+              {t('terminal.clearTx')}
             </button>
             <button
               className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors"
               onClick={handleExport}
             >
-              导出数据
+              {t('terminal.exportData')}
             </button>
           </div>
         </Card>
@@ -180,7 +201,7 @@ export function SidePanel() {
               className="flex-1 text-left text-xs text-text-secondary hover:text-text-primary"
               onClick={() => navigateTo('settings')}
             >
-              打开设置
+              {t('terminal.openSettings')}
             </button>
           </div>
         </Card>
