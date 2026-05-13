@@ -43,7 +43,7 @@ export function SettingsPanel() {
 
   // Sync backend config to frontend settings
   useEffect(() => {
-    if (!config) return
+    if (!config || !config.display || !config.serial) return
 
     // Sync serial config
     updateSettings({

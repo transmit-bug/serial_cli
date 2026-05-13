@@ -8,6 +8,7 @@
 
 use crate::state::app_state::{AppState, DataSniffer, PortStatsTracker};
 use log::{debug, error, info};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, State};
 
@@ -97,8 +98,8 @@ pub async fn start_sniffing(
     let mut port_stats = state.port_stats.lock().await;
     let stats = port_stats
         .entry(port_id.clone())
-        .or_insert_with(PortStatsTracker::new);
-    let stats_clone = Arc::clone(stats);
+        .or_insert_with(|| Arc::new(PortStatsTracker::new()))
+        .clone();
     drop(port_stats);
 
     // Create a channel to stop the sniffer
@@ -108,6 +109,7 @@ pub async fn start_sniffing(
     let port_manager = state.port_manager.clone();
     let port_id_clone = port_id.clone();
     let app_clone = app.clone();
+    let stats_for_task = stats.clone();
 
     // Spawn the sniffer task
     let task_handle = tokio::spawn(async move {
@@ -140,14 +142,14 @@ pub async fn start_sniffing(
                                 last_activity = std::time::Instant::now();
 
                                 // Update stats
-                                stats_clone.bytes_received.fetch_add(
+                                stats_for_task.bytes_received.fetch_add(
                                     bytes_read as u64,
                                     std::sync::atomic::Ordering::Relaxed,
                                 );
-                                stats_clone
+                                stats_for_task
                                     .packets_received
                                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                                stats_clone.last_activity.store(
+                                stats_for_task.last_activity.store(
                                     std::time::SystemTime::now()
                                         .duration_since(std::time::UNIX_EPOCH)
                                         .unwrap_or_default()
@@ -197,7 +199,7 @@ pub async fn start_sniffing(
         DataSniffer {
             task_handle,
             stop_tx,
-            stats: stats_clone,
+            stats: stats,
         },
     );
 

@@ -18,7 +18,7 @@ pub async fn get_config(_state: State<'_, AppState>) -> Result<ConfigData, Strin
     let config = serial_cli::config::load_config_with_fallback();
     Ok(ConfigData {
         serial: SerialConfigData {
-            baudrate: config.serial.baudrate,
+            default_baudrate: config.serial.baudrate,
             databits: config.serial.databits,
             stopbits: config.serial.stopbits,
             parity: config.serial.parity,
@@ -40,6 +40,20 @@ pub async fn get_config(_state: State<'_, AppState>) -> Result<ConfigData, Strin
         },
         output: OutputConfigData {
             json_pretty: config.output.json_pretty,
+            show_timestamp: config.output.show_timestamp,
+        },
+        protocols: ProtocolsConfigData {
+            hot_reload: config.protocols.hot_reload,
+            custom_dir: String::new(),
+        },
+        virtual_ports: VirtualPortsConfigData {
+            backend: config.virtual_ports.backend,
+            monitor: config.virtual_ports.monitor,
+        },
+        display: DisplayConfigData {
+            theme: String::from("dark"),
+            max_packets: config.virtual_ports.max_packets,
+            format: String::from("both"),
             show_timestamp: config.output.show_timestamp,
         },
     })
@@ -83,7 +97,7 @@ pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> R
     };
 
     // Update fields
-    existing_config.serial.baudrate = config.serial.baudrate;
+    existing_config.serial.baudrate = config.serial.default_baudrate;
     existing_config.serial.databits = config.serial.databits;
     existing_config.serial.stopbits = config.serial.stopbits;
     existing_config.serial.parity = config.serial.parity;
@@ -102,6 +116,10 @@ pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> R
 
     existing_config.output.json_pretty = config.output.json_pretty;
     existing_config.output.show_timestamp = config.output.show_timestamp;
+
+    // Update display config (store in virtual_ports for now)
+    existing_config.virtual_ports.max_packets = config.display.max_packets;
+    existing_config.output.show_timestamp = config.display.show_timestamp;
 
     // Serialize to TOML
     let toml_string = toml::to_string_pretty(&existing_config)
@@ -169,14 +187,19 @@ pub struct ConfigData {
     pub lua: LuaConfigData,
     pub task: TaskConfigData,
     pub output: OutputConfigData,
+    pub protocols: ProtocolsConfigData,
+    pub virtual_ports: VirtualPortsConfigData,
+    pub display: DisplayConfigData,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct SerialConfigData {
-    pub baudrate: u32,
+    #[serde(rename = "defaultBaudrate")]
+    pub default_baudrate: u32,
     pub databits: u8,
     pub stopbits: u8,
     pub parity: String,
+    #[serde(rename = "timeoutMs")]
     pub timeout_ms: u64,
 }
 
@@ -203,5 +226,29 @@ pub struct TaskConfigData {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct OutputConfigData {
     pub json_pretty: bool,
+    pub show_timestamp: bool,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ProtocolsConfigData {
+    #[serde(rename = "hotReload")]
+    pub hot_reload: bool,
+    #[serde(rename = "customDir")]
+    pub custom_dir: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct VirtualPortsConfigData {
+    pub backend: String,
+    pub monitor: bool,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct DisplayConfigData {
+    pub theme: String,
+    #[serde(rename = "maxPackets")]
+    pub max_packets: usize,
+    pub format: String,
+    #[serde(rename = "showTimestamp")]
     pub show_timestamp: bool,
 }

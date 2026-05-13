@@ -78,8 +78,8 @@ pub struct AppState {
     pub protocol_manager: Arc<Mutex<ProtocolManager>>,
     /// Active data sniffers per port (port_id -> DataSniffer)
     pub active_sniffers: Arc<Mutex<HashMap<String, DataSniffer>>>,
-    /// Port statistics (port_id -> PortStatsTracker) — survives sniffer stop
-    pub port_stats: Arc<Mutex<HashMap<String, PortStatsTracker>>>,
+    /// Port statistics (port_id -> Arc<PortStatsTracker>) — survives sniffer stop
+    pub port_stats: Arc<Mutex<HashMap<String, Arc<PortStatsTracker>>>>,
     /// Virtual port registry (id -> VirtualSerialPair)
     pub virtual_port_registry: Arc<RwLock<HashMap<String, VirtualSerialPair>>>,
     /// Directory for storing custom protocol files

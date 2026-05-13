@@ -6,6 +6,7 @@ import { NotificationProvider } from './contexts/NotificationContext'
 import { ScriptActionProvider } from './contexts/ScriptActionContext'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
+import { useLanguageSync } from './hooks/useLanguageSync'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
 import { TerminalWorkbench } from './components/terminal'
@@ -24,6 +25,9 @@ function AppContent() {
 
   // Register global shortcuts
   useGlobalShortcuts()
+
+  // Sync i18n language with settings
+  useLanguageSync()
 
   const viewComponents: Record<string, React.ComponentType> = {
     terminal: TerminalWorkbench,

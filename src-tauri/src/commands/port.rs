@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::state::app_state::{AppState, PortStatsTracker};
+use crate::state::app_state::AppState;
 use crate::state::port_state::{PortStats, PortStatus, SerialConfig};
 use serial_cli::serial_core::{FlowControl, Parity, PortManager, SerialConfig as CoreSerialConfig};
 use tauri::State;

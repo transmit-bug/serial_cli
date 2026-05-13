@@ -22,6 +22,8 @@ interface DataState {
   // Actions
   addRxPacket: (packet: Omit<DataPacket, 'id'>) => void
   addTxPacket: (packet: Omit<DataPacket, 'id'>) => void
+  clearRxPackets: () => void
+  clearTxPackets: () => void
   clearPackets: () => void
   setDisplayFormat: (format: 'hex' | 'ascii' | 'mixed') => void
   setShowTimestamp: (show: boolean) => void
@@ -79,6 +81,12 @@ export const useDataStore = create<DataState>()(
 
     // Clear all packets
     clearPackets: () => set({ rxPackets: [], txPackets: [] }),
+
+    // Clear RX packets only
+    clearRxPackets: () => set({ rxPackets: [] }),
+
+    // Clear TX packets only
+    clearTxPackets: () => set({ txPackets: [] }),
 
     // Set display format
     setDisplayFormat: (format) =>
