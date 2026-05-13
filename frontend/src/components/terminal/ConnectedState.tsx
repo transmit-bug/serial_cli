@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { useDataStore, useConnectionStore } from '@/stores'
 import { RxDataViewer } from './RxDataViewer'
 import { TxSender } from './TxSender'
 import { SidePanel } from './SidePanel'
 import { LogPanel } from './LogPanel'
+import { Eye, EyeOff } from 'lucide-react'
 
 /**
  * ConnectedState - 已连接状态
@@ -16,7 +18,7 @@ import { LogPanel } from './LogPanel'
 export function ConnectedState() {
   const { rxPackets } = useDataStore()
   const { portName, disconnect } = useConnectionStore()
-  const showLogs = false
+  const [showLogs, setShowLogs] = useState(false)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -29,12 +31,21 @@ export function ConnectedState() {
             <span className="text-text-primary font-medium ml-1">{portName}</span>
           </div>
         </div>
-        <button
-          onClick={disconnect}
-          className="px-3 py-1.5 text-sm bg-alert/10 text-alert border border-alert/30 rounded hover:bg-alert/20 transition-colors"
-        >
-          断开连接
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors"
+            title={showLogs ? '隐藏日志面板' : '显示日志面板'}
+          >
+            {showLogs ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={disconnect}
+            className="px-3 py-1.5 text-sm bg-alert/10 text-alert border border-alert/30 rounded hover:bg-alert/20 transition-colors"
+          >
+            断开连接
+          </button>
+        </div>
       </div>
 
       {/* 主工作区 */}

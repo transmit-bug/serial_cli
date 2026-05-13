@@ -137,8 +137,11 @@
     "sendFailed": "发送失败",
     "invalidHex": "无效的十六进制数据",
     "selectProtocol": "请先选择协议",
+    "encodingFailed": "协议编码失败",
     "encodingLabel": "编码",
-    "emptyScript": "脚本内容为空"
+    "emptyScript": "脚本内容为空",
+    "fileTooLarge": "文件超过 1 MB 限制",
+    "loadFileFailed": "加载文件失败"
   },
   "protocol": {
     "builtinProtocols": "内置协议",

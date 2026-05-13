@@ -1,23 +1,115 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
+import { readFile } from '@tauri-apps/plugin-fs'
 import { Button } from '@/components/ui/button'
 import { useConnectionStore, useDataStore, useProtocolStore } from '@/stores'
-import { Send, FileText, Clock } from 'lucide-react'
+import { Send, FileText, Clock, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
+
+const MAX_FILE_SIZE = 1024 * 1024 // 1MB
+const MAX_HISTORY = 20
+
+interface HistoryEntry {
+  content: string
+  mode: 'hex' | 'ascii'
+  timestamp: number
+}
+
+function historyStorage(): {
+  get: () => HistoryEntry[]
+  add: (entry: Omit<HistoryEntry, 'timestamp'>) => void
+  clear: () => void
+} {
+  const KEY = 'serial-cli-send-history'
+  return {
+    get: () => {
+      try {
+        const raw = localStorage.getItem(KEY)
+        return raw ? JSON.parse(raw) : []
+      } catch { return [] }
+    },
+    add: (entry) => {
+      const history = historyStorage().get()
+      // Remove exact duplicate from history
+      const filtered = history.filter(h => h.content !== entry.content || h.mode !== entry.mode)
+      const updated = [{ ...entry, timestamp: Date.now() }, ...filtered].slice(0, MAX_HISTORY)
+      localStorage.setItem(KEY, JSON.stringify(updated))
+    },
+    clear: () => localStorage.removeItem(KEY),
+  }
+}
 
 /**
  * TxSender - TX 发送区
+ *
+ * Features:
+ * - HEX/ASCII input mode toggle
+ * - Protocol encoding toggle
+ * - Send history (clock button) with keyboard navigation
+ * - Load from file (file button)
+ * - CRLF append helper
  */
 export function TxSender() {
+  const { t } = useTranslation()
   const { portId } = useConnectionStore()
   const { addTxPacket } = useDataStore()
   const { protocols, activeProtocol } = useProtocolStore()
-  const { t } = useTranslation()
   const [inputMode, setInputMode] = useState<'hex' | 'ascii'>('hex')
   const [inputData, setInputData] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [useProtocolEncode, setUseProtocolEncode] = useState(false)
+
+  // History state
+  const [showHistory, setShowHistory] = useState(false)
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const [inputBeforeHistory, setInputBeforeHistory] = useState('')
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([])
+  const historyRef = useRef(historyStorage())
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Load history on mount
+  useEffect(() => {
+    setHistoryEntries(historyRef.current.get())
+  }, [])
+
+  // Keyboard navigation for history (up/down arrows in textarea)
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (historyEntries.length === 0) return
+
+      if (historyIndex === -1) {
+        setInputBeforeHistory(inputData)
+      }
+
+      const nextIndex = Math.min(historyIndex + 1, historyEntries.length - 1)
+      setHistoryIndex(nextIndex)
+      setInputData(historyEntries[nextIndex].content)
+      setInputMode(historyEntries[nextIndex].mode)
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (historyIndex === -1) return
+
+      const nextIndex = historyIndex - 1
+      if (nextIndex === -1) {
+        setInputData(inputBeforeHistory)
+      } else {
+        setInputData(historyEntries[nextIndex].content)
+        setInputMode(historyEntries[nextIndex].mode)
+      }
+      setHistoryIndex(nextIndex)
+    } else if (e.key === 'Escape' && showHistory) {
+      setShowHistory(false)
+    }
+  }, [historyEntries, historyIndex, inputBeforeHistory, inputData, showHistory])
+
+  const addToHistory = useCallback((content: string, mode: 'hex' | 'ascii') => {
+    historyRef.current.add({ content, mode })
+    setHistoryEntries(historyRef.current.get())
+  }, [])
 
   const handleSend = async () => {
     if (!portId) {
@@ -41,13 +133,11 @@ export function TxSender() {
 
       if (inputMode === 'hex') {
         const hex = inputData.replace(/\s/g, '')
-        if (!/^[0-9A-Fa-f]*$/.test(hex)) {
+        if (!/^[0-9A-Fa-f]*$/.test(hex) || hex.length % 2 !== 0) {
           throw new Error(t('toast.invalidHex'))
         }
-        // 将十六进制字符串转换为字节数组
-        const len = hex.length
-        for (let i = 0; i < len; i += 2) {
-          data.push(parseInt(hex.substr(i, 2), 16))
+        for (let i = 0; i < hex.length; i += 2) {
+          data.push(parseInt(hex.substring(i, 2), 16))
         }
       } else {
         data = Array.from(new TextEncoder().encode(inputData))
@@ -67,7 +157,6 @@ export function TxSender() {
         }
       }
 
-      // Invoke Tauri command to send data to serial port
       const bytesWritten = await invoke<number>('send_data', {
         portId,
         data,
@@ -80,8 +169,12 @@ export function TxSender() {
         timestamp: Date.now(),
       })
 
+      // Save to history
+      addToHistory(inputData, inputMode)
+
       toast.success(t('toast.sendSuccess', { bytes: bytesWritten }))
       setInputData('')
+      setHistoryIndex(-1)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('toast.sendFailed'))
     } finally {
@@ -89,14 +182,54 @@ export function TxSender() {
     }
   }
 
+  const handleHistorySelect = useCallback((entry: HistoryEntry) => {
+    setInputData(entry.content)
+    setInputMode(entry.mode)
+    setShowHistory(false)
+    setHistoryIndex(-1)
+    inputRef.current?.focus()
+  }, [])
+
+  const handleClearHistory = useCallback(() => {
+    historyRef.current.clear()
+    setHistoryEntries([])
+    setHistoryIndex(-1)
+    toast.success(t('terminal.historyCleared'))
+  }, [t])
+
+  const handleLoadFile = useCallback(async () => {
+    try {
+      const selected = await open({
+        title: t('terminal.loadFileTitle'),
+        multiple: false,
+      })
+
+      if (!selected) return
+
+      const file = await readFile(selected as string)
+      if (file.length > MAX_FILE_SIZE) {
+        toast.error(t('toast.fileTooLarge'))
+        return
+      }
+
+      const text = new TextDecoder().decode(file)
+      setInputData(text)
+      setInputMode(inputMode === 'hex' ? 'ascii' : inputMode)
+      toast.success(t('terminal.fileLoaded', { file: selected }))
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) return
+      toast.error(t('toast.loadFileFailed'))
+    }
+  }, [inputMode, t])
+
   return (
     <div className="h-full flex flex-col bg-bg-deep">
-      {/* 工具栏 */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-text-primary">{t('terminal.txData')}</span>
 
-          {/* 模式切换 */}
+          {/* Mode toggle */}
           <div className="flex bg-bg-base rounded-md border border-border">
             {(['hex', 'ascii'] as const).map((mode) => (
               <button
@@ -114,7 +247,7 @@ export function TxSender() {
             ))}
           </div>
 
-          {/* 协议编码开关 */}
+          {/* Protocol encoding toggle */}
           {activeProtocol && (
             <button
               onClick={() => setUseProtocolEncode(!useProtocolEncode)}
@@ -131,33 +264,119 @@ export function TxSender() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm">
-            <Clock className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="sm">
+          {/* Send history */}
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHistory(!showHistory)}
+              className={cn(showHistory && 'text-signal')}
+              title={t('terminal.sendHistory')}
+            >
+              <Clock className="w-4 h-4" />
+            </Button>
+
+            {/* History dropdown */}
+            {showHistory && (
+              <div className="absolute right-0 bottom-full mb-2 w-72 bg-bg-elevated border border-border rounded-lg shadow-xl overflow-hidden z-50">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                  <span className="text-xs font-medium text-text-primary">{t('terminal.sendHistory')}</span>
+                  <div className="flex items-center gap-1">
+                    {historyEntries.length > 0 && (
+                      <button
+                        onClick={handleClearHistory}
+                        className="p-0.5 rounded hover:bg-bg-base text-text-tertiary hover:text-alert transition-colors"
+                        title={t('terminal.clearHistory')}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowHistory(false)}
+                      className="p-0.5 rounded hover:bg-bg-base text-text-tertiary hover:text-text-primary transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto">
+                  {historyEntries.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-xs text-text-tertiary">
+                      {t('terminal.noHistory')}
+                    </div>
+                  ) : (
+                    historyEntries.map((entry, idx) => (
+                      <button
+                        key={entry.timestamp}
+                        onClick={() => handleHistorySelect(entry)}
+                        className="w-full text-left px-3 py-2 hover:bg-bg-base border-b border-border/50 last:border-b-0 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            'px-1 py-0.5 rounded text-[10px] font-bold',
+                            entry.mode === 'hex' ? 'bg-amber/20 text-amber' : 'bg-info/20 text-info'
+                          )}>
+                            {entry.mode === 'hex' ? 'HEX' : 'ASC'}
+                          </span>
+                          <span className="flex-1 text-xs font-mono text-text-secondary truncate">
+                            {entry.content}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-text-tertiary mt-0.5">
+                          {new Date(entry.timestamp).toLocaleTimeString()}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {historyEntries.length > 0 && (
+                  <div className="px-3 py-1.5 text-[10px] text-text-tertiary border-t border-border bg-bg-deepest">
+                    {t('terminal.historyHint')}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Load from file */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLoadFile}
+            title={t('terminal.loadFile')}
+          >
             <FileText className="w-4 h-4" />
           </Button>
         </div>
       </div>
 
-      {/* 输入区域 */}
+      {/* Input area */}
       <div className="flex-1 p-4 space-y-3">
-        {/* 快捷指令提示 */}
+        {/* CRLF helper */}
         <div className="flex items-center gap-2 text-xs text-text-tertiary">
-          <span>{t('terminal.quickCommandHint', '快捷指令在右侧面板')}</span>
           <button
-            onClick={() => setInputData((prev) => prev + '\\r\\n')}
+            onClick={() => setInputData((prev) => prev + '\r\n')}
             className="px-2 py-0.5 text-[10px] bg-bg-base border border-border rounded hover:bg-bg-elevated transition-colors"
           >
             + CRLF
           </button>
         </div>
 
-        {/* 输入框 */}
+        {/* Input textarea */}
         <div className="flex-1 relative">
           <textarea
+            ref={inputRef}
             value={inputData}
-            onChange={(e) => setInputData(e.target.value)}
+            onChange={(e) => {
+              setInputData(e.target.value)
+              if (historyIndex !== -1) {
+                setHistoryIndex(-1)
+                setInputBeforeHistory('')
+              }
+            }}
+            onKeyDown={handleKeyDown}
             placeholder={inputMode === 'hex' ? t('terminal.hexInput') : t('terminal.asciiInput')}
             className="w-full h-full min-h-0 bg-bg-base border border-border rounded-lg p-3 text-sm font-mono resize-none focus:outline-none focus:border-signal/50 transition-colors"
             disabled={isSending}
@@ -167,7 +386,7 @@ export function TxSender() {
           </div>
         </div>
 
-        {/* 发送按钮 */}
+        {/* Send button */}
         <Button
           variant="signal"
           onClick={handleSend}

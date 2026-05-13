@@ -20,7 +20,8 @@
     "saving": "Saving...",
     "stopping": "Stopping...",
     "importing": "Importing...",
-    "unknownError": "Unknown error"
+    "unknownError": "Unknown error",
+    "edit": "Edit"
   },
   "sidebar": {
     "title": "Serial CLI",
@@ -107,6 +108,13 @@
     "hexInput": "Enter hexadecimal data",
     "asciiInput": "Enter ASCII characters",
     "characterCount": "characters",
+    "sendHistory": "Send History",
+    "clearHistory": "Clear history",
+    "noHistory": "No send history",
+    "historyHint": "↑↓ to navigate in input field",
+    "loadFileTitle": "Load file for sending",
+    "fileLoaded": "File loaded: {{file}}",
+    "loadFile": "Load from file",
     "searchPlaceholder": "Search HEX or ASCII data...",
     "noEncoding": "No encoding",
     "noDecoding": "No decoding",
@@ -136,8 +144,11 @@
     "sendFailed": "Send failed",
     "invalidHex": "Invalid hexadecimal data",
     "selectProtocol": "Please select a protocol first",
+    "encodingFailed": "Protocol encoding failed",
     "encodingLabel": "encoded",
-    "emptyScript": "Script content is empty"
+    "emptyScript": "Script content empty",
+    "fileTooLarge": "File exceeds 1 MB limit",
+    "loadFileFailed": "Failed to load file"
   },
   "protocol": {
     "builtinProtocols": "Built-in Protocols",
@@ -293,14 +304,5 @@
     "testButton": "Send Test Notification",
     "testTitle": "Test Notification",
     "testBody": "This is a test notification. If you see this, the feature is working correctly."
-  },
-
-  "terminal.quickCommands": "Quick Commands",
-  "terminal.addCommand": "Add Command",
-  "terminal.noQuickCommands": "No quick commands",
-  "terminal.addFirstCommand": "Add your first command",
-  "terminal.commandName": "Command name",
-  "terminal.commandData": "Command data",
-  "terminal.noProtocol": "No protocol",
-  "common.edit": "Edit"
+  }
 }

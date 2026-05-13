@@ -169,7 +169,7 @@ export function SidePanel() {
         {/* 快捷指令列表 */}
         <QuickCommandsCard />
 
-        {/* 快捷操作卡片 */}
+        {/* 快捷操作 + 设置 */}
         <Card className="p-4 border-border/50">
           <div className="flex items-center gap-2 mb-3">
             <Zap className="w-4 h-4 text-signal" />
@@ -194,17 +194,12 @@ export function SidePanel() {
             >
               {t('terminal.exportData')}
             </button>
-          </div>
-        </Card>
-
-        {/* 设置链接 */}
-        <Card className="p-4 border-border/50">
-          <div className="flex items-center gap-2">
-            <Settings className="w-4 h-4 text-text-tertiary" />
+            <hr className="border-border/50" />
             <button
-              className="flex-1 text-left text-xs text-text-secondary hover:text-text-primary"
+              className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors flex items-center gap-2"
               onClick={() => navigateTo('settings')}
             >
+              <Settings className="w-3.5 h-3.5 text-text-tertiary" />
               {t('terminal.openSettings')}
             </button>
           </div>

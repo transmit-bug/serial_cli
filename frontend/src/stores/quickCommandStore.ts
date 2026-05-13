@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { toast } from 'sonner'
 import { useConnectionStore } from './connectionStore'
 import { useDataStore } from './dataStore'
+import i18n from '@/i18n'
 
 export type QuickCommandMode = 'hex' | 'ascii'
 
@@ -97,7 +98,7 @@ export const useQuickCommandStore = create<QuickCommandState>()(
       const { addTxPacket } = useDataStore.getState()
 
       if (!portId) {
-        toast.error('未连接到串口')
+        toast.error(i18n.t('toast.noPortConnected'))
         return
       }
 
@@ -106,8 +107,8 @@ export const useQuickCommandStore = create<QuickCommandState>()(
       // Parse input data based on mode
       if (cmd.mode === 'hex') {
         const hex = cmd.data.replace(/\s/g, '')
-        if (!/^[0-9A-Fa-f]*$/.test(hex)) {
-          toast.error(`快捷指令 "${cmd.name}" 包含无效的十六进制数据`)
+        if (!/^[0-9A-Fa-f]*$/.test(hex) || hex.length === 0 || hex.length % 2 !== 0) {
+          toast.error(i18n.t('toast.invalidHex'))
           return
         }
         for (let i = 0; i < hex.length; i += 2) {
@@ -129,8 +130,8 @@ export const useQuickCommandStore = create<QuickCommandState>()(
             data,
           })
           data = encodedData
-        } catch (encodeError) {
-          toast.error(`快捷指令 "${cmd.name}" 协议编码失败`)
+        } catch {
+          toast.error(i18n.t('toast.encodingFailed'))
           return
         }
       }
@@ -149,9 +150,10 @@ export const useQuickCommandStore = create<QuickCommandState>()(
           timestamp: Date.now(),
         })
 
-        toast.success(`已发送: ${cmd.name} (${bytesWritten} 字节)`)
+        toast.success(i18n.t('toast.sendSuccess', { bytes: bytesWritten }))
       } catch (error) {
-        toast.error(`快捷指令 "${cmd.name}" 发送失败: ${error instanceof Error ? error.message : '未知错误'}`)
+        const msg = error instanceof Error ? error.message : i18n.t('toast.sendFailed')
+        toast.error(`${i18n.t('terminal.quickCommands')} "${cmd.name}" ${i18n.t('toast.sendFailed')}: ${msg}`)
       }
     },
 
@@ -161,16 +163,16 @@ export const useQuickCommandStore = create<QuickCommandState>()(
         const stored = localStorage.getItem(STORAGE_KEY)
         if (stored) {
           const parsed = JSON.parse(stored) as QuickCommand[]
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             set({ commands: parsed })
             return
           }
         }
       } catch {
-        // Ignore parse errors
+        // Ignore parse errors, fall through to defaults
       }
-      // Use defaults if nothing stored
-      set({ commands: DEFAULT_COMMANDS })
+      // Use defaults if nothing stored or empty array
+      set({ commands: [...DEFAULT_COMMANDS] })
       get().saveCommands()
     },
 
