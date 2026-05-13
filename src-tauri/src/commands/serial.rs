@@ -33,8 +33,12 @@ pub async fn send_data(
     // Track bytes sent
     let port_stats = state.port_stats.lock().await;
     if let Some(stats) = port_stats.get(&port_id) {
-        stats.bytes_sent.fetch_add(bytes_written as u64, std::sync::atomic::Ordering::Relaxed);
-        stats.packets_sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        stats
+            .bytes_sent
+            .fetch_add(bytes_written as u64, std::sync::atomic::Ordering::Relaxed);
+        stats
+            .packets_sent
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         stats.last_activity.store(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -136,14 +140,12 @@ pub async fn start_sniffing(
                                 last_activity = std::time::Instant::now();
 
                                 // Update stats
-                                stats_clone.bytes_received.fetch_add(
-                                    bytes_read as u64,
-                                    std::sync::atomic::Ordering::Relaxed,
-                                );
-                                stats_clone.packets_received.fetch_add(
-                                    1,
-                                    std::sync::atomic::Ordering::Relaxed,
-                                );
+                                stats_clone
+                                    .bytes_received
+                                    .fetch_add(bytes_read as u64, std::sync::atomic::Ordering::Relaxed);
+                                stats_clone
+                                    .packets_received
+                                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                                 stats_clone.last_activity.store(
                                     std::time::SystemTime::now()
                                         .duration_since(std::time::UNIX_EPOCH)
