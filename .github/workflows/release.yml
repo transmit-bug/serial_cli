@@ -136,9 +136,44 @@ jobs:
           path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
           if-no-files-found: error
 
+  generate-sbom:
+    name: Generate SBOM (Software Bill of Materials)
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          cargo cyclonedx --output target/sbom --output-format json
+          # Also generate XML format for broader tool compatibility
+          cargo cyclonedx --output target/sbom-xml --output-format xml
+
+      - name: Upload SBOM JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: target/sbom/
+          retention-days: 90
+
+      - name: Upload SBOM XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx-xml
+          path: target/sbom-xml/
+          retention-days: 90
+
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [build, generate-sbom]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -152,23 +187,28 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R ./artifacts
 
+      - name: Copy SBOM to release directory
+        run: |
+          mkdir -p ./release-files
+          # Copy all binary artifacts
+          find ./artifacts -type f -not -name "*.sha256" -exec cp {} ./release-files/ \;
+          # Copy SBOM files
+          cp -r ./artifacts/sbom-cyclonedx/* ./release-files/ 2>/dev/null || true
+          cp -r ./artifacts/sbom-cyclonedx-xml/* ./release-files/ 2>/dev/null || true
+
       - name: Create checksums
         run: |
-          cd artifacts
-          for dir in */; do
-            cd "$dir"
-            for file in *; do
-              if [ -f "$file" ]; then
-                sha256sum "$file" > "$file.sha256"
-              fi
-            done
-            cd ..
+          cd release-files
+          for file in *; do
+            if [ -f "$file" ]; then
+              sha256sum "$file" > "$file.sha256"
+            fi
           done
 
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
-          files: ./artifacts/*/serial-cli*
+          files: ./release-files/*
           draft: false
           prerelease: false
           generate_release_notes: true
@@ -212,6 +252,14 @@ jobs:
             ```bash
             cargo install serial-cli
             ```
+
+            📋 **SBOM (Software Bill of Materials)**
+
+            This release includes a CycloneDX SBOM in both JSON and XML formats.
+            These files document all dependencies for security auditing and compliance.
+
+            - `bom.json` — CycloneDX JSON format
+            - `bom.xml` — CycloneDX XML format
 
             📚 **文档**: [USAGE.md](https://github.com/zazac-zhang/serial_cli/blob/master/USAGE.md)
 

@@ -53,6 +53,134 @@ jobs:
       - name: Run benchmarks
         run: cargo bench -- --output-format bencher
 
+      - name: Download previous benchmark baseline
+        uses: actions/cache@v4
+        with:
+          path: target/criterion-baseline
+          key: ${{ runner.os }}-criterion-baseline
+          restore-keys: |
+            ${{ runner.os }}-criterion-baseline
+
+      - name: Compare against baseline
+        id: compare
+        run: |
+          set -euo pipefail
+
+          # Create a simple comparison script
+          cat > /tmp/bench_compare.py << 'PYTHON'
+          import json
+          import os
+          import sys
+          import glob
+
+          BASELINE_DIR = "target/criterion-baseline"
+          CURRENT_DIR = "target/criterion"
+
+          WARN_THRESHOLD = 5.0   # >5% regression = warning
+          FAIL_THRESHOLD = 10.0  # >10% regression = fail
+
+          results = {
+              "regressions": [],
+              "improvements": [],
+              "warnings": [],
+          }
+
+          # Find all new/benchmark.json files in current results
+          for new_file in glob.glob(f"{CURRENT_DIR}/**/new/benchmark.json", recursive=True):
+              bench_name = os.path.basename(os.path.dirname(os.path.dirname(new_file)))
+
+              with open(new_file) as f:
+                  current_data = json.load(f)
+              current_est_ns = current_data.get("estimates", {}).get("mean", {}).get("point_estimate", 0)
+
+              baseline_file = f"{BASELINE_DIR}/{bench_name}/new/benchmark.json"
+              if not os.path.exists(baseline_file):
+                  continue
+
+              with open(baseline_file) as f:
+                  baseline_data = json.load(f)
+              baseline_est_ns = baseline_data.get("estimates", {}).get("mean", {}).get("point_estimate", 0)
+
+              if baseline_est_ns <= 0 or current_est_ns <= 0:
+                  continue
+
+              # Lower is faster, so negative change = improvement
+              change_pct = ((current_est_ns - baseline_est_ns) / baseline_est_ns) * 100
+
+              if change_pct > WARN_THRESHOLD:
+                  results["regressions"].append({
+                      "name": bench_name,
+                      "change_pct": round(change_pct, 2),
+                      "baseline_ns": round(baseline_est_ns),
+                      "current_ns": round(current_est_ns),
+                  })
+                  if change_pct > FAIL_THRESHOLD:
+                      results["warnings"].append(f"🔴 **FAIL**: {bench_name} regressed by {change_pct:.1f}% (baseline: {baseline_est_ns:.0f}ns, current: {current_est_ns:.0f}ns)")
+                  else:
+                      results["warnings"].append(f"⚠️ **WARN**: {bench_name} regressed by {change_pct:.1f}% (baseline: {baseline_est_ns:.0f}ns, current: {current_est_ns:.0f}ns)")
+              elif change_pct < -WARN_THRESHOLD:
+                  results["improvements"].append({
+                      "name": bench_name,
+                      "change_pct": round(change_pct, 2),
+                      "baseline_ns": round(baseline_est_ns),
+                      "current_ns": round(current_est_ns),
+                  })
+
+          # Output results
+          has_fail = False
+          print("## Benchmark Regression Analysis")
+          print("")
+
+          if results["warnings"]:
+              print("### Regressions Detected")
+              print("")
+              for w in results["warnings"]:
+                  print(f"- {w}")
+                  if "FAIL" in w:
+                      has_fail = True
+              print("")
+
+          if results["improvements"]:
+              print("### Improvements 🎉")
+              print("")
+              for imp in results["improvements"]:
+                  print(f"- 🟢 **{imp['name']}** improved by {abs(imp['change_pct']):.1f}% (baseline: {imp['baseline_ns']}ns, current: {imp['current_ns']}ns)")
+              print("")
+
+          if not results["warnings"] and not results["improvements"]:
+              print("✅ No significant changes from baseline.")
+
+          if has_fail:
+              print("")
+              print("🛑 Benchmark regression exceeds the failure threshold. This PR should be reviewed.")
+              sys.exit(1)
+          PYTHON
+
+          python3 /tmp/bench_compare.py
+
+      - name: Save new baseline (main branch only)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          mkdir -p target/criterion-baseline
+          # Copy top-level criterion results as baseline for future comparisons
+          if [ -d target/criterion ]; then
+            # Copy each benchmark's result to the baseline
+            find target/criterion -name "benchmark.json" -not -path "*/criterion-baseline/*" | while read f; do
+              bench_path=$(dirname $(dirname "$f"))
+              bench_name=$(basename "$bench_path")
+              dest="target/criterion-baseline/$bench_name/new"
+              mkdir -p "$dest"
+              cp "$f" "$dest/"
+            done
+          fi
+
+      - name: Upload baseline cache
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: actions/cache@v4
+        with:
+          path: target/criterion-baseline
+          key: ${{ runner.os }}-criterion-baseline
+
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
