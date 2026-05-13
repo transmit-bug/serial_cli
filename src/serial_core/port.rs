@@ -10,6 +10,7 @@
 //! - [`SerialPortInfo`] — metadata about an enumerated port
 
 use crate::error::{Result, SerialError, SerialPortError};
+#[cfg(unix)]
 use crate::serial_core::signals::PlatformSignals;
 use std::collections::HashMap;
 use std::sync::Arc;

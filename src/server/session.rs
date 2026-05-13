@@ -119,7 +119,7 @@ impl ServerSessionManager {
                     if handle.is_invalid() {
                         false
                     } else {
-                        let _ = CloseHandle(&handle);
+                        let _ = CloseHandle(handle);
                         true
                     }
                 }
@@ -155,8 +155,8 @@ impl ServerSessionManager {
             ))
         })?;
         unsafe {
-            let result = TerminateProcess(&handle, 1);
-            let _ = CloseHandle(&handle);
+            let result = TerminateProcess(handle, 1);
+            let _ = CloseHandle(handle);
             if result.is_ok() {
                 Ok(())
             } else {

@@ -362,20 +362,16 @@ impl NamedPipeBackend {
         use windows::Win32::Foundation::WAIT_OBJECT_0;
         use windows::Win32::System::Threading::WaitForMultipleObjects;
 
-        let mut buf = vec![0u8; 8192];
-
-        // We run two relay loops in parallel via thread parking.
-        // For simplicity and correctness, use a single-threaded select:
-        // poll both pipes alternately, checking shutdown between reads.
+        let buf = vec![0u8; 8192];
 
         let stats_a = Arc::clone(&stats);
         let stats_b = Arc::clone(&stats);
 
         // Thread for A → B
+        let buf_a = buf.clone();
         let t1 = std::thread::spawn(move || {
-            let mut buf = buf.clone();
+            let mut buf = buf_a;
             loop {
-                // Check shutdown event (non-blocking).
                 let wait = unsafe {
                     WaitForMultipleObjects(
                         &[shutdown_event],
@@ -388,7 +384,7 @@ impl NamedPipeBackend {
                 }
 
                 match Self::pipe_read(client_a, &mut buf) {
-                    Ok(0) => break, // EOF or closed
+                    Ok(0) => break,
                     Ok(n) => {
                         if Self::pipe_write(client_b, &buf[..n]).is_err() {
                             tracing::warn!("relay a→b write failed");
