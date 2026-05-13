@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { scriptsStorage } from '@/lib/storage'
 import { getErrorSolution } from '@/lib/errors'
 import { useScriptActions } from '@/contexts/ScriptActionContext'
+import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SCRIPT = `-- Lua Script for Serial CLI
 -- Use the serial API to communicate with devices
@@ -47,6 +48,7 @@ interface ScriptFile {
 }
 
 export function ScriptPanel() {
+  const { t } = useTranslation()
   const [scripts, setScripts] = useState<ScriptFile[]>([])
   const [activeScriptId, setActiveScriptId] = useState<string | null>(null)
   const [scriptContent, setScriptContent] = useState(DEFAULT_SCRIPT)
@@ -89,7 +91,7 @@ export function ScriptPanel() {
 
   const runCurrentScript = async () => {
     if (!scriptContent.trim()) {
-      setError('Script content is empty')
+      setError(t('toast.emptyScript'))
       return
     }
     await runScript()
@@ -244,7 +246,7 @@ export function ScriptPanel() {
       {/* Scripts List & Editor */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 w-full">
         {/* Sidebar - Script Files */}
-        <Panel title="Scripts" variant="amber" className="col-span-1">
+        <Panel title={t('scripts.title')} variant="amber" className="col-span-1">
           <div className="space-y-2">
             {/* Action buttons */}
             <div className="flex items-center gap-2 mb-4">
@@ -253,12 +255,12 @@ export function ScriptPanel() {
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-amber/10 text-amber border border-amber/30 hover:bg-amber/20 transition-colors"
               >
                 <FilePlus size={14} strokeWidth={1.5} />
-                New
+                {t('scripts.newScript')}
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="p-1.5 rounded-md hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors"
-                title="Load file"
+                title={t('scripts.loadFile')}
               >
                 <FolderOpen size={14} strokeWidth={1.5} />
               </button>
@@ -275,8 +277,8 @@ export function ScriptPanel() {
             <div className="space-y-1">
               {scripts.length === 0 ? (
                 <div className="py-8 text-center text-xs text-text-tertiary">
-                  <p>No scripts yet</p>
-                  <p className="mt-1">Create a new script or load a file</p>
+                  <p>{t('scripts.noScripts')}</p>
+                  <p className="mt-1">{t('scripts.noScriptsHint')}</p>
                 </div>
               ) : (
                 scripts.map(script => (
@@ -315,7 +317,7 @@ export function ScriptPanel() {
 
         {/* Editor */}
         <Panel
-          title={activeScript?.name || 'Editor'}
+          title={activeScript?.name || t('scripts.editor')}
           variant="default"
           className="col-span-3"
           actions={
@@ -324,7 +326,7 @@ export function ScriptPanel() {
                 onClick={saveScript}
                 disabled={!activeScriptId}
                 className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Save script"
+                title={t('common.save')}
               >
                 <Save size={14} strokeWidth={1.5} />
               </button>
@@ -332,7 +334,7 @@ export function ScriptPanel() {
                 onClick={exportScript}
                 disabled={!activeScript}
                 className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Export script"
+                title={t('common.export')}
               >
                 <Download size={14} strokeWidth={1.5} />
               </button>
@@ -346,7 +348,7 @@ export function ScriptPanel() {
                 ) : (
                   <Play size={12} strokeWidth={1.5} />
                 )}
-                {isRunning ? 'Running...' : 'Run'}
+                {isRunning ? t('scripts.running') : t('scripts.run')}
               </button>
             </>
           }
@@ -372,7 +374,7 @@ export function ScriptPanel() {
       </div>
 
       {/* Output Console */}
-      <Panel title="Output" variant="default" className="w-full">
+      <Panel title={t('scripts.output')} variant="default" className="w-full">
         {(error || errorDetails) && (
           <div className="mb-3 p-3 rounded-md bg-alert/10 border border-alert/30">
             <div className="flex items-start gap-2">
@@ -390,7 +392,7 @@ export function ScriptPanel() {
                   </>
                 ) : (
                   <>
-                    <p className="text-sm text-alert font-medium">Execution Error</p>
+                    <p className="text-sm text-alert font-medium">{t('scripts.executionError')}</p>
                     <p className="text-xs text-alert mt-1 font-mono">{error}</p>
                   </>
                 )}
@@ -400,7 +402,7 @@ export function ScriptPanel() {
         )}
         <div className="h-32 overflow-y-auto font-mono text-xs bg-bg-deepest rounded-md p-3 border border-border/50">
           {output.length === 0 ? (
-            <p className="text-text-tertiary">Script output will appear here...</p>
+            <p className="text-text-tertiary">{t('scripts.outputPlaceholder')}</p>
           ) : (
             output.map((line, i) => (
               <div

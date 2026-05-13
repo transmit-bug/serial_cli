@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { protocolsStorage } from '@/lib/storage'
 import { useProtocolStore } from '@/stores/protocolStore'
+import { useTranslation } from 'react-i18next'
 
 interface CustomProtocol {
   id: string
@@ -17,6 +18,7 @@ interface CustomProtocol {
 }
 
 export function ProtocolPanel() {
+  const { t } = useTranslation()
   const { protocols, activeProtocol, setActiveProtocol, loadProtocols, enableProtocol, disableProtocol, loading } = useProtocolStore()
   const [customProtocols, setCustomProtocols] = useState<CustomProtocol[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -68,7 +70,7 @@ export function ProtocolPanel() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to toggle protocol')
+      setError(err instanceof Error ? err.message : t('protocol.toggleFailed'))
     }
   }
 
@@ -124,7 +126,7 @@ export function ProtocolPanel() {
         id: `custom-${Date.now()}`,
         name: file.name.replace('.lua', ''),
         version: '1.0',
-        description: protocolInfo.description || 'Custom Lua protocol',
+        description: protocolInfo.description || t('protocol.customDesc'),
         type: 'custom',
         status: 'inactive',
         filePath,
@@ -167,7 +169,7 @@ export function ProtocolPanel() {
         <div className="p-3 rounded-md bg-alert/10 border border-alert/30">
           <div className="flex items-center gap-2 text-alert text-sm">
             <AlertCircle size={16} strokeWidth={1.5} />
-            <span className="font-medium">Protocol Error</span>
+            <span className="font-medium">{t('protocol.error')}</span>
           </div>
           <p className="text-xs text-alert mt-1 font-mono">{error}</p>
         </div>
@@ -176,17 +178,17 @@ export function ProtocolPanel() {
       {/* Protocol Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
         {/* Built-in Protocols */}
-        <Panel title="Built-in Protocols" variant="signal" actions={
+        <Panel title={t('protocol.builtinProtocols')} variant="signal" actions={
           <span className="text-xs text-text-tertiary font-mono">
-            {loading ? 'Loading...' : `${protocols.length} protocols`}
+            {loading ? t('common.loading') : t('protocol.protocolsCount', { count: protocols.length })}
           </span>
         }>
           {loading ? (
-            <div className="py-8 text-center text-xs text-text-tertiary">Loading protocols...</div>
+            <div className="py-8 text-center text-xs text-text-tertiary">{t('protocol.loading')}</div>
           ) : protocols.length === 0 ? (
             <div className="py-8 text-center text-xs text-text-tertiary">
-              <p>No built-in protocols available</p>
-              <p className="mt-1">Check backend protocol configuration</p>
+              <p>{t('protocol.noBuiltIn')}</p>
+              <p className="mt-1">{t('protocol.noBuiltInHint')}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -214,7 +216,7 @@ export function ProtocolPanel() {
                         </div>
                       </div>
                       <span className="px-2.5 py-1 text-xs rounded-md bg-bg-elevated text-text-tertiary border border-border">
-                        Built-in
+                        {t('protocol.builtIn')}
                       </span>
                     </div>
                   </div>
@@ -226,14 +228,14 @@ export function ProtocolPanel() {
 
         {/* Custom Protocols */}
         <Panel
-          title="Custom Protocols"
+          title={t('protocol.customProtocols')}
           variant="amber"
           actions={
             <>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors"
-                title="Load protocol"
+                title={t('protocol.loadProtocol')}
                 disabled={isLoading}
               >
                 <Upload size={14} strokeWidth={1.5} />
@@ -253,8 +255,8 @@ export function ProtocolPanel() {
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-bg-elevated mb-3">
                 <FileCode size={20} className="text-text-tertiary" strokeWidth={1.5} />
               </div>
-              <p className="text-sm text-text-tertiary">No custom protocols</p>
-              <p className="text-xs text-text-tertiary mt-1">Load a .lua protocol file to get started</p>
+              <p className="text-sm text-text-tertiary">{t('protocol.noCustomProtocols')}</p>
+              <p className="text-xs text-text-tertiary mt-1">{t('protocol.loadHint')}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -294,7 +296,7 @@ export function ProtocolPanel() {
                               ? 'bg-signal/10 text-signal'
                               : 'bg-alert/10 text-alert'
                           )}>
-                            {validationStatus.get(protocol.name) === 'valid' ? '✓ Valid' : '✗ Invalid'}
+                            {validationStatus.get(protocol.name) === 'valid' ? `✓ ${t('protocol.valid')}` : `✗ ${t('protocol.invalid')}`}
                           </span>
                         )}
                         <button
@@ -309,7 +311,7 @@ export function ProtocolPanel() {
                               : 'bg-bg-elevated text-text-tertiary border-border hover:text-text-primary'
                           )}
                         >
-                          {protocol.status === 'active' ? 'Active' : 'Enable'}
+                          {protocol.status === 'active' ? t('protocol.active') : t('protocol.enable')}
                         </button>
                         <button
                           onClick={(e) => {
@@ -332,7 +334,7 @@ export function ProtocolPanel() {
 
       {/* Protocol Details */}
       {activeProtocol && (
-        <Panel title="Protocol Details" variant="default" className="w-full">
+        <Panel title={t('protocol.protocolDetails')} variant="default" className="w-full">
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
@@ -348,7 +350,7 @@ export function ProtocolPanel() {
                       ? 'bg-amber/10 text-amber'
                       : 'bg-signal/10 text-signal'
                   )}>
-                    {customProtocols.find(p => p.id === activeProtocol) ? 'Custom' : 'Built-in'}
+                    {customProtocols.find(p => p.id === activeProtocol) ? t('protocol.custom') : t('protocol.builtIn')}
                   </span>
                 </p>
               </div>
@@ -359,7 +361,7 @@ export function ProtocolPanel() {
                 <p className="text-sm text-text-secondary mt-1">
                   {customProtocols.find(p => p.id === activeProtocol)?.description ||
                    protocols.find(p => p.name === activeProtocol)?.description ||
-                   'No description available'}
+                   t('protocol.noDescription')}
                 </p>
               </div>
               <div>
@@ -372,8 +374,8 @@ export function ProtocolPanel() {
                       : 'bg-signal/10 text-signal'
                   )}>
                     {customProtocols.find(p => p.id === activeProtocol)?.status === 'active'
-                      ? 'Active'
-                      : 'Selected'}
+                      ? t('protocol.active')
+                      : t('protocol.selected')}
                   </span>
                 </p>
               </div>

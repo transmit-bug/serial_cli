@@ -2,8 +2,10 @@ import { useNotification } from '@/contexts/NotificationContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export function NotificationSettings() {
+  const { t } = useTranslation()
   const { settings, updateSettings, requestNotificationPermission, sendSystemNotification } = useNotification()
   const [isRequesting, setIsRequesting] = useState(false)
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unsupported'>(
@@ -26,13 +28,13 @@ export function NotificationSettings() {
 
   return (
     <div className="space-y-4">
-      <Panel title="Notification Settings" variant="default">
+      <Panel title={t('notifications.title')} variant="default">
         <div className="space-y-6">
           {/* Permission Status */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm font-medium text-text-primary">
-                System Notifications
+                {t('notifications.systemNotifications')}
               </label>
               <div className={cn(
                 'text-xs px-2 py-1 rounded font-medium',
@@ -41,14 +43,14 @@ export function NotificationSettings() {
                 getPermissionStatus() === 'default' && 'bg-amber/10 text-amber',
                 getPermissionStatus() === 'unsupported' && 'bg-bg-elevated text-text-tertiary'
               )}>
-                {getPermissionStatus() === 'granted' && '✓ Enabled'}
-                {getPermissionStatus() === 'denied' && '✕ Blocked'}
-                {getPermissionStatus() === 'default' && 'Request Permission'}
-                {getPermissionStatus() === 'unsupported' && 'Not Supported'}
+                {getPermissionStatus() === 'granted' && `✓ ${t('notifications.enabled')}`}
+                {getPermissionStatus() === 'denied' && `✕ ${t('notifications.blocked')}`}
+                {getPermissionStatus() === 'default' && t('notifications.requestPermission')}
+                {getPermissionStatus() === 'unsupported' && t('notifications.notSupported')}
               </div>
             </div>
             <p className="text-xs text-text-tertiary mb-3">
-              Enable system notifications to stay informed about important events even when the app is in the background.
+              {t('notifications.permissionHint')}
             </p>
             {getPermissionStatus() === 'default' && (
               <button
@@ -56,25 +58,25 @@ export function NotificationSettings() {
                 disabled={isRequesting}
                 className="px-4 py-2 text-sm font-medium rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50"
               >
-                {isRequesting ? 'Requesting...' : 'Enable Notifications'}
+                {isRequesting ? t('notifications.requesting') : t('notifications.enableNotifications')}
               </button>
             )}
             {getPermissionStatus() === 'denied' && (
               <p className="text-xs text-alert">
-                Notifications are blocked. Enable them in your browser/system settings.
+                {t('notifications.blockedHint')}
               </p>
             )}
           </div>
 
           {/* Notification Settings */}
           <div className="space-y-4 pt-4 border-t border-border">
-            <h3 className="text-sm font-medium text-text-primary">Notification Preferences</h3>
+            <h3 className="text-sm font-medium text-text-primary">{t('notifications.preferences')}</h3>
 
             {/* Master Toggle */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Enable Notifications</div>
-                <div className="text-xs text-text-tertiary">Master toggle for all notifications</div>
+                <div className="text-sm text-text-primary">{t('notifications.masterToggle')}</div>
+                <div className="text-xs text-text-tertiary">{t('notifications.masterToggleHint')}</div>
               </div>
               <button
                 onClick={() => updateSettings({ enabled: !settings.enabled })}
@@ -93,8 +95,8 @@ export function NotificationSettings() {
             {/* Sound */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Notification Sound</div>
-                <div className="text-xs text-text-tertiary">Play sound for notifications</div>
+                <div className="text-sm text-text-primary">{t('notifications.sound')}</div>
+                <div className="text-xs text-text-tertiary">{t('notifications.soundHint')}</div>
               </div>
               <button
                 onClick={() => updateSettings({ sound: !settings.sound })}
@@ -114,8 +116,8 @@ export function NotificationSettings() {
             {/* Port Events */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Port Events</div>
-                <div className="text-xs text-text-tertiary">Notify when ports connect/disconnect</div>
+                <div className="text-sm text-text-primary">{t('notifications.portEvents')}</div>
+                <div className="text-xs text-text-tertiary">{t('notifications.portEventsHint')}</div>
               </div>
               <button
                 onClick={() => updateSettings({ portEvents: !settings.portEvents })}
@@ -135,8 +137,8 @@ export function NotificationSettings() {
             {/* Errors */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Error Notifications</div>
-                <div className="text-xs text-text-tertiary">Notify on errors and failures</div>
+                <div className="text-sm text-text-primary">{t('notifications.errors')}</div>
+                <div className="text-xs text-text-tertiary">{t('notifications.errorsHint')}</div>
               </div>
               <button
                 onClick={() => updateSettings({ errors: !settings.errors })}
@@ -156,8 +158,8 @@ export function NotificationSettings() {
             {/* Script Complete */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Script Completion</div>
-                <div className="text-xs text-text-tertiary">Notify when scripts finish</div>
+                <div className="text-sm text-text-primary">{t('notifications.scriptComplete')}</div>
+                <div className="text-xs text-text-tertiary">{t('notifications.scriptCompleteHint')}</div>
               </div>
               <button
                 onClick={() => updateSettings({ scriptComplete: !settings.scriptComplete })}
@@ -178,7 +180,7 @@ export function NotificationSettings() {
           {/* Duration */}
           <div className="pt-4 border-t border-border">
             <label className="text-sm font-medium text-text-primary block mb-2">
-              Notification Duration
+              {t('notifications.duration')}
             </label>
             <select
               value={settings.duration}
@@ -186,11 +188,11 @@ export function NotificationSettings() {
               disabled={!settings.enabled}
               className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary disabled:opacity-50"
             >
-              <option value={2000}>2 seconds</option>
-              <option value={3000}>3 seconds</option>
-              <option value={5000}>5 seconds</option>
-              <option value={10000}>10 seconds</option>
-              <option value={0}>Until closed</option>
+              <option value={2000}>{t('notifications.duration2s')}</option>
+              <option value={3000}>{t('notifications.duration3s')}</option>
+              <option value={5000}>{t('notifications.duration5s')}</option>
+              <option value={10000}>{t('notifications.duration10s')}</option>
+              <option value={0}>{t('notifications.untilClosed')}</option>
             </select>
           </div>
 
@@ -201,15 +203,15 @@ export function NotificationSettings() {
                 updateSettings({ enabled: true })
                 requestNotificationPermission().then(() => {
                   sendSystemNotification({
-                    title: '测试通知',
-                    body: '这是一条测试通知，如果你看到了它说明功能正常。',
+                    title: t('notifications.testTitle'),
+                    body: t('notifications.testBody'),
                     type: 'info',
                   })
                 })
               }}
               className="px-4 py-2 text-sm font-medium rounded-md bg-info/10 text-info border border-info/30 hover:bg-info/20 transition-colors"
             >
-              Send Test Notification
+              {t('notifications.testButton')}
             </button>
           </div>
         </div>

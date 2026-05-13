@@ -1,9 +1,36 @@
 import { shortcuts, formatKey } from '@/lib/shortcuts'
 import { useShortcuts } from '@/contexts/ShortcutContext'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
+
+// Map shortcut descriptions to translation keys
+const DESCRIPTION_KEYS: Record<string, string> = {
+  'Open command palette': 'shortcuts.cmdPalette',
+  'Terminal View': 'shortcuts.terminalView',
+  'Virtual Ports View': 'shortcuts.virtualPortsView',
+  'Scripts View': 'shortcuts.scriptsView',
+  'Protocols View': 'shortcuts.protocolsView',
+  'Settings View': 'shortcuts.settingsView',
+  'Refresh ports': 'shortcuts.refreshPorts',
+  'New script': 'shortcuts.newScript',
+  'Run script': 'shortcuts.runScript',
+  'Clear data': 'shortcuts.clearData',
+  'Open settings': 'shortcuts.openSettings',
+  'Show keyboard shortcuts': 'shortcuts.showShortcuts',
+  'Close modal/dialog': 'shortcuts.closeModal',
+}
+
+const CATEGORY_KEYS: Record<string, string> = {
+  navigation: 'shortcuts.catNavigation',
+  terminal: 'shortcuts.catTerminal',
+  scripts: 'shortcuts.catScripts',
+  data: 'shortcuts.catData',
+  general: 'shortcuts.catGeneral',
+}
 
 export function KeyboardShortcutsHelp() {
   const { isShortcutsHelpOpen, closeShortcutsHelp } = useShortcuts()
+  const { t } = useTranslation()
 
   if (!isShortcutsHelpOpen) return null
 
@@ -25,8 +52,8 @@ export function KeyboardShortcutsHelp() {
           <div className="flex items-center gap-3">
             <span className="text-2xl">⌨️</span>
             <div>
-              <h2 className="text-lg font-semibold text-text-primary">Keyboard Shortcuts</h2>
-              <p className="text-sm text-text-tertiary">Quick commands for power users</p>
+              <h2 className="text-lg font-semibold text-text-primary">{t('shortcuts.title')}</h2>
+              <p className="text-sm text-text-tertiary">{t('shortcuts.subtitle')}</p>
             </div>
           </div>
           <button
@@ -45,7 +72,7 @@ export function KeyboardShortcutsHelp() {
               return (
                 <div key={category}>
                   <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wide mb-3">
-                    {category}
+                    {t(CATEGORY_KEYS[category] || category)}
                   </h3>
                   <div className="space-y-2">
                     {categoryShortcuts.map(shortcut => (
@@ -56,7 +83,9 @@ export function KeyboardShortcutsHelp() {
                           'border border-border hover:border-signal/30 transition-colors'
                         )}
                       >
-                        <span className="text-sm text-text-primary">{shortcut.description}</span>
+                        <span className="text-sm text-text-primary">
+                          {t(DESCRIPTION_KEYS[shortcut.description] || shortcut.description)}
+                        </span>
                         <kbd className="px-2 py-1 text-xs font-mono text-text-secondary bg-bg-deep border border-border rounded">
                           {formatKey(shortcut.key)}
                         </kbd>
@@ -72,8 +101,12 @@ export function KeyboardShortcutsHelp() {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border bg-bg-deep">
           <div className="flex items-center justify-between text-sm text-text-tertiary">
-            <div>Press <kbd className="px-1.5 py-0.5 text-xs font-mono bg-bg-elevated border border-border rounded">ESC</kbd> to close</div>
-            <div>Serial CLI v0.1.0</div>
+            <div>
+              {t('shortcuts.pressEscToClose')}{' '}
+              <kbd className="px-1.5 py-0.5 text-xs font-mono bg-bg-elevated border border-border rounded">Esc</kbd>
+              {' '}{t('shortcuts.toClose')}
+            </div>
+            <div>{t('shortcuts.appVersion')}</div>
           </div>
         </div>
       </div>

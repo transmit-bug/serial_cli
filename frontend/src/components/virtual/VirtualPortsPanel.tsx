@@ -3,6 +3,7 @@ import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
 import { useState, useMemo, useCallback } from 'react'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   RefreshCw,
   Network,
@@ -36,6 +37,7 @@ const BACKEND_OPTIONS = [
 const BUFFER_SIZES = [4096, 8192, 16384, 32768, 65536]
 
 export function VirtualPortsPanel() {
+  const { t } = useTranslation()
   const {
     virtualPorts,
     portStats,
@@ -110,7 +112,7 @@ export function VirtualPortsPanel() {
     <div className="space-y-6">
       {/* Create Port Panel */}
       <Panel
-        title="Create Virtual Port Pair"
+        title={t('virtualPorts.createTitle')}
         variant="signal"
         className="w-full"
         actions={
@@ -120,7 +122,7 @@ export function VirtualPortsPanel() {
             className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw size={14} strokeWidth={1.5} className={isLoading ? 'animate-spin' : ''} />
-            Refresh
+            {t('virtualPorts.refresh')}
           </button>
         }
       >
@@ -138,7 +140,7 @@ export function VirtualPortsPanel() {
             <div className="flex items-start gap-2">
               <AlertCircle size={16} strokeWidth={1.5} className="mt-0.5 flex-shrink-0" />
               <div>
-                <p className="font-medium">Failed to Stop Virtual Port</p>
+                <p className="font-medium">{t('virtualPorts.stopPortFailedTitle')}</p>
                 <p className="text-alert/80 mt-1">{stopError}</p>
               </div>
               <button
@@ -167,10 +169,10 @@ export function VirtualPortsPanel() {
               className="inline-flex items-center gap-2 px-6 py-3 text-sm rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50"
             >
               <Network size={18} strokeWidth={1.5} />
-              Create Virtual Port Pair
+              {t('virtualPorts.createPortPair')}
             </button>
             <p className="mt-3 text-xs text-text-tertiary">
-              Create a virtual serial port pair for testing and monitoring
+              {t('virtualPorts.createHint')}
             </p>
           </div>
         )}
@@ -178,7 +180,7 @@ export function VirtualPortsPanel() {
 
       {/* Active Virtual Ports */}
       {virtualPorts.size > 0 && (
-        <Panel title="Active Virtual Ports" variant="info" className="w-full">
+        <Panel title={t('virtualPorts.activeTitle')} variant="info" className="w-full">
           <div className="space-y-3">
             {Array.from(virtualPorts.values()).map((port) => {
               const stats = getStats(port.id)
@@ -202,7 +204,7 @@ export function VirtualPortsPanel() {
                         <div className="flex items-center gap-2 mt-0.5">
                           <div className="flex items-center gap-1.5 text-xs text-signal">
                             <div className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse-slow" />
-                            Active
+                            {t('virtualPorts.active')}
                           </div>
                           <span className="text-xs text-text-tertiary">
                             {port.backend}
@@ -216,7 +218,7 @@ export function VirtualPortsPanel() {
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-alert/10 text-alert border border-alert/30 hover:bg-alert/20 transition-colors disabled:opacity-50"
                     >
                       <Unplug size={14} strokeWidth={1.5} />
-                      {isStopping ? 'Stopping...' : 'Stop'}
+                      {isStopping ? t('virtualPorts.stopping') : t('virtualPorts.stop')}
                     </button>
                   </div>
 
@@ -226,7 +228,7 @@ export function VirtualPortsPanel() {
                       <div className="flex items-center gap-2">
                         <Activity size={14} strokeWidth={1.5} className="text-text-tertiary" />
                         <div>
-                          <div className="text-xs text-text-tertiary">Bytes</div>
+                          <div className="text-xs text-text-tertiary">{t('virtualPorts.bytes')}</div>
                           <div className="text-sm font-mono text-text-primary">
                             {stats.bytes_bridged.toLocaleString()}
                           </div>
@@ -235,7 +237,7 @@ export function VirtualPortsPanel() {
                       <div className="flex items-center gap-2">
                         <Zap size={14} strokeWidth={1.5} className="text-text-tertiary" />
                         <div>
-                          <div className="text-xs text-text-tertiary">Packets</div>
+                          <div className="text-xs text-text-tertiary">{t('virtualPorts.packets')}</div>
                           <div className="text-sm font-mono text-text-primary">
                             {stats.packets_bridged.toLocaleString()}
                           </div>
@@ -244,7 +246,7 @@ export function VirtualPortsPanel() {
                       <div className="flex items-center gap-2">
                         <Clock size={14} strokeWidth={1.5} className="text-text-tertiary" />
                         <div>
-                          <div className="text-xs text-text-tertiary">Uptime</div>
+                          <div className="text-xs text-text-tertiary">{t('virtualPorts.uptime')}</div>
                           <div className="text-sm font-mono text-text-primary">
                             {stats.uptime_secs}s
                           </div>
@@ -253,7 +255,7 @@ export function VirtualPortsPanel() {
                       <div className="flex items-center gap-2">
                         <Info size={14} strokeWidth={1.5} className="text-text-tertiary" />
                         <div>
-                          <div className="text-xs text-text-tertiary">Errors</div>
+                          <div className="text-xs text-text-tertiary">{t('virtualPorts.errors')}</div>
                           <div className="text-sm font-mono text-text-primary">
                             {stats.bridge_errors}
                           </div>
@@ -266,16 +268,16 @@ export function VirtualPortsPanel() {
                   {stats && stats.monitoring && (
                     <div className="mt-3 flex items-center gap-2">
                       <Eye size={14} strokeWidth={1.5} className="text-signal" />
-                      <span className="text-xs text-signal">Monitoring</span>
+                      <span className="text-xs text-signal">{t('virtualPorts.monitoringStatus')}</span>
                       <span className="text-xs text-text-tertiary">
-                        ({stats.capture_packets} packets / {stats.capture_bytes.toLocaleString()} bytes captured)
+                        {t('virtualPorts.captureInfo', { packets: stats.capture_packets, bytes: stats.capture_bytes })}
                       </span>
                       <button
                         onClick={() => handleLoadPackets(port.id)}
                         disabled={loadingPortId !== null}
                         className="ml-auto text-xs px-2 py-1 rounded bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50"
                       >
-                        {loadingPortId === port.id ? 'Loading...' : 'View Packets'}
+                        {loadingPortId === port.id ? t('virtualPorts.loading') : t('virtualPorts.viewPackets')}
                       </button>
                     </div>
                   )}
@@ -283,27 +285,27 @@ export function VirtualPortsPanel() {
                   {/* Port Paths */}
                   <div className="mt-3 space-y-1.5">
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-text-tertiary w-16">Port A:</span>
+                      <span className="text-text-tertiary w-16">{t('virtualPorts.portALabel')}</span>
                       <code className="px-2 py-0.5 bg-bg-elevated rounded text-text-primary font-mono">
                         {port.port_a}
                       </code>
                       <button
                         onClick={() => navigator.clipboard.writeText(port.port_a)}
                         className="text-text-tertiary hover:text-text-primary"
-                        title="Copy to clipboard"
+                        title={t('virtualPorts.copyToClipboard')}
                       >
                         <Clipboard size={14} strokeWidth={1.5} />
                       </button>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-text-tertiary w-16">Port B:</span>
+                      <span className="text-text-tertiary w-16">{t('virtualPorts.portBLabel')}</span>
                       <code className="px-2 py-0.5 bg-bg-elevated rounded text-text-primary font-mono">
                         {port.port_b}
                       </code>
                       <button
                         onClick={() => navigator.clipboard.writeText(port.port_b)}
                         className="text-text-tertiary hover:text-text-primary"
-                        title="Copy to clipboard"
+                        title={t('virtualPorts.copyToClipboard')}
                       >
                         <Clipboard size={14} strokeWidth={1.5} />
                       </button>
@@ -319,7 +321,7 @@ export function VirtualPortsPanel() {
       {/* Captured Packets Viewer */}
       {packets.length > 0 && packetsPortId && (
         <Panel
-          title={`Captured Packets — ${virtualPorts.get(packetsPortId)?.port_a ?? packetsPortId.slice(0, 8)}`}
+          title={`${t('virtualPorts.capturedPacketsTitle')} — ${virtualPorts.get(packetsPortId)?.port_a ?? packetsPortId.slice(0, 8)}`}
           variant="signal"
           className="w-full"
           actions={
@@ -327,7 +329,7 @@ export function VirtualPortsPanel() {
               onClick={() => { setPackets([]); setPacketsPortId(null) }}
               className="text-xs px-2 py-1 rounded bg-bg-elevated text-text-tertiary border border-border hover:text-text-primary transition-colors"
             >
-              Close
+              {t('virtualPorts.close')}
             </button>
           }
         >
@@ -358,11 +360,11 @@ export function VirtualPortsPanel() {
 
       {/* Empty State */}
       {virtualPorts.size === 0 && (
-        <Panel title="Virtual Ports" variant="info" className="w-full">
+        <Panel title={t('virtualPorts.title')} variant="info" className="w-full">
           <div className="p-8 text-center text-text-tertiary text-sm">
             <Network size={48} strokeWidth={1} className="mx-auto mb-4 text-text-tertiary/30" />
-            <p className="mb-2">No virtual port pairs active</p>
-            <p className="text-xs">Create a virtual port pair to get started</p>
+            <p className="mb-2">{t('virtualPorts.noPorts')}</p>
+            <p className="text-xs">{t('virtualPorts.noPortsHint')}</p>
           </div>
         </Panel>
       )}
@@ -385,13 +387,14 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
   onCancel,
   isProcessing,
 }: VirtualPortConfigFormProps) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4">
         {/* Backend Type */}
         <div>
           <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
-            Backend Type
+            {t('virtualPorts.backendType')}
           </label>
           <div className="space-y-2">
             {BACKEND_OPTIONS.map((option) => (
@@ -406,8 +409,8 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
                 )}
               >
                 <div>
-                  <div className="font-medium text-sm">{option.label}</div>
-                  <div className="text-xs text-text-tertiary mt-0.5">{option.description}</div>
+                  <div className="font-medium text-sm">{t('virtualPorts.ptyBackend')}</div>
+                  <div className="text-xs text-text-tertiary mt-0.5">{t('virtualPorts.ptyDesc')}</div>
                 </div>
               </button>
             ))}
@@ -417,7 +420,7 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
         {/* Buffer Size */}
         <div>
           <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
-            Buffer Size
+            {t('virtualPorts.bufferSize')}
           </label>
           <select
             value={config.buffer_size || 8192}
@@ -426,7 +429,7 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
           >
             {BUFFER_SIZES.map((size) => (
               <option key={size} value={size}>
-                {size} bytes
+                {t('virtualPorts.bytesOption', { size })}
               </option>
             ))}
           </select>
@@ -442,7 +445,7 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
             className="w-4 h-4 rounded border-border bg-bg-deep text-info accent-info"
           />
           <label htmlFor="monitor" className="text-sm text-text-secondary">
-            Enable traffic monitoring
+            {t('virtualPorts.monitorTraffic')}
           </label>
         </div>
       </div>
@@ -455,14 +458,14 @@ const VirtualPortConfigForm = React.memo(function VirtualPortConfigForm({
           className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-signal/10 text-signal border border-signal/30 hover:bg-signal/20 transition-colors disabled:opacity-50"
         >
           <Play size={14} strokeWidth={1.5} />
-          {isProcessing ? 'Creating...' : 'Create Port Pair'}
+          {isProcessing ? t('virtualPorts.creating') : t('virtualPorts.createPortPair')}
         </button>
         <button
           onClick={onCancel}
           disabled={isProcessing}
           className="px-4 py-2 text-sm rounded-md bg-bg-elevated text-text-secondary border border-border hover:text-text-primary transition-colors disabled:opacity-50"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </div>

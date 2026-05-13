@@ -8,6 +8,7 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useDataStore } from '@/stores'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 
 type Tab = 'general' | 'serial' | 'data' | 'notifications'
 
@@ -27,6 +28,7 @@ interface DataConfig {
 }
 
 export function SettingsPanel() {
+  const { t } = useTranslation()
   const { settings, updateSettings, resetSettings } = useSettings()
   const { config, loadConfig, saveConfig, resetConfig, error: backendError } = useSettingsStore()
   const { setDisplayFormat, setShowTimestamp, setMaxPackets } = useDataStore()
@@ -65,7 +67,7 @@ export function SettingsPanel() {
   // Show backend errors
   useEffect(() => {
     if (backendError) {
-      toast.warning(`后端配置: ${backendError}`)
+      toast.warning(t('settings.backendWarning', { error: backendError }))
     }
   }, [backendError])
 
@@ -87,28 +89,28 @@ export function SettingsPanel() {
   }), [settings.display])
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'general', label: 'General', icon: Settings },
-    { id: 'serial', label: 'Serial', icon: Radio },
-    { id: 'data', label: 'Data', icon: BarChart3 },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'general', label: t('settings.generalTitle'), icon: Settings },
+    { id: 'serial', label: t('settings.serialTitle'), icon: Radio },
+    { id: 'data', label: t('settings.dataTitle'), icon: BarChart3 },
+    { id: 'notifications', label: t('settings.notificationsTitle'), icon: Bell },
   ]
 
   const resetToDefaults = async () => {
     resetSettings()
     try {
       await resetConfig()
-      toast('已恢复默认设置并同步到后端')
+      toast.success(t('settings.resetSuccess'))
     } catch {
-      toast('已恢复默认设置（后端同步失败）')
+      toast(t('settings.resetPartial'))
     }
   }
 
   const handleExport = () => {
     const success = exportSettings()
     if (success) {
-      toast.success('设置已导出')
+      toast.success(t('settings.exportSuccess'))
     } else {
-      toast.error('导出设置失败')
+      toast.error(t('settings.exportFailed'))
     }
   }
 
@@ -119,10 +121,10 @@ export function SettingsPanel() {
     setIsImporting(true)
     try {
       await importSettings(file)
-      toast.success('设置已导入，页面将刷新')
+      toast.success(t('settings.importSuccess'))
       window.location.reload()
     } catch (error) {
-      toast.error(`导入设置失败: ${error instanceof Error ? error.message : '未知错误'}`)
+      toast.error(`${t('settings.importFailed')}: ${error instanceof Error ? error.message : t('common.unknownError')}`)
     } finally {
       setIsImporting(false)
       if (fileInputRef.current) {
@@ -136,41 +138,41 @@ export function SettingsPanel() {
       {/* Settings Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-medium text-text-primary">Settings</h2>
-          <p className="text-sm text-text-tertiary mt-0.5">Configure application preferences</p>
+          <h2 className="text-lg font-medium text-text-primary">{t('settings.title')}</h2>
+          <p className="text-sm text-text-tertiary mt-0.5">{t('settings.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={async () => {
               try {
                 await saveConfig()
-                toast.success('设置已保存到后端')
+                toast.success(t('settings.saveSuccess'))
               } catch {
-                toast.error('保存到后端失败')
+                toast.error(t('settings.saveFailed'))
               }
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-signal text-black border border-signal hover:opacity-90 transition-colors"
-            title="Save settings to config file"
+            title={t('settings.saveToBackendHint')}
           >
             <Check size={14} strokeWidth={1.5} />
-            Save
+            {t('common.save')}
           </button>
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-bg-elevated text-text-secondary border border-border hover:text-text-primary transition-colors"
-            title="Export all settings"
+            title={t('settings.exportHint')}
           >
             <Download size={14} strokeWidth={1.5} />
-            Export
+            {t('common.export')}
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isImporting}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-bg-elevated text-text-secondary border border-border hover:text-text-primary transition-colors disabled:opacity-50"
-            title="Import settings from file"
+            title={t('settings.importHint')}
           >
             <Upload size={14} strokeWidth={1.5} />
-            {isImporting ? 'Importing...' : 'Import'}
+            {isImporting ? t('common.importing') : t('common.import')}
           </button>
           <input
             ref={fileInputRef}
@@ -184,7 +186,7 @@ export function SettingsPanel() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-bg-elevated text-text-secondary border border-border hover:text-text-primary transition-colors"
           >
             <RotateCcw size={14} strokeWidth={1.5} />
-            Reset
+            {t('common.reset')}
           </button>
         </div>
       </div>
@@ -213,12 +215,12 @@ export function SettingsPanel() {
 
       {/* Tab Content */}
       {activeTab === 'general' && (
-        <Panel title="General Settings" variant="default">
+        <Panel title={t('settings.generalTitle')} variant="default">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Auto-check for updates</div>
-                <div className="text-xs text-text-tertiary">Check for new versions on startup</div>
+                <div className="text-sm text-text-primary">{t('settings.autoCheckUpdates')}</div>
+                <div className="text-xs text-text-tertiary">{t('settings.autoCheckUpdatesHint')}</div>
               </div>
               <ToggleSwitch
                 checked={settings.general.autoCheckUpdates}
@@ -228,8 +230,8 @@ export function SettingsPanel() {
 
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Send usage analytics</div>
-                <div className="text-xs text-text-tertiary">Help improve the app with anonymous data</div>
+                <div className="text-sm text-text-primary">{t('settings.sendAnalytics')}</div>
+                <div className="text-xs text-text-tertiary">{t('settings.sendAnalyticsHint')}</div>
               </div>
               <ToggleSwitch
                 checked={settings.general.sendAnalytics}
@@ -239,8 +241,8 @@ export function SettingsPanel() {
 
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Minimize to tray</div>
-                <div className="text-xs text-text-tertiary">Close button minimizes instead of quitting</div>
+                <div className="text-sm text-text-primary">{t('settings.minimizeToTray')}</div>
+                <div className="text-xs text-text-tertiary">{t('settings.minimizeToTrayHint')}</div>
               </div>
               <ToggleSwitch
                 checked={settings.general.minimizeToTray}
@@ -249,14 +251,14 @@ export function SettingsPanel() {
             </div>
 
             <div className="pt-4 border-t border-border">
-              <div className="text-sm text-text-primary mb-2">Language</div>
+              <div className="text-sm text-text-primary mb-2">{t('settings.language')}</div>
               <select
                 value={settings.general.language}
                 onChange={(e) => updateSettings({ general: { language: e.target.value } })}
                 className="w-full max-w-xs px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary"
               >
-                <option value="en">English</option>
-                <option value="zh">简体中文</option>
+                <option value="en">{t('settings.language.en')}</option>
+                <option value="zh">{t('settings.language.zh')}</option>
               </select>
             </div>
           </div>
@@ -264,12 +266,12 @@ export function SettingsPanel() {
       )}
 
       {activeTab === 'serial' && (
-        <Panel title="Serial Port Defaults" variant="signal">
+        <Panel title={t('settings.serialTitle')} variant="signal">
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
-                  Baud Rate
+                  {t('terminal.baudrate')}
                 </label>
                 <select
                   value={serialConfig.baudRate}
@@ -292,7 +294,7 @@ export function SettingsPanel() {
 
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
-                  Data Bits
+                  {t('terminal.dataBits')}
                 </label>
                 <select
                   value={serialConfig.dataBits}
@@ -308,7 +310,7 @@ export function SettingsPanel() {
 
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
-                  Stop Bits
+                  {t('terminal.stopBits')}
                 </label>
                 <select
                   value={serialConfig.stopBits}
@@ -322,29 +324,29 @@ export function SettingsPanel() {
 
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
-                  Parity
+                  {t('terminal.parity')}
                 </label>
                 <select
                   value={serialConfig.parity}
                   onChange={(e) => updateSettings({ serial: { parity: e.target.value as SerialConfig['parity'] } })}
                   className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono"
                 >
-                  <option value="none">None</option>
-                  <option value="even">Even</option>
-                  <option value="odd">Odd</option>
+                  <option value="none">{t('terminal.parityNone')}</option>
+                  <option value="even">{t('terminal.parityEven')}</option>
+                  <option value="odd">{t('terminal.parityOdd')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
-                  Flow Control
+                  {t('terminal.flowControl')}
                 </label>
                 <select
                   value={serialConfig.flowControl}
                   onChange={(e) => updateSettings({ serial: { flowControl: e.target.value as SerialConfig['flowControl'] } })}
                   className="w-full px-3 py-2 bg-bg-deep border border-border rounded-md text-sm text-text-primary font-mono"
                 >
-                  <option value="none">None</option>
+                  <option value="none">{t('terminal.flowNone')}</option>
                   <option value="rts">RTS</option>
                   <option value="cts">CTS</option>
                   <option value="rtscts">RTS/CTS</option>
@@ -355,8 +357,8 @@ export function SettingsPanel() {
             <div className="pt-4 border-t border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-text-primary">Auto-reconnect on disconnect</div>
-                  <div className="text-xs text-text-tertiary">Automatically reconnect if connection is lost</div>
+                  <div className="text-sm text-text-primary">{t('settings.autoReconnect')}</div>
+                  <div className="text-xs text-text-tertiary">{t('settings.autoReconnectHint')}</div>
                 </div>
                 <ToggleSwitch
                   checked={settings.serial.autoReconnect ?? true}
@@ -369,11 +371,11 @@ export function SettingsPanel() {
       )}
 
       {activeTab === 'data' && (
-        <Panel title="Data Display Settings" variant="info">
+        <Panel title={t('settings.dataTitle')} variant="info">
           <div className="space-y-4">
             <div>
               <label className="text-xs text-text-tertiary uppercase tracking-wider block mb-2">
-                Default Display Format
+                {t('settings.displayFormat')}
               </label>
               <div className="flex items-center gap-2">
                 {(['hex', 'ascii', 'both'] as const).map((format) => (
@@ -395,8 +397,8 @@ export function SettingsPanel() {
 
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Show Timestamps</div>
-                <div className="text-xs text-text-tertiary">Display timestamp for each packet</div>
+                <div className="text-sm text-text-primary">{t('settings.showTimestamps')}</div>
+                <div className="text-xs text-text-tertiary">{t('settings.showTimestampsHint')}</div>
               </div>
               <ToggleSwitch
                 checked={dataConfig.showTimestamp}
@@ -406,8 +408,8 @@ export function SettingsPanel() {
 
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-text-primary">Auto-scroll</div>
-                <div className="text-xs text-text-tertiary">Automatically scroll to latest data</div>
+                <div className="text-sm text-text-primary">{t('settings.autoScroll')}</div>
+                <div className="text-xs text-text-tertiary">{t('settings.autoScrollHint')}</div>
               </div>
               <ToggleSwitch
                 checked={dataConfig.autoScroll}
@@ -417,7 +419,7 @@ export function SettingsPanel() {
 
             <div className="pt-4 border-t border-border">
               <label className="text-sm font-medium text-text-primary block mb-2">
-                Max Packets in Buffer
+                {t('settings.maxPackets')}
               </label>
               <input
                 type="range"
@@ -429,7 +431,7 @@ export function SettingsPanel() {
                 className="w-full max-w-xs"
               />
               <div className="text-xs text-text-tertiary font-mono mt-1">
-                Current: {dataConfig.maxPackets} packets
+                {t('settings.currentPackets', { count: dataConfig.maxPackets })}
               </div>
             </div>
           </div>
