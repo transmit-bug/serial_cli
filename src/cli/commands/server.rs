@@ -119,9 +119,7 @@ async fn start_server(
         Ok(Some(status)) => {
             println!("✗ Server failed to start");
             println!("  Exit status: {}", status);
-            return Err(SerialError::Io(io::Error::other(
-                "Server process exited",
-            )));
+            return Err(SerialError::Io(io::Error::other("Server process exited")));
         }
         Ok(None) => {
             // Still running - success
@@ -299,9 +297,10 @@ async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
     });
 
     let request_str = serde_json::to_string(&request).map_err(|e| {
-        SerialError::Io(io::Error::other(
-            format!("Failed to serialize request: {}", e),
-        ))
+        SerialError::Io(io::Error::other(format!(
+            "Failed to serialize request: {}",
+            e
+        )))
     })?;
 
     // Connect to socket
@@ -316,25 +315,20 @@ async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
     stream
         .write_all(request_str.as_bytes())
         .await
-        .map_err(|e| {
-            SerialError::Io(io::Error::other(
-                format!("Failed to send request: {}", e),
-            ))
-        })?;
+        .map_err(|e| SerialError::Io(io::Error::other(format!("Failed to send request: {}", e))))?;
 
     // Shutdown write side
     stream.shutdown().await.map_err(|e| {
-        SerialError::Io(io::Error::other(
-            format!("Failed to shutdown stream: {}", e),
-        ))
+        SerialError::Io(io::Error::other(format!(
+            "Failed to shutdown stream: {}",
+            e
+        )))
     })?;
 
     // Read response
     let mut response_buffer = vec![0u8; 8192];
     let n = stream.read(&mut response_buffer).await.map_err(|e| {
-        SerialError::Io(io::Error::other(
-            format!("Failed to read response: {}", e),
-        ))
+        SerialError::Io(io::Error::other(format!("Failed to read response: {}", e)))
     })?;
     response_buffer.truncate(n);
 

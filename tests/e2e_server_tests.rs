@@ -17,10 +17,7 @@ use tokio::net::UnixStream;
 /// Unique socket path per test run to avoid conflicts
 fn unique_socket_path(test_name: &str) -> PathBuf {
     let pid = std::process::id();
-    PathBuf::from(format!(
-        "/tmp/serial-cli-e2e-{}-{}.sock",
-        test_name, pid
-    ))
+    PathBuf::from(format!("/tmp/serial-cli-e2e-{}-{}.sock", test_name, pid))
 }
 
 /// Timeout for server startup — longer in CI where compilation is slower
@@ -104,8 +101,7 @@ fn start_server(socket_path: &PathBuf) -> Child {
 
     ensure_server_binary();
 
-    let binary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("target/debug/serial-cli");
+    let binary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/serial-cli");
 
     Command::new(&binary_path)
         .args([
@@ -305,19 +301,27 @@ async fn e2e_server_responds_to_port_list() {
     let socket_path = unique_socket_path("port_list");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
         stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
-    let mut client = E2EClient::connect(&socket_path).await.expect("should connect");
+    let mut client = E2EClient::connect(&socket_path)
+        .await
+        .expect("should connect");
 
     let result = client.call_ok("port_list", serde_json::json!({})).await;
 
     stop_server(server, &socket_path);
 
     let result = result.expect("port_list should succeed");
-    assert!(result.get("ports").is_some(), "Response should have 'ports'");
+    assert!(
+        result.get("ports").is_some(),
+        "Response should have 'ports'"
+    );
 }
 
 /// Test 3: Server responds to server_stats
@@ -327,16 +331,19 @@ async fn e2e_server_stats_returns_connection_info() {
     let socket_path = unique_socket_path("stats");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
         stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
-    let mut client = E2EClient::connect(&socket_path).await.expect("should connect");
+    let mut client = E2EClient::connect(&socket_path)
+        .await
+        .expect("should connect");
 
-    let result = client
-        .call_ok("server_stats", serde_json::json!({}))
-        .await;
+    let result = client.call_ok("server_stats", serde_json::json!({})).await;
 
     stop_server(server, &socket_path);
 
@@ -352,16 +359,19 @@ async fn e2e_protocol_list_returns_empty_list() {
     let socket_path = unique_socket_path("proto_list");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
         stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
-    let mut client = E2EClient::connect(&socket_path).await.expect("should connect");
+    let mut client = E2EClient::connect(&socket_path)
+        .await
+        .expect("should connect");
 
-    let result = client
-        .call_ok("protocol_list", serde_json::json!({}))
-        .await;
+    let result = client.call_ok("protocol_list", serde_json::json!({})).await;
 
     stop_server(server, &socket_path);
 
@@ -376,7 +386,10 @@ async fn e2e_server_returns_error_for_invalid_json() {
     let socket_path = unique_socket_path("invalid_json");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
         stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
@@ -393,7 +406,8 @@ async fn e2e_server_returns_error_for_invalid_json() {
 
     stop_server(server, &socket_path);
 
-    let response: serde_json::Value = serde_json::from_str(&response_str).expect("valid JSON response");
+    let response: serde_json::Value =
+        serde_json::from_str(&response_str).expect("valid JSON response");
     assert!(
         response.get("error").is_some() && !response["error"].is_null(),
         "Should return error for invalid JSON"
@@ -412,27 +426,28 @@ async fn e2e_multiple_sequential_calls() {
     let socket_path = unique_socket_path("multi_call");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
         stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
-    let mut client = E2EClient::connect(&socket_path).await.expect("should connect");
+    let mut client = E2EClient::connect(&socket_path)
+        .await
+        .expect("should connect");
 
     // Call 1: port_list
     let r1 = client.call_ok("port_list", serde_json::json!({})).await;
     assert!(r1.is_ok());
 
     // Call 2: server_stats
-    let r2 = client
-        .call_ok("server_stats", serde_json::json!({}))
-        .await;
+    let r2 = client.call_ok("server_stats", serde_json::json!({})).await;
     assert!(r2.is_ok());
 
     // Call 3: protocol_list
-    let r3 = client
-        .call_ok("protocol_list", serde_json::json!({}))
-        .await;
+    let r3 = client.call_ok("protocol_list", serde_json::json!({})).await;
     assert!(r3.is_ok());
 
     // Call 4: connection_list
@@ -451,12 +466,17 @@ async fn e2e_connection_list_empty() {
     let socket_path = unique_socket_path("conn_list");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
         stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
-    let mut client = E2EClient::connect(&socket_path).await.expect("should connect");
+    let mut client = E2EClient::connect(&socket_path)
+        .await
+        .expect("should connect");
 
     let result = client
         .call_ok("connection_list", serde_json::json!({}))
@@ -466,7 +486,10 @@ async fn e2e_connection_list_empty() {
 
     let result = result.expect("connection_list should succeed");
     let connections = result["connections"].as_array().unwrap();
-    assert!(connections.is_empty(), "Connection list should be empty initially");
+    assert!(
+        connections.is_empty(),
+        "Connection list should be empty initially"
+    );
 }
 
 /// Test 8: Server handles method not found error
@@ -476,20 +499,30 @@ async fn e2e_method_not_found_error() {
     let socket_path = unique_socket_path("method_not_found");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
         stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }
 
-    let mut client = E2EClient::connect(&socket_path).await.expect("should connect");
+    let mut client = E2EClient::connect(&socket_path)
+        .await
+        .expect("should connect");
 
-    let response = client.call("nonexistent_method", serde_json::json!({})).await;
+    let response = client
+        .call("nonexistent_method", serde_json::json!({}))
+        .await;
 
     stop_server(server, &socket_path);
 
     let response = response.expect("should get response");
     let error = response.get("error");
-    assert!(error.is_some() && !error.unwrap().is_null(), "Should have error");
+    assert!(
+        error.is_some() && !error.unwrap().is_null(),
+        "Should have error"
+    );
     assert_eq!(
         response["error"]["code"].as_i64(),
         Some(-32601),
@@ -504,7 +537,10 @@ async fn e2e_invalid_jsonrpc_version() {
     let socket_path = unique_socket_path("bad_version");
     let server = start_server(&socket_path);
 
-    if wait_for_server(&socket_path, server_startup_timeout_secs()).await.is_err() {
+    if wait_for_server(&socket_path, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
         stop_server(server, &socket_path);
         panic!("Server did not start in time");
     }

@@ -2,6 +2,9 @@
 //!
 //! This module provides task scheduling and execution.
 //!
+//! **Experimental** — not yet integrated into any CLI command.
+//! Planned for v0.6.0 integration with a unified session management abstraction.
+//!
 //! # Key types
 //!
 //! - [`Task`] — a unit of work with a unique ID and creation timestamp
@@ -9,6 +12,8 @@
 //! - [`TaskStatus`] — lifecycle state of a task
 //! - [`TaskResult`] — outcome of task execution
 //! - [`TaskQueue`] — priority-based queue with concurrency limiting
+
+#![allow(dead_code)]
 
 pub mod executor;
 pub mod monitor;
@@ -34,7 +39,11 @@ pub enum TaskType {
 }
 
 /// The specific serial port operation within a [`TaskType::SerialOp`].
+///
+/// **Experimental** — not yet integrated into any CLI command.
+/// Marked `#[allow(dead_code)]` as this is planned for v0.6.0.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum SerialOperation {
     /// Send raw bytes to the port.
     Send { data: Vec<u8> },
@@ -46,7 +55,8 @@ pub enum SerialOperation {
     Close,
 }
 
-/// Serial configuration used within task definitions.
+/// Serial configuration — experimental, planned for v0.6.0 integration.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct SerialConfig {
     /// Baud rate in bits per second.
@@ -94,6 +104,10 @@ impl Task {
 }
 
 /// Lifecycle state of a task in the scheduler.
+///
+/// **Experimental** — defined but not yet wired into the execution pipeline.
+/// Planned for v0.6.0 integration with a `SessionManager` abstraction.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskStatus {
     /// Task is queued and waiting to run.

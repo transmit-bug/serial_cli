@@ -94,11 +94,11 @@ impl NamedPipeBackend {
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
-        use windows::Win32::System::Pipes::{
-            ConnectNamedPipe, CreateNamedPipeW, NMPWAIT_USE_DEFAULT_WAIT,
-            PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
-        };
         use windows::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
+        use windows::Win32::System::Pipes::{
+            ConnectNamedPipe, CreateNamedPipeW, NMPWAIT_USE_DEFAULT_WAIT, PIPE_READMODE_BYTE,
+            PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+        };
         use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
         use windows::Win32::System::IO::OVERLAPPED;
 

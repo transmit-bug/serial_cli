@@ -2,6 +2,11 @@
 //!
 //! This module provides performance monitoring capabilities for serial operations,
 //! including platform-specific implementations for Windows and Unix systems.
+//!
+//! **Experimental** — not yet integrated into any CLI command.
+//! Planned for v0.6.0 integration with a unified session management abstraction.
+
+#![allow(dead_code)]
 
 pub mod windows;
 
