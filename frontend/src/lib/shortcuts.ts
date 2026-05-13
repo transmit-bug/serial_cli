@@ -92,9 +92,15 @@ export const shortcuts: Shortcut[] = [
   },
 ]
 
+// Platform detection utility
+function isMacOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /mac|darwin/i.test(navigator.platform) || /macintosh/i.test(navigator.userAgent)
+}
+
 // Platform-specific key display
 export function formatKey(key: string): string {
-  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const isMac = isMacOS()
   return key
     .replace('mod', isMac ? '⌘' : 'Ctrl')
     .replace('shift', '⇧')
