@@ -113,7 +113,7 @@ async fn test_server_lifecycle() {
 #[tokio::test]
 async fn test_socket_path_format() {
     let path = PathBuf::from(TEST_SOCKET_PATH);
-    assert_eq!(path.extension(), None);
+    assert_eq!(path.extension().unwrap(), "sock");
     assert!(path.to_str().unwrap().ends_with(".sock"));
 }
 
