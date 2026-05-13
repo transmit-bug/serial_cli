@@ -133,7 +133,6 @@ pub async fn save_config_raw(content: String) -> Result<(), String> {
 }
 
 /// Reset configuration to defaults
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn reset_config() -> Result<(), String> {
     let config_path = get_config_path()?;

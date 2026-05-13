@@ -64,7 +64,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       set({ saving: true })
       try {
-        await invoke('save_config', { config })
+        await invoke('update_config', { config })
         set({ saving: false, error: null })
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to save config'

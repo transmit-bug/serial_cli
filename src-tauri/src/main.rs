@@ -44,13 +44,19 @@ async fn main() {
             commands::protocol::list_protocols,
             commands::protocol::load_protocol,
             commands::protocol::unload_protocol,
+            commands::protocol::reload_protocol,
+            commands::protocol::validate_protocol,
             commands::protocol::get_protocol_info,
             // Script commands
             commands::script::execute_script,
             commands::script::validate_script,
+            commands::script::list_scripts,
+            commands::script::save_script,
+            commands::script::delete_script,
             // Config commands
             commands::config::get_config,
             commands::config::update_config,
+            commands::config::reset_config,
             // Window commands
             commands::window::show_window,
             commands::window::hide_window,

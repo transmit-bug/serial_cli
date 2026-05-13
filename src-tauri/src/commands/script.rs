@@ -57,7 +57,6 @@ pub async fn validate_script(
 }
 
 /// List available scripts
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn list_scripts(_state: State<'_, AppState>) -> Result<Vec<ScriptInfo>, String> {
     let scripts_dir = get_scripts_dir()?;
@@ -98,7 +97,6 @@ pub async fn list_scripts(_state: State<'_, AppState>) -> Result<Vec<ScriptInfo>
 }
 
 /// Load a script
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn load_script(name: String, _state: State<'_, AppState>) -> Result<String, String> {
     let scripts_dir = get_scripts_dir()?;
@@ -112,7 +110,6 @@ pub async fn load_script(name: String, _state: State<'_, AppState>) -> Result<St
 }
 
 /// Save a script
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn save_script(
     name: String,
@@ -133,7 +130,6 @@ pub async fn save_script(
 }
 
 /// Delete a script
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn delete_script(name: String, _state: State<'_, AppState>) -> Result<(), String> {
     let scripts_dir = get_scripts_dir()?;

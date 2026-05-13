@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import { useConnectionStore, useDataStore } from '@/stores'
 import { Send, FileText, Clock } from 'lucide-react'
@@ -43,8 +44,11 @@ export function TxSender() {
         data = Array.from(new TextEncoder().encode(inputData))
       }
 
-      // TODO: 调用 Tauri 命令发送数据
-      // await invoke('send_data', { portId, data })
+      // Invoke Tauri command to send data to serial port
+      const bytesWritten = await invoke<number>('send_data', {
+        portId,
+        data,
+      })
 
       addTxPacket({
         portId,
@@ -53,7 +57,7 @@ export function TxSender() {
         timestamp: Date.now(),
       })
 
-      toast.success('已发送 ' + data.length + ' 字节')
+      toast.success(`已发送 ${bytesWritten} 字节`)
       setInputData('')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '发送失败')

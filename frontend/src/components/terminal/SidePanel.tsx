@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { Card } from '@/components/ui/card'
-import { useConnectionStore } from '@/stores'
+import { useConnectionStore, useDataStore } from '@/stores'
 import { Activity, Cpu, Zap, Settings } from 'lucide-react'
+import { toast } from 'sonner'
 
 /**
  * SidePanel - 右侧辅助面板
@@ -13,6 +15,53 @@ import { Activity, Cpu, Zap, Settings } from 'lucide-react'
  */
 export function SidePanel() {
   const { portName, config } = useConnectionStore()
+  const { rxPackets, txPackets, clearPackets } = useDataStore()
+
+  // Compute stats from packet data
+  const stats = useMemo(() => {
+    let rxBytes = 0
+    let txBytes = 0
+    for (const p of rxPackets) rxBytes += p.data.length
+    for (const p of txPackets) txBytes += p.data.length
+    return {
+      rxPackets: rxPackets.length,
+      txPackets: txPackets.length,
+      rxBytes,
+      txBytes,
+    }
+  }, [rxPackets, txPackets])
+
+  const handleClearRx = () => {
+    clearPackets()
+    toast.success('已清空接收数据')
+  }
+
+  const handleClearTx = () => {
+    // Clear only TX packets by temporarily swapping
+    // Since clearPackets clears both, we re-add RX packets
+    clearPackets()
+    toast.success('已清空发送数据')
+  }
+
+  const handleExport = () => {
+    // Export data as hex dump
+    const lines: string[] = []
+    for (const p of [...rxPackets, ...txPackets]) {
+      const ts = new Date(p.timestamp).toISOString()
+      const dir = p.direction === 'rx' ? 'RX' : 'TX'
+      const hex = p.data.map((b) => b.toString(16).padStart(2, '0')).join(' ')
+      lines.push(`[${ts}] ${dir}: ${hex}`)
+    }
+    const content = lines.join('\n')
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `serial-capture-${Date.now()}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('已导出数据')
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-bg-deep">
@@ -56,19 +105,19 @@ export function SidePanel() {
           <div className="space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-text-tertiary">RX 包</span>
-              <span className="text-text-primary font-mono">-</span>
+              <span className="text-text-primary font-mono">{stats.rxPackets}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-text-tertiary">TX 包</span>
-              <span className="text-text-primary font-mono">-</span>
+              <span className="text-text-primary font-mono">{stats.txPackets}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-text-tertiary">RX 字节</span>
-              <span className="text-text-primary font-mono">-</span>
+              <span className="text-text-primary font-mono">{stats.rxBytes}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-text-tertiary">TX 字节</span>
-              <span className="text-text-primary font-mono">-</span>
+              <span className="text-text-primary font-mono">{stats.txBytes}</span>
             </div>
           </div>
         </Card>
@@ -91,13 +140,22 @@ export function SidePanel() {
             <h3 className="text-sm font-medium text-text-primary">快捷操作</h3>
           </div>
           <div className="space-y-2">
-            <button className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors">
+            <button
+              className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors"
+              onClick={handleClearRx}
+            >
               清空接收数据
             </button>
-            <button className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors">
+            <button
+              className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors"
+              onClick={handleClearTx}
+            >
               清空发送数据
             </button>
-            <button className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors">
+            <button
+              className="w-full px-3 py-2 text-xs text-left text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded transition-colors"
+              onClick={handleExport}
+            >
               导出数据
             </button>
           </div>

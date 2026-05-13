@@ -48,7 +48,6 @@ pub async fn unload_protocol(name: String, state: State<'_, AppState>) -> Result
 }
 
 /// Reload a custom protocol
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn reload_protocol(name: String, state: State<'_, AppState>) -> Result<(), String> {
     let mut manager = state.protocol_manager.lock().await;
@@ -85,7 +84,6 @@ pub async fn get_protocol_info(
 }
 
 /// Validate a protocol script without loading
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn validate_protocol(path: String) -> Result<(), String> {
     let path_buf = PathBuf::from(&path);
