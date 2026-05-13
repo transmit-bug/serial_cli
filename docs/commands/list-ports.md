@@ -1,11 +1,11 @@
-# List Ports & Send Commands
+# Port Commands
 
-## `list-ports`
+## `port list`
 
-Discovers all available serial ports on the system. Output is always in JSON format.
+Discovers all available serial ports on the system.
 
 ```bash
-serial-cli list-ports
+serial-cli port list
 ```
 
 ### Description
@@ -14,17 +14,17 @@ Enumerates serial ports using the system's native port discovery. On Linux and m
 
 ### Output
 
-The command always prints a JSON array. Each entry contains:
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `port_name` | string | System port identifier (e.g., `/dev/ttyUSB0`, `COM1`) |
-| `port_type` | string | Internal port type classification |
-
-### Example
+By default, output is human-readable. Use `--json` for machine-readable output.
 
 ```bash
-$ serial-cli list-ports
+$ serial-cli port list
+Available serial ports:
+  - /dev/ttyUSB0 (UsbPort)
+  - /dev/ttyS0 (Unknown)
+```
+
+```bash
+$ serial-cli --json port list
 [
   {
     "port_name": "/dev/ttyUSB0",
@@ -37,9 +37,14 @@ $ serial-cli list-ports
 ]
 ```
 
+| Field | Type | Description |
+| --- | --- | --- |
+| `port_name` | string | System port identifier (e.g., `/dev/ttyUSB0`, `COM1`) |
+| `port_type` | string | Internal port type classification |
+
 ### Options
 
-This command has no flags or options.
+This command has no subcommand-specific flags. Use global `--json` for JSON output.
 
 ### Handler
 
@@ -47,13 +52,13 @@ Source: `src/cli/commands/ports.rs` -- `list_ports()`
 
 ---
 
-## `send`
+## `port send`
 
 Sends raw data to a serial port and reads any response.
 
 ```bash
-serial-cli send <data> -p <port>
-serial-cli send <data> --port <port>
+serial-cli port send --port /dev/ttyUSB0 "AT"
+serial-cli port send -p /dev/ttyUSB0 "AT"
 ```
 
 ### Description
