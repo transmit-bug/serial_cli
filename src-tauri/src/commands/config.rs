@@ -46,6 +46,7 @@ pub async fn get_config(_state: State<'_, AppState>) -> Result<ConfigData, Strin
 }
 
 /// Get configuration file content as TOML string
+#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn get_config_raw() -> Result<String, String> {
     let config_path = get_config_path()?;
@@ -111,6 +112,7 @@ pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> R
 }
 
 /// Save configuration from raw TOML string
+#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn save_config_raw(content: String) -> Result<(), String> {
     let config_path = get_config_path()?;
@@ -131,6 +133,7 @@ pub async fn save_config_raw(content: String) -> Result<(), String> {
 }
 
 /// Reset configuration to defaults
+#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn reset_config() -> Result<(), String> {
     let config_path = get_config_path()?;
@@ -143,6 +146,7 @@ pub async fn reset_config() -> Result<(), String> {
 }
 
 /// Get configuration file path
+#[allow(dead_code)] // GUI API stub — awaiting frontend integration
 #[tauri::command]
 pub async fn get_config_file_path() -> Result<String, String> {
     let path = get_config_path()?;

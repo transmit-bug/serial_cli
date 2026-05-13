@@ -52,6 +52,7 @@ pub struct CapturedPacketDto {
 /// Virtual port configuration from Tauri frontend
 #[derive(serde::Deserialize)]
 pub struct CreateVirtualPortConfig {
+    #[allow(dead_code)] // Reserved for future GUI use
     pub name: Option<String>,
     pub backend: String,
     pub buffer_size: Option<usize>,

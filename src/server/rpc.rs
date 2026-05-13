@@ -35,6 +35,10 @@ struct JsonRpcError {
     data: Option<Value>,
 }
 
+/// Structured error returned by method handlers.
+#[allow(dead_code)] // Reserved for v0.6.0 protocol integration
+type MethodError = (i32, String, Option<Value>);
+
 /// JSON-RPC dispatcher
 pub struct RpcDispatcher {
     state: ServerState,
@@ -46,21 +50,23 @@ impl RpcDispatcher {
         Self { state }
     }
 
-    /// Handle incoming JSON-RPC request
+    /// Handle incoming JSON-RPC request.
+    /// Appends `\n` to every response so clients can use line-based framing
+    /// instead of tracking brace nesting on persistent connections.
     pub async fn handle_request(&self, request: &str) -> String {
         // Parse JSON-RPC request
         let req = match serde_json::from_str::<JsonRpcRequest>(request) {
             Ok(req) => req,
             Err(_) => {
                 let resp = self.error_response(-32700, "Parse error", None);
-                return serde_json::to_string(&resp.unwrap()).unwrap_or_default();
+                return Self::format_response(resp);
             }
         };
 
         // Validate JSON-RPC version
         if req.jsonrpc != "2.0" {
             let response = self.error_response_with_id(-32600, "Invalid Request", None, &req.id);
-            return serde_json::to_string(&response).unwrap_or_default();
+            return Self::format_response(Ok(response));
         }
 
         // Dispatch to method handler
@@ -82,12 +88,21 @@ impl RpcDispatcher {
         match result {
             Ok(mut resp) => {
                 resp.id = req.id;
-                serde_json::to_string(&resp).unwrap_or_default()
+                Self::format_response(Ok(resp))
             }
-            Err(err_resp_str) => {
-                // Parse the error string back to JsonRpcResponse
-                // This is a workaround since we're returning String from error_response
-                serde_json::to_string(&err_resp_str).unwrap_or_default()
+            Err(_) => {
+                // Internal error — construct fallback response directly
+                let resp = JsonRpcResponse {
+                    jsonrpc: "2.0",
+                    result: None,
+                    error: Some(JsonRpcError {
+                        code: -32603,
+                        message: "Internal error".to_string(),
+                        data: None,
+                    }),
+                    id: req.id,
+                };
+                Self::format_response(Ok(resp))
             }
         }
     }
@@ -142,6 +157,16 @@ impl RpcDispatcher {
     }
 
     // === Method handlers ===
+
+    /// Serialize a JSON-RPC response and append `\n` for line-based framing.
+    /// This lets clients use `read_line` instead of tracking brace nesting
+    /// on persistent connections.
+    fn format_response(resp: Result<JsonRpcResponse, String>) -> String {
+        match resp {
+            Ok(r) => format!("{}\n", serde_json::to_string(&r).unwrap_or_default()),
+            Err(_) => String::new(),
+        }
+    }
 
     /// List available serial ports
     async fn port_list(&self, params: Option<Value>) -> Result<JsonRpcResponse, String> {
@@ -215,11 +240,12 @@ impl RpcDispatcher {
             .await
             .map_err(|e| e.to_string())?;
 
-        // Set protocol if specified
-        // TODO: Implement protocol attachment to port
-        // if let Some(proto_name) = protocol {
-        //     // Protocol will be used when sending/receiving data
-        // }
+        // Protocol name is already stored in ConnectionContext.protocol_name (line 220).
+        // v0.6.0 TODO: Use the protocol for encode/decode in port_send/port_recv:
+        //   - Get a fresh protocol instance from state.protocol_registry.get_protocol(protocol_name)
+        //   - In port_send: encode(data) before writing to the port
+        //   - In port_recv: parse(raw_bytes) before returning to the client
+        //   This requires a per-connection protocol instance cache to avoid factory churn.
 
         self.success_response(serde_json::json!({
             "connection_id": connection_id,
