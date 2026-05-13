@@ -5,20 +5,9 @@
 db-path = "~/.cargo/advisory-db"
 # 数据库URL
 db-urls = ["https://github.com/rustsec/advisory-db"]
-# 漏洞处理策略
-vulnerability = "deny"
-unmaintained = "workspace"
-yanked = "warn"
-notice = "warn"
 
 [licenses]
 # 许可证策略
-unlicensed = "deny"
-allow-osi-fsf-free = "both"
-copyleft = "warn"
-default = "deny"
-
-# 允许的许可证列表
 allow = [
     "MIT",
     "Apache-2.0",
@@ -28,6 +17,7 @@ allow = [
     "ISC",
     "Unicode-DFS-2016",
 ]
+private = { ignore = true }
 
 # 需要澄清的许可证
 [[licenses.clarify]]
@@ -36,6 +26,10 @@ expression = "MIT AND ISC AND OpenSSL"
 license-files = [
     { path = "LICENSE", hash = 0xbd0eed23 }
 ]
+
+[[licenses.exceptions]]
+allow = ["ISC", "OpenSSL"]
+name = "ring"
 
 [bans]
 # 多版本检查

@@ -132,11 +132,9 @@ impl TaskMonitor {
                         .map(|c| c.duration.as_millis() as u64)
                         .sum();
 
-                    let average_duration_ms = if total_completed > 0 {
-                        total_duration_ms / total_completed
-                    } else {
-                        0
-                    };
+                    let average_duration_ms = total_duration_ms
+                        .checked_div(total_completed)
+                        .unwrap_or(0);
 
                     stats_guard.total_completed = total_completed;
                     stats_guard.total_failed = total_failed;
