@@ -1,8 +1,8 @@
 # Server Mode - AI/Optimization Workflow
 
 **Version**: 0.5.0-dev
-**Status**: Beta
-**Updated**: 2026-05-10
+**Status**: Stable
+**Updated**: 2026-05-13
 
 ---
 

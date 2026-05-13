@@ -6,13 +6,17 @@ This directory contains all project documentation organized by purpose and audie
 
 ```
 docs/
-├── user/           # End-user documentation
+├── guides/         # End-user documentation
 │   ├── getting-started.md
 │   └── interactive-shell.md
+├── ui/             # UI design specs and guides
+│   ├── UI-Design-Spec.md
+│   └── User-Flow-Diagrams.md
 ├── dev/            # Internal development docs
 │   ├── ARCH.md                    # Architecture overview
 │   ├── SERVER_MODE.md             # Server Mode design doc (Chinese)
-│   └── SERVER_MODE_DECISION.md    # Design decision record
+│   ├── SERVER_MODE_DECISION.md    # Design decision record
+│   └── UI-DESIGN-DECISIONS.md     # UI/UX design decisions
 ├── reference/      # Reference material
 │   ├── configuration.md
 │   ├── lua-scripting.md
@@ -39,7 +43,8 @@ docs/
 
 ### Directory Purposes
 
-- **user/** - Tutorials, guides, and feature explanations for end users
+- **guides/** - Tutorials, guides, and feature explanations for end users
+- **ui/** - UI design specifications, user flow diagrams, and UX decisions
 - **dev/** - Architecture, design decisions, technical specifications (internal)
 - **reference/** - Configuration reference, API docs, troubleshooting guides
 - **commands/** - Command-specific documentation (one file per command)

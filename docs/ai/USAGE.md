@@ -396,8 +396,8 @@ end
 ## Further Reading
 
 - [CLI Reference](../../README.md)
-- [Lua API Reference](../../docs/dev/LUA_API.md)
-- [Protocol Development](../../docs/dev/PROTOCOLS.md)
+- [Lua Scripting Reference](../reference/lua-scripting.md)
+- [Protocol Reference](../reference/protocols.md)
 - [Examples](../../examples/)
 
 ## Version Compatibility

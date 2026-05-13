@@ -3,6 +3,19 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.5.0-dev] - Unreleased
+
+### 🚀 Server Mode (NEW!)
+- **JSON-RPC 2.0 daemon** over Unix socket for AI/automation workflows
+- **Persistent connections** — 10-100x latency improvement (50-200ms → 1-5ms)
+- **Protocol persistence** — Load custom protocols once, available globally
+- **Multi-client support** — Up to 10 concurrent connections
+- **10 RPC methods**: port_list, port_open, port_close, port_send, port_recv, protocol_list, protocol_load, protocol_unload, connection_list, server_stats
+- **Session management** — PID tracking, stale session cleanup
+- **Configurable** — Unix socket path, max connections, log path
+
+---
+
 ## [0.2.1] - 2026-05-11
 
 ### 🎉 GUI Architecture Refactoring (v2.1 Design Compliance)

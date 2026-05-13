@@ -728,7 +728,7 @@ brew install socat
 | Document | Description |
 |:---|:---|
 | **[DEVELOPMENT.md](DEVELOPMENT.md)** | Development guide for contributors |
-| **[docs/GUIDE.md](docs/GUIDE.md)** | GUI application user guide |
+| **[docs/guides/getting-started.md](docs/guides/getting-started.md)** | Getting started guide |
 | **[docs/ai/SERVER_MODE.md](docs/ai/SERVER_MODE.md)** | Server Mode user guide (AI/automation workflows) |
 | **[docs/ai/USAGE.md](docs/ai/USAGE.md)** | AI integration guide |
 | **[docs/dev/SERVER_MODE.md](docs/dev/SERVER_MODE.md)** | Server Mode technical design |
