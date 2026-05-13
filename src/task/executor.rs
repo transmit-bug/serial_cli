@@ -3,8 +3,9 @@
 //! This module provides asynchronous task execution.
 
 use crate::error::Result;
+use crate::serial_core::{PortManager, SerialConfig as CoreSerialConfig};
 use crate::task::queue::TaskQueue;
-use crate::task::{Task, TaskResult, TaskType};
+use crate::task::{SerialConfig, SerialOperation, Task, TaskResult, TaskType};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, RwLock};
@@ -174,17 +175,126 @@ impl TaskExecutor {
             }
             TaskType::SerialOp {
                 port_name,
-                operation: _,
+                operation,
             } => {
-                tracing::info!("Executing serial operation on {}", port_name);
+                tracing::info!(
+                    "Executing serial operation: {:?} on {}",
+                    operation,
+                    port_name
+                );
 
-                // For now, just return success
-                // In real implementation, this would perform the actual serial operation
-                TaskResult::Success
+                Self::execute_serial_op(&port_name, &operation).await
             }
             TaskType::Custom { name, data } => {
                 tracing::info!("Executing custom task: {}", name);
                 TaskResult::SuccessWithText(data)
+            }
+        }
+    }
+
+    /// Execute a serial port operation.
+    ///
+    /// Opens the port, performs the requested operation, then closes it.
+    /// Each operation is self-contained — no persistent connection is kept.
+    async fn execute_serial_op(port_name: &str, operation: &SerialOperation) -> TaskResult {
+        use crate::serial_core::Parity as CoreParity;
+
+        /// Convert a task `SerialConfig` to a core `SerialConfig`.
+        fn task_config_to_core(task_config: &SerialConfig) -> CoreSerialConfig {
+            let parity = match task_config.parity.as_str() {
+                "odd" => CoreParity::Odd,
+                "even" => CoreParity::Even,
+                _ => CoreParity::None,
+            };
+            CoreSerialConfig {
+                baudrate: task_config.baudrate,
+                databits: task_config.databits,
+                stopbits: task_config.stopbits,
+                parity,
+                timeout_ms: 1000,
+                ..Default::default()
+            }
+        }
+
+        let manager = PortManager::new();
+
+        match operation {
+            SerialOperation::Open { config } => {
+                let core_config = task_config_to_core(config);
+                // Open the port and verify it works
+                match manager.open_port(port_name, core_config).await {
+                    Ok(port_id) => {
+                        tracing::info!("Port {} opened with ID {}", port_name, port_id);
+                        TaskResult::SuccessWithText(port_id)
+                    }
+                    Err(e) => {
+                        TaskResult::Error(format!("Failed to open port {}: {}", port_name, e))
+                    }
+                }
+            }
+            SerialOperation::Send { data } => {
+                // Open port with default config, send data, close
+                let port_id = match manager
+                    .open_port(port_name, CoreSerialConfig::default())
+                    .await
+                {
+                    Ok(id) => id,
+                    Err(e) => {
+                        return TaskResult::Error(format!(
+                            "Failed to open port {}: {}",
+                            port_name, e
+                        ))
+                    }
+                };
+
+                // Get port handle and write data
+                match manager.get_port(&port_id).await {
+                    Ok(handle) => {
+                        let mut guard = handle.lock().await;
+                        match guard.write(data) {
+                            Ok(bytes_written) => {
+                                TaskResult::SuccessWithText(format!("{} bytes sent", bytes_written))
+                            }
+                            Err(e) => TaskResult::Error(format!("Failed to send data: {}", e)),
+                        }
+                    }
+                    Err(e) => TaskResult::Error(format!("Failed to get port handle: {}", e)),
+                }
+            }
+            SerialOperation::Recv { bytes } => {
+                // Open port with default config, read data, close
+                let port_id = match manager
+                    .open_port(port_name, CoreSerialConfig::default())
+                    .await
+                {
+                    Ok(id) => id,
+                    Err(e) => {
+                        return TaskResult::Error(format!(
+                            "Failed to open port {}: {}",
+                            port_name, e
+                        ))
+                    }
+                };
+
+                // Get port handle and read data
+                match manager.get_port(&port_id).await {
+                    Ok(handle) => {
+                        let mut guard = handle.lock().await;
+                        let mut buffer = vec![0u8; *bytes];
+                        match guard.read(&mut buffer) {
+                            Ok(bytes_read) => {
+                                buffer.truncate(bytes_read);
+                                TaskResult::SuccessWithData(buffer)
+                            }
+                            Err(e) => TaskResult::Error(format!("Failed to read data: {}", e)),
+                        }
+                    }
+                    Err(e) => TaskResult::Error(format!("Failed to get port handle: {}", e)),
+                }
+            }
+            SerialOperation::Close => {
+                // Close is a no-op for task-based serial (each op is self-contained)
+                TaskResult::Success
             }
         }
     }
