@@ -143,6 +143,7 @@ async fn start_server(
 }
 
 /// Stop the server daemon
+#[cfg(unix)]
 async fn stop_server() -> Result<()> {
     // Load session
     let meta = ServerSessionManager::load_session()?.ok_or_else(|| {
@@ -179,6 +180,7 @@ async fn stop_server() -> Result<()> {
 }
 
 /// Show server status
+#[cfg(unix)]
 async fn show_server_status() -> Result<()> {
     match ServerSessionManager::load_session()? {
         Some(meta) => {
@@ -224,6 +226,7 @@ async fn show_server_status() -> Result<()> {
 }
 
 /// Run the daemon process (entry point for daemon)
+#[cfg(unix)]
 async fn run_daemon(socket_path: Option<String>, port: Option<u16>) -> Result<()> {
     let socket_path = socket_path
         .map(PathBuf::from)
@@ -261,7 +264,8 @@ async fn run_daemon(socket_path: Option<String>, port: Option<u16>) -> Result<()
     Ok(())
 }
 
-/// Call RPC method
+/// Call RPC method over Unix socket
+#[cfg(unix)]
 async fn call_rpc(method: String, args: String, use_stdin: bool) -> Result<()> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixStream;
