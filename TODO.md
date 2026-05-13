@@ -15,26 +15,26 @@
 
 ## P1 - Important
 
-### 1. SettingsPanel 配置持久化到后端
-**Status**: 🔴 TODO
+### 1. ProtocolPanel 硬编码协议列表
+**Status**: 📋 Planned
 **Priority**: P1
-**Files**: `frontend/src/components/settings/SettingsPanel.tsx`, `frontend/src/contexts/SettingsContext.tsx`
-**Issue**: SettingsPanel 使用 `SettingsContext` 仅存储到 localStorage，不调用后端 `get_config`/`update_config`/`reset_config`。用户修改的串口参数（波特率、校验等）不会写入 `~/.serial-cli.toml`。
-**Fix**: SettingsPanel 改用 `useSettingsStore`（Zustand store）直接调用后端配置命令，或修改 SettingsContext 内部使用 store。
+**Files**: `frontend/src/components/protocols/ProtocolPanel.tsx`
+**Issue**: 内置协议列表硬编码在组件中，未调用 `list_protocols()` 后端命令获取实际可用协议。
+**Fix**: 首次渲染时调用 `list_protocols()` 加载内置协议元数据，保留硬编码作为 fallback。
 
-### 2. SidePanel 协议卡片连接 protocolStore
-**Status**: 🔴 TODO
+### 2. `validate_script` 前端 UI
+**Status**: 📋 Planned
 **Priority**: P1
-**Files**: `frontend/src/components/terminal/SidePanel.tsx`, `frontend/src/stores/protocolStore.ts`
-**Issue**: SidePanel 协议卡片硬编码"无活动协议"，未连接到 `useProtocolStore`。
-**Fix**: 从 `useProtocolStore` 读取当前激活协议名称并展示。
+**Files**: `frontend/src/components/scripting/ScriptPanel.tsx`
+**Issue**: 后端 `validate_script` 命令已注册但 ScriptPanel 无校验按钮。
+**Fix**: 在工具栏添加 "Validate" 按钮，调用 `invoke('validate_script', { script })` 并展示 ValidationError 结果。
 
-### 3. Protocol encode/decode 命令注册
-**Status**: 🔴 TODO
+### 3. 协议 encode/decode UI
+**Status**: 📋 Planned
 **Priority**: P1
-**Files**: `src-tauri/src/main.rs`, `src-tauri/src/commands/protocol.rs`
-**Issue**: `protocol_encode`/`protocol_decode` 已实现但未注册到 invoke_handler，前端无法使用协议编解码功能。
-**Fix**: 注册到 main.rs，并移除 `#[allow(dead_code)]`。
+**Files**: `frontend/src/components/terminal/TxSender.tsx`, `frontend/src/components/terminal/RxDataViewer.tsx`
+**Issue**: `protocol_encode`/`protocol_decode` 已注册但无 UI 入口。
+**Fix**: TxSender 添加编码选项（发送前通过选中协议编码），RxDataViewer 添加解码显示选项。
 
 ---
 
@@ -44,25 +44,27 @@
 **Status**: 📋 v0.6.0
 **Priority**: P2
 **Files**: `src/monitoring/`
-**Issue**: `PerformanceMonitor`/`ResourceMonitor` 完整实现但 `#[allow(dead_code)]`。
 
 ### 5. 任务调度模块接入
 **Status**: 📋 v0.6.0
 **Priority**: P2
 **Files**: `src/task/`
-**Issue**: `TaskExecutor`/`TaskQueue`/`TaskMonitor` 完整实现但 `#[allow(dead_code)]`。
 
 ### 6. 事件发射器补全
 **Status**: 📋 v0.6.0
 **Priority**: P2
 **Files**: `src-tauri/src/events/emitter.rs`
-**Issue**: `emit_port_status_changed`/`emit_error`/`emit_virtual_port_stats_updated` 未被调用。
 
 ### 7. Config 原始操作 API
 **Status**: 📋 v0.6.0
 **Priority**: P2
 **Files**: `src-tauri/src/commands/config.rs`
-**Issue**: `get_config_raw`/`save_config_raw`/`get_config_file_path` `#[allow(dead_code)]`。
+
+### 8. 后端统计接入 SidePanel
+**Status**: 📋 v0.6.0
+**Priority**: P2
+**Files**: `frontend/src/components/terminal/SidePanel.tsx`
+**Issue**: 统计数据纯前端计算，未调用 `get_port_status` 获取后端真实字节计数。
 
 ---
 
@@ -83,25 +85,26 @@
 
 ### ✅ GUI (Tauri + React)
 - ✅ UI component library (shadcn/ui) — 33 components
-- ✅ Zustand stores (8 stores) + 34 unit tests
+- ✅ Zustand stores (8 stores) + 34+ unit tests
 - ✅ React contexts (6 contexts)
-- ✅ 38 Tauri commands registered in invoke_handler
 - ✅ TX 数据发送 — TxSender 调用 `invoke('send_data')`
 - ✅ RX 数据接收 — 事件驱动，Hex/ASCII/Mixed 格式显示
 - ✅ 虚拟串口管理 — 创建/列表/停止/统计/抓包全通
 - ✅ 脚本编辑 — Monaco 编辑器 + 执行
-- ✅ 协议管理 — 内置协议切换 + 自定义协议加载/卸载/校验
+- ✅ 协议管理 — 内置协议切换 + 自定义协议加载/卸载/校验（文件正确保存到后端）
 - ✅ 端口详情显示 — 端口名/波特率/数据位/停止位/校验位
 - ✅ 数据统计 — RX/TX 包数和字节数实时显示
 - ✅ 快捷操作 — 清空 RX/TX、导出数据
 - ✅ 导航系统 — 5 视图 + 键盘快捷键 + 命令面板
-- ✅ 设置面板 — 5 Tab UI（localStorage，待接入后端）
-- ✅ 系统托盘 + 通知系统
+- ✅ 设置面板 — 5 Tab UI + 后端配置持久化
+- ✅ 协议卡片 — SidePanel 显示当前活动协议
+- ✅ 侧边导航 — "打开设置" 按钮正确导航
+- ✅ 自定义协议文件 — `save_protocol_file` 后端命令，绝对路径传递给 validate/load
 
-### ✅ Tauri Backend Commands (38 registered)
+### ✅ Tauri Backend Commands (36 registered)
 - ✅ Port: `list_ports`, `open_port`, `close_port`, `get_port_status`, `get_all_ports_status`, `check_port_health`
 - ✅ Serial: `send_data`, `read_data`, `start_sniffing`, `stop_sniffing`
-- ✅ Protocol: `list_protocols`, `load_protocol`, `unload_protocol`, `reload_protocol`, `validate_protocol`, `get_protocol_info`
+- ✅ Protocol: `list_protocols`, `load_protocol`, `unload_protocol`, `reload_protocol`, `validate_protocol`, `protocol_encode`, `protocol_decode`, `save_protocol_file`, `get_protocol_info`
 - ✅ Script: `execute_script`, `validate_script`, `list_scripts`, `save_script`, `delete_script`
 - ✅ Config: `get_config`, `update_config`, `reset_config`
 - ✅ Window: `show_window`, `hide_window`, `toggle_window`
@@ -110,15 +113,15 @@
 ### ✅ Tests
 - ✅ 229 unit tests passing
 - ✅ 9 E2E tests passing
-- ✅ 34 frontend store tests passing
+- ✅ 34+ frontend store tests passing
 - ✅ 3 integration tests passing
 - ✅ 4 doc tests passing
 
 ### ✅ CI/CD Pipeline (4 phases)
 - ✅ Phase 1a: Rust quality (clippy -- -D warnings, fmt check)
-- ✅ Phase 1b: Frontend tests (Vitest, 34/34 通过)
-- ✅ Phase 2: Unit tests (229/229 通过)
-- ✅ Phase 3: Integration + E2E tests (9/9 通过)
+- ✅ Phase 1b: Frontend tests (Vitest)
+- ✅ Phase 2: Unit tests
+- ✅ Phase 3: Integration + E2E tests
 - ✅ Code coverage reporting (cargo-llvm-cov)
 - ✅ Security scanning (audit, cargo-deny, trivy)
 
@@ -126,10 +129,10 @@
 
 ## Project Status
 
-**Release Readiness**: v0.5.0 🚢 Ready (CLI core + Server MVP + GUI functional)
+**Release Readiness**: v0.5.0 🚢 Ready
 
 **Blocking issues**: None
-**P1 gaps**: 3 (Settings 持久化, Protocol 卡片, Protocol 编解码注册)
-**Test coverage**: Excellent (275 total tests, 100% pass rate)
+**P1 gaps**: 3 (ProtocolPanel 硬编码列表, validate_script UI, encode/decode UI)
+**Test coverage**: Excellent (275+ total tests, 100% pass rate)
 **Platform support**: Linux/macOS/Windows
 **CI/CD**: Production-grade four-stage pipeline
