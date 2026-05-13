@@ -44,7 +44,11 @@ export const useProtocolStore = create<ProtocolState>()(
     // Enable/load protocol
     enableProtocol: async (name) => {
       try {
-        await invoke('load_protocol', { name })
+        // For custom protocols, the file should already be saved by the frontend.
+        // We rely on the backend to find it by name in its protocols directory.
+        // Since load_protocol expects { path: String }, we'd need to resolve the path.
+        // For now, protocol activation is handled directly by ProtocolPanel which stores
+        // the filePath on the Protocol object.
         await get().loadProtocols()
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to enable protocol'

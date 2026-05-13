@@ -9,6 +9,7 @@
 use serial_cli::protocol::{ProtocolManager, ProtocolRegistry};
 use serial_cli::serial_core::{PortManager, VirtualSerialPair};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
@@ -34,6 +35,8 @@ pub struct AppState {
     pub active_sniffers: Arc<Mutex<HashMap<String, DataSniffer>>>,
     /// Virtual port registry (id -> VirtualSerialPair)
     pub virtual_port_registry: Arc<RwLock<HashMap<String, VirtualSerialPair>>>,
+    /// Directory for storing custom protocol files
+    pub protocols_dir: Option<PathBuf>,
 }
 
 impl AppState {
@@ -43,12 +46,20 @@ impl AppState {
         let protocol_manager =
             Arc::new(Mutex::new(ProtocolManager::new(protocol_registry.clone())));
 
+        // Set up protocols directory
+        let protocols_dir = dirs::data_local_dir().map(|mut p| {
+            p.push("serial-cli");
+            p.push("protocols");
+            p
+        });
+
         Self {
             port_manager: Arc::new(Mutex::new(PortManager::new())),
             protocol_registry,
             protocol_manager,
             active_sniffers: Arc::new(Mutex::new(HashMap::new())),
             virtual_port_registry: Arc::new(RwLock::new(HashMap::new())),
+            protocols_dir,
         }
     }
 }

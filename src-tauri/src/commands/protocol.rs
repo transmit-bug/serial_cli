@@ -137,3 +137,35 @@ pub async fn protocol_decode(
         .parse(&data)
         .map_err(|e| format!("Decode failed: {}", e))
 }
+
+/// Save a protocol file from frontend content and return its filesystem path.
+///
+/// The file is saved to the app data directory under `protocols/`.
+/// Returns the absolute path suitable for passing to `load_protocol`/`validate_protocol`.
+#[tauri::command]
+pub async fn save_protocol_file(
+    name: String,
+    content: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    // Ensure name ends with .lua
+    let file_name = if name.ends_with(".lua") {
+        name
+    } else {
+        format!("{name}.lua")
+    };
+
+    let protocol_dir = state
+        .protocols_dir
+        .clone()
+        .ok_or("Protocols directory not configured")?;
+
+    std::fs::create_dir_all(&protocol_dir)
+        .map_err(|e| format!("Failed to create protocols directory: {}", e))?;
+
+    let file_path = protocol_dir.join(&file_name);
+    std::fs::write(&file_path, content)
+        .map_err(|e| format!("Failed to write protocol file: {}", e))?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}

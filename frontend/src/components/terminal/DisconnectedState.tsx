@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { useConnectionStore } from '@/stores'
+import { useConnectionStore, useNavigationStore } from '@/stores'
 import { toast } from 'sonner'
 import { usePorts } from '@/contexts/PortContext'
 import { Card } from '@/components/ui/card'
@@ -119,7 +119,10 @@ export function DisconnectedState() {
         <div className="flex items-center justify-between pt-6 border-t border-border">
           <Button
             variant="ghost"
-            onClick={() => window.location.href = '#settings'}
+            onClick={() => {
+              const { navigateTo } = useNavigationStore.getState()
+              navigateTo('settings')
+            }}
             className="text-text-secondary hover:text-text-primary"
           >
             <Settings className="w-4 h-4 mr-2" />

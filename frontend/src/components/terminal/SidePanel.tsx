@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Card } from '@/components/ui/card'
-import { useConnectionStore, useDataStore, useProtocolStore } from '@/stores'
+import { useConnectionStore, useDataStore, useProtocolStore, useNavigationStore } from '@/stores'
 import { Activity, Cpu, Zap, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -17,6 +17,7 @@ export function SidePanel() {
   const { portName, config } = useConnectionStore()
   const { rxPackets, txPackets, clearPackets } = useDataStore()
   const { activeProtocol } = useProtocolStore()
+  const { navigateTo } = useNavigationStore()
 
   // Compute stats from packet data
   const stats = useMemo(() => {
@@ -175,7 +176,10 @@ export function SidePanel() {
         <Card className="p-4 border-border/50">
           <div className="flex items-center gap-2">
             <Settings className="w-4 h-4 text-text-tertiary" />
-            <button className="flex-1 text-left text-xs text-text-secondary hover:text-text-primary">
+            <button
+              className="flex-1 text-left text-xs text-text-secondary hover:text-text-primary"
+              onClick={() => navigateTo('settings')}
+            >
               打开设置
             </button>
           </div>

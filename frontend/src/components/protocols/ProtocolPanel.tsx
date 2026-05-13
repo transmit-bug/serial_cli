@@ -12,6 +12,7 @@ interface Protocol {
   description: string
   type: 'built-in' | 'custom'
   status: 'active' | 'inactive'
+  filePath?: string  // Absolute path to the .lua file on disk (custom only)
 }
 
 const BUILTIN_PROTOCOLS: Protocol[] = [
@@ -89,9 +90,13 @@ export function ProtocolPanel() {
       } else {
         // Activate: load protocol
         const path = target.type === 'custom'
-          ? `custom/${target.name}.lua`
-          : target.id
-        await invoke('load_protocol', { path })
+          ? target.filePath
+          : null
+
+        if (path) {
+          await invoke('load_protocol', { path })
+        }
+        // Built-in protocols don't need loading - they're always available in the backend
         if (target.type === 'built-in') {
           setProtocols(prev => prev.map(p =>
             p.id === id ? { ...p, status: 'active' } : p
@@ -137,17 +142,23 @@ export function ProtocolPanel() {
       // Read file content
       const content = await file.text()
 
+      // Save the file to the backend's protocols directory via Tauri command
+      const filePath = await invoke<string>('save_protocol_file', {
+        name: file.name,
+        content,
+      })
+
       // Validate protocol syntax
       try {
-        await invoke('validate_protocol', { path: file.name })
+        await invoke('validate_protocol', { path: filePath })
         setValidationStatus(prev => new Map(prev).set(file.name, 'valid'))
       } catch (err) {
         setValidationStatus(prev => new Map(prev).set(file.name, 'invalid'))
         throw err
       }
 
-      // Load protocol via Tauri
-      const protocolInfo = await invoke<any>('load_protocol', { path: file.name })
+      // Load protocol via Tauri using absolute file path
+      const protocolInfo = await invoke<any>('load_protocol', { path: filePath })
 
       const newProtocol: Protocol = {
         id: `custom-${Date.now()}`,
@@ -156,6 +167,7 @@ export function ProtocolPanel() {
         description: protocolInfo.description || 'Custom Lua protocol',
         type: 'custom',
         status: 'inactive',
+        filePath,
       }
 
       const updated = [...customProtocols, newProtocol]

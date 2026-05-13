@@ -97,6 +97,7 @@ pub async fn list_scripts(_state: State<'_, AppState>) -> Result<Vec<ScriptInfo>
 }
 
 /// Load a script
+#[allow(dead_code)] // Registered but not yet called from frontend — planned for v0.6.0
 #[tauri::command]
 pub async fn load_script(name: String, _state: State<'_, AppState>) -> Result<String, String> {
     let scripts_dir = get_scripts_dir()?;
