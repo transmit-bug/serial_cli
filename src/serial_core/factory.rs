@@ -8,9 +8,9 @@
 
 use crate::config::ConfigManager;
 use crate::error::{Result, SerialError};
-use crate::serial_core::backends::{BackendType, SocatBackend, VirtualBackend};
 #[cfg(unix)]
 use crate::serial_core::backends::PtyBackend;
+use crate::serial_core::backends::{BackendType, SocatBackend, VirtualBackend};
 use std::sync::Arc;
 
 /// Backend factory for creating virtual backends
