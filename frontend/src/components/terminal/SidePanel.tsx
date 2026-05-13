@@ -4,6 +4,7 @@ import { useConnectionStore, useDataStore, useProtocolStore, useNavigationStore 
 import { Activity, Cpu, Zap, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { QuickCommandsCard } from './QuickCommandsCard'
 
 /**
  * SidePanel - 右侧辅助面板
@@ -164,6 +165,9 @@ export function SidePanel() {
             </div>
           )}
         </Card>
+
+        {/* 快捷指令列表 */}
+        <QuickCommandsCard />
 
         {/* 快捷操作卡片 */}
         <Card className="p-4 border-border/50">

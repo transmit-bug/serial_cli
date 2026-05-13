@@ -82,6 +82,13 @@
     "activeProtocol": "Active Protocol",
     "noActiveProtocol": "No active protocol",
     "quickActions": "Quick Actions",
+    "quickCommands": "Quick Commands",
+    "noQuickCommands": "No quick commands",
+    "addFirstCommand": "Add your first command",
+    "addCommand": "Add command",
+    "commandName": "Command name",
+    "commandData": "Command data",
+    "noProtocol": "No protocol",
     "clearRx": "Clear receive data",
     "clearTx": "Clear send data",
     "exportData": "Export data",
@@ -128,6 +135,7 @@
     "sendSuccess": "Sent {{bytes}} bytes",
     "sendFailed": "Send failed",
     "invalidHex": "Invalid hexadecimal data",
+    "selectProtocol": "Please select a protocol first",
     "encodingLabel": "encoded",
     "emptyScript": "Script content is empty"
   },
@@ -285,5 +293,14 @@
     "testButton": "Send Test Notification",
     "testTitle": "Test Notification",
     "testBody": "This is a test notification. If you see this, the feature is working correctly."
-  }
+  },
+
+  "terminal.quickCommands": "Quick Commands",
+  "terminal.addCommand": "Add Command",
+  "terminal.noQuickCommands": "No quick commands",
+  "terminal.addFirstCommand": "Add your first command",
+  "terminal.commandName": "Command name",
+  "terminal.commandData": "Command data",
+  "terminal.noProtocol": "No protocol",
+  "common.edit": "Edit"
 }

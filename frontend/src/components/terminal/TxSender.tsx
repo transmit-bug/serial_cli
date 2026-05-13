@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { useConnectionStore, useDataStore, useProtocolStore } from '@/stores'
 import { Send, FileText, Clock } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 
 /**
  * TxSender - TX 发送区
@@ -12,6 +13,7 @@ export function TxSender() {
   const { portId } = useConnectionStore()
   const { addTxPacket } = useDataStore()
   const { protocols, activeProtocol } = useProtocolStore()
+  const { t } = useTranslation()
   const [inputMode, setInputMode] = useState<'hex' | 'ascii'>('hex')
   const [inputData, setInputData] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -19,17 +21,17 @@ export function TxSender() {
 
   const handleSend = async () => {
     if (!portId) {
-      toast.error('未连接到串口')
+      toast.error(t('toast.noPortConnected'))
       return
     }
 
     if (!inputData.trim()) {
-      toast.error('请输入要发送的数据')
+      toast.error(t('toast.noInputData'))
       return
     }
 
     if (useProtocolEncode && !activeProtocol) {
-      toast.error('请先选择要使用的协议')
+      toast.error(t('toast.selectProtocol'))
       return
     }
 
@@ -40,7 +42,7 @@ export function TxSender() {
       if (inputMode === 'hex') {
         const hex = inputData.replace(/\s/g, '')
         if (!/^[0-9A-Fa-f]*$/.test(hex)) {
-          throw new Error('无效的十六进制数据')
+          throw new Error(t('toast.invalidHex'))
         }
         // 将十六进制字符串转换为字节数组
         const len = hex.length
@@ -60,7 +62,7 @@ export function TxSender() {
           })
           data = encodedData
         } catch (encodeError) {
-          toast.error(`协议编码失败: ${encodeError instanceof Error ? encodeError.message : '未知错误'}`)
+          toast.error(`${t('toast.encodingFailed')}: ${encodeError instanceof Error ? encodeError.message : t('common.unknownError')}`)
           return
         }
       }
@@ -78,10 +80,10 @@ export function TxSender() {
         timestamp: Date.now(),
       })
 
-      toast.success(`已发送 ${bytesWritten} 字节`)
+      toast.success(t('toast.sendSuccess', { bytes: bytesWritten }))
       setInputData('')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '发送失败')
+      toast.error(error instanceof Error ? error.message : t('toast.sendFailed'))
     } finally {
       setIsSending(false)
     }
@@ -92,7 +94,7 @@ export function TxSender() {
       {/* 工具栏 */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-text-primary">发送数据 (TX)</span>
+          <span className="text-sm font-medium text-text-primary">{t('terminal.txData')}</span>
 
           {/* 模式切换 */}
           <div className="flex bg-bg-base rounded-md border border-border">
@@ -140,22 +142,15 @@ export function TxSender() {
 
       {/* 输入区域 */}
       <div className="flex-1 p-4 space-y-3">
-        {/* 快捷按钮 */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInputData((prev) => prev + 'AT')}
-          >
-            AT
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+        {/* 快捷指令提示 */}
+        <div className="flex items-center gap-2 text-xs text-text-tertiary">
+          <span>{t('terminal.quickCommandHint', '快捷指令在右侧面板')}</span>
+          <button
             onClick={() => setInputData((prev) => prev + '\\r\\n')}
+            className="px-2 py-0.5 text-[10px] bg-bg-base border border-border rounded hover:bg-bg-elevated transition-colors"
           >
-            CRLF
-          </Button>
+            + CRLF
+          </button>
         </div>
 
         {/* 输入框 */}
@@ -163,12 +158,12 @@ export function TxSender() {
           <textarea
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
-            placeholder={inputMode === 'hex' ? '输入十六进制数据' : '输入 ASCII 字符'}
+            placeholder={inputMode === 'hex' ? t('terminal.hexInput') : t('terminal.asciiInput')}
             className="w-full h-full min-h-0 bg-bg-base border border-border rounded-lg p-3 text-sm font-mono resize-none focus:outline-none focus:border-signal/50 transition-colors"
             disabled={isSending}
           />
           <div className="absolute bottom-2 right-2 text-xs text-text-tertiary">
-            {inputData.length} 字符
+            {inputData.length} {t('terminal.characterCount')}
           </div>
         </div>
 
@@ -180,7 +175,7 @@ export function TxSender() {
           className="w-full"
         >
           <Send className="w-4 h-4 mr-2" />
-          {isSending ? '发送中...' : '发送数据'}
+          {isSending ? t('terminal.sending') : t('terminal.sendData')}
         </Button>
       </div>
     </div>
