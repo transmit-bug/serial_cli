@@ -1,9 +1,9 @@
 <div align="center">
 
-  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.5.0--dev-blue?style=for-the-badge&logo=rust)
+  ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.6.0-blue?style=for-the-badge&logo=rust)
   [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-  [![Tests](https://img.shields.io/badge/Tests-212%20passing-success?style=for-the-badge)](https://github.com/zazac-zhang/serial_cli)
+  [![Tests](https://img.shields.io/badge/Tests-374%20passing-success?style=for-the-badge)](https://github.com/zazac-zhang/serial_cli)
   [![GUI](https://img.shields.io/badge/GUI-Production%20Ready-brightgreen?style=for-the-badge&logo=react)](https://reactjs.org/)
 
   # 🚀 Serial CLI
@@ -20,7 +20,7 @@
 
 Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **CLI interface**, **structured JSON output**, **embedded LuaJIT scripting**, **support for multiple protocols**, and a **modern GUI application** - making it perfect for both human interaction and AI/automation workflows.
 
-**✨ CLI Production Ready** • **🖥️ GUI Production Ready** • **🔧 212/212 Tests Passing** • **🌍 Linux • macOS • Windows**
+**✨ CLI Production Ready** • **🖥️ GUI Production Ready** • **🔧 374+ Tests Passing** • **🌍 Linux • macOS • Windows**
 
 ---
 
@@ -481,10 +481,11 @@ cargo install just
 
 # Platform dependencies
 # Linux:
-sudo apt-get install build-essential libudev-dev
+sudo apt-get install build-essential libudev-dev libluajit-5.1-dev
 
 # macOS:
 xcode-select --install
+brew install luajit
 ```
 
 ### Build Commands
@@ -690,7 +691,7 @@ RUST_LOG=trace serial-cli list-ports
 **Linux:**
 ```bash
 # Install dependencies
-sudo apt-get install build-essential libudev-dev
+sudo apt-get install build-essential libudev-dev libluajit-5.1-dev
 ```
 
 **macOS:**

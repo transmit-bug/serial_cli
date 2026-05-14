@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "serial-cli"
-version = "0.5.0-dev"
+version = "0.6.0"
 edition = "2021"
 authors = ["Serial CLI Contributors"]
 description = "A universal serial port CLI tool optimized for AI interaction"

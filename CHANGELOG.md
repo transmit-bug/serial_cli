@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [0.5.0-dev] - Unreleased
+## [0.6.0] - 2026-05-14
 
 ### 🚀 Server Mode (NEW!)
 - **JSON-RPC 2.0 daemon** over Unix socket for AI/automation workflows

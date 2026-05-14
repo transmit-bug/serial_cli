@@ -17,13 +17,14 @@ cargo install just
 
 **Linux:**
 ```bash
-sudo apt-get install build-essential libudev-dev
+sudo apt-get install build-essential libudev-dev libluajit-5.1-dev
 sudo usermod -a -G dialout $USER  # Serial port access
 ```
 
 **macOS:**
 ```bash
 xcode-select --install
+brew install luajit
 ```
 
 **Windows:**
