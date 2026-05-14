@@ -77,26 +77,25 @@ impl NamedPipeBackend {
         use windows::core::PCWSTR;
         use windows::Win32::System::Threading::CreateEventW;
 
-        unsafe {
-            let event = CreateEventW(None, true, false, PCWSTR::null());
-            if event.is_invalid() {
-                return Err(SerialError::BackendInitFailed(
-                    "CreateEventW failed".to_string(),
-                ));
-            }
-            Ok(event)
+        let event = unsafe { CreateEventW(None, true, false, PCWSTR::null()) }
+            .map_err(|e| SerialError::BackendInitFailed(format!("CreateEventW failed: {e}")))?;
+        if event.is_invalid() {
+            return Err(SerialError::BackendInitFailed(
+                "CreateEventW returned invalid handle".to_string(),
+            ));
         }
+        Ok(event)
     }
 
     /// Create a named pipe server and wait for a single client connection.
-    /// Returns the client handle. The server handle is stored in self.
+    /// Returns the server handle (which also serves as the connected handle).
     fn accept_pipe_connection(&self, name: &str) -> Result<HANDLE> {
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
         use windows::Win32::System::Pipes::{
-            ConnectNamedPipe, CreateNamedPipeW, NMPWAIT_USE_DEFAULT_WAIT, PIPE_READMODE_BYTE,
+            ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_BYTE,
             PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
         };
         use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
@@ -118,28 +117,22 @@ impl NamedPipeBackend {
                 0,
                 None,
             )
-        };
-        if server.is_invalid() {
-            return Err(SerialError::BackendInitFailed(format!(
-                "CreateNamedPipeW failed for {name}: {}",
-                std::io::Error::last_os_error()
-            )));
         }
+        .map_err(|e| {
+            SerialError::BackendInitFailed(format!(
+                "CreateNamedPipeW failed for {name}: {e}"
+            ))
+        })?;
 
         // Use overlapped I/O for the connection wait.
-        let event = unsafe { CreateEventW(None, true, false, PCWSTR::null()) };
-        if event.is_invalid() {
-            unsafe { CloseHandle(server) };
-            return Err(SerialError::BackendInitFailed(
-                "CreateEventW failed".to_string(),
-            ));
-        }
+        let event = unsafe { CreateEventW(None, true, false, PCWSTR::null()) }
+            .map_err(|e| SerialError::BackendInitFailed(format!("CreateEventW failed: {e}")))?;
 
         let mut overlapped = OVERLAPPED::default();
         overlapped.hEvent = event;
 
-        let result = unsafe { ConnectNamedPipe(server, Some(&mut overlapped)) };
-        if !result.as_bool() {
+        let connect_result = unsafe { ConnectNamedPipe(server, Some(&mut overlapped)) };
+        if connect_result.ok() != Some(true) {
             let err = std::io::Error::last_os_error();
             // 997 = ERROR_IO_PENDING — expected.
             if err.raw_os_error() != Some(997) {
@@ -164,7 +157,7 @@ impl NamedPipeBackend {
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::{
-            CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING,
+            CreateFileW, FILE_ATTRIBUTE_NORMAL, GENERIC_READ, GENERIC_WRITE, OPEN_EXISTING,
         };
 
         let wide_name: Vec<u16> = OsStr::new(name)
@@ -175,40 +168,38 @@ impl NamedPipeBackend {
         let handle = unsafe {
             CreateFileW(
                 PCWSTR(wide_name.as_ptr()),
-                0xC0000000, // GENERIC_READ | GENERIC_WRITE
+                GENERIC_READ | GENERIC_WRITE,
                 0,
                 None,
                 OPEN_EXISTING,
                 FILE_ATTRIBUTE_NORMAL,
                 HANDLE::default(),
             )
-        };
-        if handle.is_invalid() {
-            return Err(SerialError::BackendInitFailed(format!(
-                "CreateFileW failed for {name}: {}",
-                std::io::Error::last_os_error()
-            )));
         }
+        .map_err(|e| {
+            SerialError::BackendInitFailed(format!(
+                "CreateFileW failed for {name}: {e}"
+            ))
+        })?;
         Ok(handle)
     }
 
     /// Read synchronously from a pipe handle. Returns Ok(0) on EOF/error.
     fn pipe_read(handle: HANDLE, buf: &mut [u8]) -> std::io::Result<usize> {
-        use std::mem::MaybeUninit;
         use windows::Win32::Storage::FileSystem::ReadFile;
 
         let mut bytes_read: u32 = 0;
-        let result = unsafe { ReadFile(handle, buf, Some(&mut bytes_read), None) };
-        if result.as_bool() {
-            return Ok(bytes_read as usize);
+        match unsafe { ReadFile(handle, buf, Some(&mut bytes_read), None) } {
+            Ok(_) => Ok(bytes_read as usize),
+            Err(e) => {
+                let code = e.code().0 as i32;
+                // ERROR_BROKEN_PIPE (109) or ERROR_INVALID_HANDLE (6) → EOF
+                if code == 109 || code == 6 {
+                    return Ok(0);
+                }
+                Err(std::io::Error::from_raw_os_error(code))
+            }
         }
-        let err = std::io::Error::last_os_error();
-        // On named pipes, we may get ERROR_BROKEN_PIPE (109) or
-        // ERROR_INVALID_HANDLE (6) when the other end closes — treat as EOF.
-        if err.raw_os_error() == Some(109) || err.raw_os_error() == Some(6) {
-            return Ok(0);
-        }
-        Err(err)
     }
 
     /// Write synchronously to a pipe handle.
@@ -216,11 +207,10 @@ impl NamedPipeBackend {
         use windows::Win32::Storage::FileSystem::WriteFile;
 
         let mut bytes_written: u32 = 0;
-        let result = unsafe { WriteFile(handle, buf, Some(&mut bytes_written), None) };
-        if result.as_bool() {
-            return Ok(());
+        match unsafe { WriteFile(handle, buf, Some(&mut bytes_written), None) } {
+            Ok(_) => Ok(()),
+            Err(e) => Err(std::io::Error::from_raw_os_error(e.code().0 as i32)),
         }
-        Err(std::io::Error::last_os_error())
     }
 }
 
@@ -372,14 +362,8 @@ impl NamedPipeBackend {
         let t1 = std::thread::spawn(move || {
             let mut buf = buf_a;
             loop {
-                let wait = unsafe {
-                    WaitForMultipleObjects(
-                        &[shutdown_event],
-                        false,
-                        0, // timeout=0 → non-blocking
-                    )
-                };
-                if wait == WAIT_OBJECT_0 {
+                let wait = unsafe { WaitForMultipleObjects(&[shutdown_event], false, 0) };
+                if wait.ok() == Some(WAIT_OBJECT_0) {
                     break;
                 }
 
@@ -407,7 +391,7 @@ impl NamedPipeBackend {
             let mut buf = buf;
             loop {
                 let wait = unsafe { WaitForMultipleObjects(&[shutdown_event], false, 0) };
-                if wait == WAIT_OBJECT_0 {
+                if wait.ok() == Some(WAIT_OBJECT_0) {
                     break;
                 }
 
