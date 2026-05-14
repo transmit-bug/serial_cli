@@ -95,8 +95,8 @@ impl NamedPipeBackend {
         use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
         use windows::Win32::System::Pipes::{
-            ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_BYTE,
-            PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+            ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE,
+            PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
         };
         use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
         use windows::Win32::System::IO::OVERLAPPED;
@@ -119,9 +119,7 @@ impl NamedPipeBackend {
             )
         }
         .map_err(|e| {
-            SerialError::BackendInitFailed(format!(
-                "CreateNamedPipeW failed for {name}: {e}"
-            ))
+            SerialError::BackendInitFailed(format!("CreateNamedPipeW failed for {name}: {e}"))
         })?;
 
         // Use overlapped I/O for the connection wait.
@@ -177,9 +175,7 @@ impl NamedPipeBackend {
             )
         }
         .map_err(|e| {
-            SerialError::BackendInitFailed(format!(
-                "CreateFileW failed for {name}: {e}"
-            ))
+            SerialError::BackendInitFailed(format!("CreateFileW failed for {name}: {e}"))
         })?;
         Ok(handle)
     }
