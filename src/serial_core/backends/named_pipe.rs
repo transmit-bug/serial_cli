@@ -158,7 +158,7 @@ impl NamedPipeBackend {
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::{
-            CreateFileW, FILE_ACCESS_RIGHTS, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING,
+            CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_MODE, OPEN_EXISTING,
         };
 
         let wide_name: Vec<u16> = OsStr::new(name)
@@ -166,14 +166,14 @@ impl NamedPipeBackend {
             .chain(std::iter::once(0))
             .collect();
 
-        // GENERIC_READ | GENERIC_WRITE as raw DWORD
-        let access = FILE_ACCESS_RIGHTS(0xC0000000);
+        // GENERIC_READ | GENERIC_WRITE as raw u32
+        let access: u32 = 0xC0000000;
 
         let handle = unsafe {
             CreateFileW(
                 PCWSTR(wide_name.as_ptr()),
                 access,
-                0,
+                FILE_SHARE_MODE(0),
                 None,
                 OPEN_EXISTING,
                 FILE_ATTRIBUTE_NORMAL,
