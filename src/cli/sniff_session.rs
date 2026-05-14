@@ -112,7 +112,7 @@ pub fn is_process_running(pid: u32) -> bool {
                 if handle.is_invalid() {
                     false
                 } else {
-                    CloseHandle(&handle).ok();
+                    CloseHandle(handle).ok();
                     true
                 }
             }
@@ -147,8 +147,8 @@ pub fn stop_process(pid: u32) -> Result<()> {
         ))
     })?;
     unsafe {
-        let result = TerminateProcess(&handle, 1);
-        let _ = CloseHandle(&handle);
+        let result = TerminateProcess(handle, 1);
+        let _ = CloseHandle(handle);
         if result.is_ok() {
             Ok(())
         } else {
