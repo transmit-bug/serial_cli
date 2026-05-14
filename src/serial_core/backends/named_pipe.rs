@@ -46,7 +46,7 @@ pub struct NamedPipeBackend {
 }
 
 #[cfg(windows)]
-use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE};
+use windows::Win32::Foundation::{CloseHandle, HANDLE};
 
 #[cfg(windows)]
 impl NamedPipeBackend {
@@ -158,7 +158,7 @@ impl NamedPipeBackend {
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::{
-            CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING,
+            CreateFileW, FILE_ACCESS_RIGHTS, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING,
         };
 
         let wide_name: Vec<u16> = OsStr::new(name)
@@ -166,21 +166,26 @@ impl NamedPipeBackend {
             .chain(std::iter::once(0))
             .collect();
 
+        // GENERIC_READ | GENERIC_WRITE as raw DWORD
+        let access = FILE_ACCESS_RIGHTS(0xC0000000);
+
         let handle = unsafe {
             CreateFileW(
                 PCWSTR(wide_name.as_ptr()),
-                GENERIC_READ | GENERIC_WRITE,
+                access,
                 0,
                 None,
                 OPEN_EXISTING,
                 FILE_ATTRIBUTE_NORMAL,
                 HANDLE::default(),
             )
-        };
+        }
+        .map_err(|e| {
+            SerialError::BackendInitFailed(format!("CreateFileW failed for {name}: {e}"))
+        })?;
         if handle.is_invalid() {
             return Err(SerialError::BackendInitFailed(format!(
-                "CreateFileW failed for {name}: {}",
-                std::io::Error::last_os_error()
+                "CreateFileW returned invalid handle for {name}"
             )));
         }
         Ok(handle)
