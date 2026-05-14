@@ -46,7 +46,7 @@ pub struct NamedPipeBackend {
 }
 
 #[cfg(windows)]
-use windows::Win32::Foundation::{CloseHandle, HANDLE};
+use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE};
 
 #[cfg(windows)]
 impl NamedPipeBackend {
@@ -88,7 +88,7 @@ impl NamedPipeBackend {
     }
 
     /// Create a named pipe server and wait for a single client connection.
-    /// Returns the server handle (which also serves as the connected handle).
+    /// Returns the server handle.
     fn accept_pipe_connection(&self, name: &str) -> Result<HANDLE> {
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
@@ -117,10 +117,13 @@ impl NamedPipeBackend {
                 0,
                 None,
             )
+        };
+        if server.is_invalid() {
+            return Err(SerialError::BackendInitFailed(format!(
+                "CreateNamedPipeW failed for {name}: {}",
+                std::io::Error::last_os_error()
+            )));
         }
-        .map_err(|e| {
-            SerialError::BackendInitFailed(format!("CreateNamedPipeW failed for {name}: {e}"))
-        })?;
 
         // Use overlapped I/O for the connection wait.
         let event = unsafe { CreateEventW(None, true, false, PCWSTR::null()) }
@@ -130,7 +133,7 @@ impl NamedPipeBackend {
         overlapped.hEvent = event;
 
         let connect_result = unsafe { ConnectNamedPipe(server, Some(&mut overlapped)) };
-        if connect_result.ok() != Some(true) {
+        if connect_result.is_err() {
             let err = std::io::Error::last_os_error();
             // 997 = ERROR_IO_PENDING — expected.
             if err.raw_os_error() != Some(997) {
@@ -155,7 +158,7 @@ impl NamedPipeBackend {
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::{
-            CreateFileW, FILE_ATTRIBUTE_NORMAL, GENERIC_READ, GENERIC_WRITE, OPEN_EXISTING,
+            CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING,
         };
 
         let wide_name: Vec<u16> = OsStr::new(name)
@@ -173,10 +176,13 @@ impl NamedPipeBackend {
                 FILE_ATTRIBUTE_NORMAL,
                 HANDLE::default(),
             )
+        };
+        if handle.is_invalid() {
+            return Err(SerialError::BackendInitFailed(format!(
+                "CreateFileW failed for {name}: {}",
+                std::io::Error::last_os_error()
+            )));
         }
-        .map_err(|e| {
-            SerialError::BackendInitFailed(format!("CreateFileW failed for {name}: {e}"))
-        })?;
         Ok(handle)
     }
 
@@ -185,7 +191,7 @@ impl NamedPipeBackend {
         use windows::Win32::Storage::FileSystem::ReadFile;
 
         let mut bytes_read: u32 = 0;
-        match unsafe { ReadFile(handle, buf, Some(&mut bytes_read), None) } {
+        match unsafe { ReadFile(handle, Some(buf), Some(&mut bytes_read), None) } {
             Ok(_) => Ok(bytes_read as usize),
             Err(e) => {
                 let code = e.code().0 as i32;
@@ -203,7 +209,7 @@ impl NamedPipeBackend {
         use windows::Win32::Storage::FileSystem::WriteFile;
 
         let mut bytes_written: u32 = 0;
-        match unsafe { WriteFile(handle, buf, Some(&mut bytes_written), None) } {
+        match unsafe { WriteFile(handle, Some(buf), Some(&mut bytes_written), None) } {
             Ok(_) => Ok(()),
             Err(e) => Err(std::io::Error::from_raw_os_error(e.code().0 as i32)),
         }
@@ -359,7 +365,7 @@ impl NamedPipeBackend {
             let mut buf = buf_a;
             loop {
                 let wait = unsafe { WaitForMultipleObjects(&[shutdown_event], false, 0) };
-                if wait.ok() == Some(WAIT_OBJECT_0) {
+                if wait == WAIT_OBJECT_0 {
                     break;
                 }
 
@@ -387,7 +393,7 @@ impl NamedPipeBackend {
             let mut buf = buf;
             loop {
                 let wait = unsafe { WaitForMultipleObjects(&[shutdown_event], false, 0) };
-                if wait.ok() == Some(WAIT_OBJECT_0) {
+                if wait == WAIT_OBJECT_0 {
                     break;
                 }
 
