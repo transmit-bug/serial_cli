@@ -141,6 +141,28 @@ export function LogPanel() {
     }
   }, [notifications, addLog])
 
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [logs])
+
+  // Periodically clean up old processed notification IDs (prevent memory leak)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (processedNotifications.current.size > MAX_LOG_ENTRIES * 2) {
+        const ids = Array.from(processedNotifications.current)
+        const recentIds = ids.slice(-MAX_LOG_ENTRIES)
+        processedNotifications.current.clear()
+        for (const id of recentIds) {
+          processedNotifications.current.add(id)
+        }
+      }
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
   const clearLogs = () => {
     setLogs([])
     processedNotifications.current.clear()

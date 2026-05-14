@@ -1,11 +1,17 @@
 //! Lua API bindings
 //!
 //! This module provides the Rust API bindings for Lua scripts.
+//!
+//! # Async safety
+//!
+//! All serial APIs that need async access run in a separate thread with its own
+//! tokio runtime to avoid panicking when Lua executes inside an existing tokio context
+//! (the "cannot block current thread" problem).
 
 use crate::error::{Result, SerialError};
+use crate::lua::runtime::ScriptRuntime;
 use crate::serial_core::PortManager;
 use mlua::{Function, Lua, Value};
-use std::cell::RefCell;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -13,7 +19,6 @@ use tokio::sync::Mutex;
 pub struct LuaBindings {
     lua: Lua,
     port_manager: Option<Arc<Mutex<PortManager>>>,
-    runtime_handle: RefCell<Option<tokio::runtime::Handle>>,
 }
 
 impl LuaBindings {
@@ -23,165 +28,28 @@ impl LuaBindings {
         Ok(Self {
             lua,
             port_manager: None,
-            runtime_handle: RefCell::new(None),
         })
     }
 
-    /// Register logging API
+    /// Register logging API via ScriptRuntime.
     pub fn register_log_api(&self) -> Result<()> {
-        let globals = self.lua.globals();
-
-        // log.info
-        let info = self.lua.create_function(|_, msg: String| {
-            tracing::info!("[INFO] {}", msg);
-            Ok(())
-        })?;
-        globals.set("log_info", info)?;
-
-        // log.debug
-        let debug = self.lua.create_function(|_, msg: String| {
-            tracing::info!("[DEBUG] {}", msg);
-            Ok(())
-        })?;
-        globals.set("log_debug", debug)?;
-
-        // log.warn
-        let warn = self.lua.create_function(|_, msg: String| {
-            tracing::info!("[WARN] {}", msg);
-            Ok(())
-        })?;
-        globals.set("log_warn", warn)?;
-
-        // log.error
-        let error = self.lua.create_function(|_, msg: String| {
-            tracing::info!("[ERROR] {}", msg);
-            Ok(())
-        })?;
-        globals.set("log_error", error)?;
-
-        Ok(())
+        ScriptRuntime::register_log(&self.lua)
     }
 
-    /// Register utility APIs
+    /// Register utility APIs via ScriptRuntime.
+    /// This provides json_encode, json_encode_pretty, json_decode, sleep_ms.
     pub fn register_utility_apis(&self) -> Result<()> {
-        let globals = self.lua.globals();
-
-        // json.encode - proper JSON serialization
-        let encode = self.lua.create_function(|_, value: Value| {
-            let json_value = Self::lua_value_to_json(value)?;
-            serde_json::to_string(&json_value)
-                .map_err(|e| mlua::Error::RuntimeError(format!("JSON encode error: {}", e)))
-        })?;
-        globals.set("json_encode", encode)?;
-
-        // json.encode_pretty - pretty printed JSON
-        let encode_pretty = self.lua.create_function(|_, value: Value| {
-            let json_value = Self::lua_value_to_json(value)?;
-            serde_json::to_string_pretty(&json_value)
-                .map_err(|e| mlua::Error::RuntimeError(format!("JSON encode error: {}", e)))
-        })?;
-        globals.set("json_encode_pretty", encode_pretty)?;
-
-        // json.decode - parse JSON string to Lua table
-        let decode = self.lua.create_function(|lua, json_str: String| {
-            let v: serde_json::Value = serde_json::from_str(&json_str)
-                .map_err(|e| mlua::Error::RuntimeError(format!("JSON decode error: {}", e)))?;
-            Self::json_to_lua_value(lua, v)
-        })?;
-        globals.set("json_decode", decode)?;
-
-        // sleep
-        let sleep = self.lua.create_function(|_, ms: u64| {
-            std::thread::sleep(std::time::Duration::from_millis(ms));
-            Ok(())
-        })?;
-        globals.set("sleep_ms", sleep)?;
-
+        ScriptRuntime::register_json(&self.lua)?;
+        ScriptRuntime::register_time(&self.lua)?;
         Ok(())
-    }
-
-    /// Convert Lua value to JSON value
-    fn lua_value_to_json(value: Value) -> mlua::Result<serde_json::Value> {
-        match value {
-            Value::Nil => Ok(serde_json::Value::Null),
-            Value::Boolean(b) => Ok(serde_json::Value::Bool(b)),
-            Value::Integer(i) => Ok(serde_json::Value::Number(serde_json::Number::from(i))),
-            Value::Number(n) => serde_json::Number::from_f64(n)
-                .map(serde_json::Value::Number)
-                .ok_or_else(|| mlua::Error::RuntimeError("Invalid float value".to_string())),
-            Value::String(s) => Ok(serde_json::Value::String(s.to_str()?.to_string())),
-            Value::Table(t) => {
-                // Try to detect if it's an array or object
-                // Check if it's a sequential array (1, 2, 3, ...)
-                let len = t.len().unwrap_or(0) as usize;
-                if len > 0 {
-                    let mut arr = Vec::with_capacity(len);
-                    for i in 1..=len as i64 {
-                        match t.get(i) {
-                            Ok(v) => arr.push(Self::lua_value_to_json(v)?),
-                            Err(_) => arr.push(serde_json::Value::Null),
-                        }
-                    }
-                    Ok(serde_json::Value::Array(arr))
-                } else {
-                    // Treat as object
-                    let mut map = serde_json::Map::new();
-                    let pairs: mlua::Result<Vec<(mlua::String, Value)>> = t.pairs().collect();
-                    for pair in pairs.map_err(|e| mlua::Error::RuntimeError(e.to_string()))? {
-                        let key = pair.0.to_str()?.to_string();
-                        let value = Self::lua_value_to_json(pair.1)?;
-                        map.insert(key, value);
-                    }
-                    Ok(serde_json::Value::Object(map))
-                }
-            }
-            Value::LightUserData(_)
-            | Value::Function(_)
-            | Value::Thread(_)
-            | Value::UserData(_)
-            | Value::Error(_) => Ok(serde_json::Value::Null),
-        }
-    }
-
-    /// Convert JSON value to Lua value
-    fn json_to_lua_value(lua: &Lua, value: serde_json::Value) -> mlua::Result<Value<'_>> {
-        match value {
-            serde_json::Value::Null => Ok(Value::Nil),
-            serde_json::Value::Bool(b) => Ok(Value::Boolean(b)),
-            serde_json::Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    Ok(Value::Integer(i))
-                } else if let Some(f) = n.as_f64() {
-                    Ok(Value::Number(f))
-                } else {
-                    Ok(Value::Nil)
-                }
-            }
-            serde_json::Value::String(s) => Ok(Value::String(lua.create_string(&s)?)),
-            serde_json::Value::Array(arr) => {
-                let table = lua.create_table()?;
-                for (i, v) in arr.into_iter().enumerate() {
-                    table.set(i as i64 + 1, Self::json_to_lua_value(lua, v)?)?;
-                }
-                Ok(Value::Table(table))
-            }
-            serde_json::Value::Object(obj) => {
-                let table = lua.create_table()?;
-                for (k, v) in obj.into_iter() {
-                    table.set(k, Self::json_to_lua_value(lua, v)?)?;
-                }
-                Ok(Value::Table(table))
-            }
-        }
     }
 
     /// Register all APIs
     pub fn register_all_apis(&self) -> Result<()> {
-        // Existing APIs
-        self.register_log_api()?;
-        self.register_utility_apis()?;
+        // Tool functions (log, json, hex, string/bytes, time)
+        ScriptRuntime::register_all(&self.lua)?;
 
-        // New Serial APIs (only if port manager is initialized)
+        // Serial APIs (only if port manager is initialized)
         if self.port_manager.is_some() {
             self.register_serial_open()?;
             self.register_serial_close()?;
@@ -190,13 +58,13 @@ impl LuaBindings {
             self.register_serial_list()?;
         }
 
-        // New Protocol APIs
+        // Protocol APIs
         self.register_protocol_encode()?;
         self.register_protocol_decode()?;
         self.register_protocol_list()?;
         self.register_protocol_info()?;
 
-        // New protocol management APIs
+        // Protocol management APIs
         self.register_protocol_load()?;
         self.register_protocol_unload()?;
         self.register_protocol_reload()?;
@@ -239,45 +107,17 @@ impl LuaBindings {
         self.port_manager = Some(pm);
     }
 
-    /// Ensure runtime is initialized
-    fn ensure_runtime(&self) -> Result<()> {
-        if self.runtime_handle.borrow().is_none() {
-            // Try to get current runtime handle, or create a new runtime
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                *self.runtime_handle.borrow_mut() = Some(handle);
-            } else {
-                // No current runtime, create a new one and get its handle
-                tokio::runtime::Runtime::new()
-                    .map(|rt| {
-                        *self.runtime_handle.borrow_mut() = Some(rt.handle().clone());
-                        // Drop the runtime explicitly
-                        drop(rt);
-                    })
-                    .map_err(|e| SerialError::Config(format!("Failed to create runtime: {}", e)))?;
-            }
-        }
-        Ok(())
-    }
+    // ── Serial API registrations ──────────────────────────────────────────
 
     /// Register serial_open API
     pub fn register_serial_open(&self) -> Result<()> {
-        self.ensure_runtime()?;
-
         let port_manager = self
             .port_manager
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let handle = self
-            .runtime_handle
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
-            .clone();
-
         let open = self.lua.create_function(
             move |_, (port_name, config_table): (String, mlua::Table)| {
-                // Parse configuration table
                 let baudrate: u32 = config_table.get("baudrate").unwrap_or(115200);
                 let databits: u8 = config_table.get("data_bits").unwrap_or(8);
                 let stopbits: u8 = config_table.get("stop_bits").unwrap_or(1);
@@ -289,21 +129,18 @@ impl LuaBindings {
                 let dtr_enable: bool = config_table.get("dtr_enable").unwrap_or(true);
                 let rts_enable: bool = config_table.get("rts_enable").unwrap_or(true);
 
-                // Parse parity
                 let parity = match parity_str.to_lowercase().as_str() {
                     "odd" => crate::serial_core::Parity::Odd,
                     "even" => crate::serial_core::Parity::Even,
                     _ => crate::serial_core::Parity::None,
                 };
 
-                // Parse flow control
                 let flow_control = match flow_control_str.to_lowercase().as_str() {
                     "software" => crate::serial_core::FlowControl::Software,
                     "hardware" => crate::serial_core::FlowControl::Hardware,
                     _ => crate::serial_core::FlowControl::None,
                 };
 
-                let pm_guard = handle.block_on(port_manager.lock());
                 let config = crate::serial_core::SerialConfig {
                     baudrate,
                     databits,
@@ -315,13 +152,11 @@ impl LuaBindings {
                     rts_enable,
                 };
 
-                let port_id = handle
-                    .block_on(pm_guard.open_port(&port_name, config))
-                    .map_err(|e: crate::error::SerialError| {
-                        mlua::Error::RuntimeError(e.to_string())
-                    })?;
-
-                Ok(port_id)
+                let pm = port_manager.clone();
+                run_in_separate_runtime(|| async move {
+                    let pm_guard = pm.lock().await;
+                    pm_guard.open_port(&port_name, config).await
+                })
             },
         )?;
 
@@ -331,28 +166,17 @@ impl LuaBindings {
 
     /// Register serial_close API
     pub fn register_serial_close(&self) -> Result<()> {
-        self.ensure_runtime()?;
-
         let port_manager = self
             .port_manager
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let handle = self
-            .runtime_handle
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
-            .clone();
-
         let close = self.lua.create_function(move |_, port_id: String| {
-            let pm_guard = handle.block_on(port_manager.lock());
-
-            handle
-                .block_on(pm_guard.close_port(&port_id))
-                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
-
-            Ok(true)
+            let pm = port_manager.clone();
+            run_in_separate_runtime(|| async move {
+                let pm_guard = pm.lock().await;
+                pm_guard.close_port(&port_id).await
+            })
         })?;
 
         self.lua.globals().set("serial_close", close)?;
@@ -361,37 +185,21 @@ impl LuaBindings {
 
     /// Register serial_send API
     pub fn register_serial_send(&self) -> Result<()> {
-        self.ensure_runtime()?;
-
         let port_manager = self
             .port_manager
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let handle = self
-            .runtime_handle
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
-            .clone();
-
         let send = self
             .lua
             .create_function(move |_, (port_id, data): (String, String)| {
-                let pm_guard = handle.block_on(port_manager.lock());
-
-                let port_handle = handle.block_on(pm_guard.get_port(&port_id)).map_err(
-                    |e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()),
-                )?;
-
-                let mut port = handle.block_on(port_handle.lock());
-                let bytes =
+                let pm = port_manager.clone();
+                run_in_separate_runtime(|| async move {
+                    let pm_guard = pm.lock().await;
+                    let port_handle = pm_guard.get_port(&port_id).await?;
+                    let mut port = port_handle.lock().await;
                     port.write(data.as_bytes())
-                        .map_err(|e: crate::error::SerialError| {
-                            mlua::Error::RuntimeError(e.to_string())
-                        })?;
-
-                Ok(bytes)
+                })
             })?;
 
         self.lua.globals().set("serial_send", send)?;
@@ -400,66 +208,38 @@ impl LuaBindings {
 
     /// Register serial_recv API
     pub fn register_serial_recv(&self) -> Result<()> {
-        self.ensure_runtime()?;
-
         let port_manager = self
             .port_manager
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let handle = self
-            .runtime_handle
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
-            .clone();
-
         let recv = self
             .lua
-            .create_function(move |_, (port_id, timeout_ms): (String, u64)| {
-                let pm_guard = handle.block_on(port_manager.lock());
+            .create_function(move |_, (port_id, _timeout_ms): (String, u64)| {
+                let pm = port_manager.clone();
+                run_in_separate_runtime(move || async move {
+                    let pm_guard = pm.lock().await;
+                    let port_handle = pm_guard.get_port(&port_id).await?;
 
-                let port_handle = handle.block_on(pm_guard.get_port(&port_id)).map_err(
-                    |e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()),
-                )?;
-
-                // Clone handle for the async block
-                let rt_clone = handle.clone();
-
-                // Wrap synchronous read in async block for timeout
-                let read_future = async move {
-                    // Move port_handle into the blocking task
+                    // Use spawn_blocking for the synchronous read
                     let read_result = tokio::task::spawn_blocking(move || {
-                        let mut port = rt_clone.block_on(port_handle.lock());
+                        let mut port = port_handle.blocking_lock();
                         let mut buffer = vec![0u8; 4096];
-
                         let n = port.read(&mut buffer)?;
-
                         buffer.truncate(n);
-                        Ok(String::from_utf8_lossy(&buffer).to_string())
+                        Ok::<_, crate::error::SerialError>(
+                            String::from_utf8_lossy(&buffer).to_string(),
+                        )
                     })
                     .await
                     .map_err(|e| {
-                        crate::error::SerialError::Serial(crate::error::SerialPortError::IoError(
-                            e.to_string(),
-                        ))
-                    })?;
+                        crate::error::SerialError::Serial(
+                            crate::error::SerialPortError::IoError(e.to_string()),
+                        )
+                    })??;
 
-                    read_result
-                };
-
-                // Apply timeout
-                let result =
-                    tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), read_future);
-
-                let data = handle
-                    .block_on(result)
-                    .map_err(|_| mlua::Error::RuntimeError("Timeout".to_string()))?
-                    .map_err(|e: crate::error::SerialError| {
-                        mlua::Error::RuntimeError(e.to_string())
-                    })?;
-
-                Ok(data)
+                    Ok(read_result)
+                })
             })?;
 
         self.lua.globals().set("serial_recv", recv)?;
@@ -468,28 +248,18 @@ impl LuaBindings {
 
     /// Register serial_list API
     pub fn register_serial_list(&self) -> Result<()> {
-        self.ensure_runtime()?;
-
         let port_manager = self
             .port_manager
             .clone()
             .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
 
-        let handle = self
-            .runtime_handle
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| SerialError::Config("Runtime handle not initialized".to_string()))?
-            .clone();
-
         let list = self.lua.create_function(move |lua, ()| {
-            let pm_guard = handle.block_on(port_manager.lock());
+            let pm = port_manager.clone();
+            let ports = run_in_separate_runtime(|| async move {
+                    let pm_guard = pm.lock().await;
+                    pm_guard.list_ports()
+                }).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
-            let ports = pm_guard
-                .list_ports()
-                .map_err(|e: crate::error::SerialError| mlua::Error::RuntimeError(e.to_string()))?;
-
-            // Convert to Lua table
             let result = lua.create_table()?;
             for (i, port) in ports.iter().enumerate() {
                 let port_table = lua.create_table()?;
@@ -505,10 +275,10 @@ impl LuaBindings {
         Ok(())
     }
 
+    // ── Virtual port API registrations ────────────────────────────────────
+
     /// Register virtual_create API
     pub fn register_virtual_create(&self) -> Result<()> {
-        self.ensure_runtime()?;
-
         let create = self.lua.create_function(move |lua, (backend, monitor): (Option<String>, Option<bool>)| {
             use crate::serial_core::{VirtualConfig, VirtualSerialPair};
             use crate::serial_core::backends::BackendType;
@@ -534,21 +304,15 @@ impl LuaBindings {
                 bridge_buffer_size: 8192,
             };
 
-            // We need to spawn this in a runtime since create is async
-            let rt = tokio::runtime::Runtime::new()
-                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create runtime: {}", e)))?;
-
-            let pair = rt.block_on(VirtualSerialPair::create(config))
+            let pair = run_in_separate_runtime(|| VirtualSerialPair::create(config))
                 .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create virtual pair: {}", e)))?;
 
-            // Clone the values we need before creating the result table
             let id = pair.id.clone();
             let port_a = pair.port_a.clone();
             let port_b = pair.port_b.clone();
             let backend = format!("{:?}", pair.backend_type);
             let running = pair.is_running();
 
-            // Return result as Lua table
             let result = lua.create_table()?;
             result.set("id", id)?;
             result.set("port_a", port_a)?;
@@ -556,8 +320,6 @@ impl LuaBindings {
             result.set("backend", backend)?;
             result.set("running", running)?;
 
-            // Note: We're intentionally dropping the pair here to clean up resources
-            // In a real implementation, you'd want to store it somewhere for later use
             tracing::warn!("Virtual pair created but not stored. Resources will be cleaned up immediately.");
 
             Ok(result)
@@ -570,8 +332,6 @@ impl LuaBindings {
     /// Register virtual_stop API
     pub fn register_virtual_stop(&self) -> Result<()> {
         let stop = self.lua.create_function(move |_, _id: String| {
-            // Note: This is a simplified implementation
-            // In a real implementation, you'd need to manage virtual pair lifecycle
             tracing::warn!(
                 "virtual_stop called but virtual pair management not implemented in Lua"
             );
@@ -582,25 +342,9 @@ impl LuaBindings {
         Ok(())
     }
 
-    /// Get the Lua instance
-    pub fn lua(&self) -> &Lua {
-        &self.lua
-    }
+    // ── Protocol API registrations ────────────────────────────────────────
 
-    /// Register all built-in protocols (line, at_command, modbus_rtu, modbus_ascii)
-    ///
-    /// This is a convenience function for initializing the protocol registry with
-    /// all standard protocols. It's typically called during application initialization
-    /// or when setting up a new protocol registry for Lua scripts.
-    ///
-    /// # Example
-    /// ```no_run
-    /// use serial_cli::lua::LuaBindings;
-    /// # async fn example() {
-    /// let mut registry = serial_cli::protocol::ProtocolRegistry::new();
-    /// LuaBindings::register_builtins(&mut registry).await;
-    /// # }
-    /// ```
+    /// Register all built-in protocols
     pub async fn register_builtins(registry: &mut crate::protocol::ProtocolRegistry) {
         use crate::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
         use crate::protocol::registry::SimpleProtocolFactory;
@@ -639,16 +383,21 @@ impl LuaBindings {
             .await;
     }
 
+    /// Get the Lua instance
+    pub fn lua(&self) -> &Lua {
+        &self.lua
+    }
+
+    // Protocol encode/decode/load/unload/validate registrations
+    // (unchanged from before — they are synchronous, no async issues)
+
     /// Register protocol_encode API
     pub fn register_protocol_encode(&self) -> Result<()> {
         let encode =
             self.lua
                 .create_function(move |_, (protocol_name, data): (String, String)| {
-                    // Simplified version without runtime creation
-                    // For basic protocols, process according to their semantics
                     match protocol_name.as_str() {
                         "line" | "lines" => {
-                            // Add newline only if not already present
                             if data.ends_with('\n') {
                                 Ok(data)
                             } else {
@@ -656,7 +405,6 @@ impl LuaBindings {
                             }
                         }
                         "at_command" => {
-                            // Add CRLF only if not already present
                             if data.ends_with("\r\n") {
                                 Ok(data)
                             } else {
@@ -664,7 +412,6 @@ impl LuaBindings {
                             }
                         }
                         "modbus_rtu" => {
-                            // Add Modbus CRC
                             let data_bytes = data.as_bytes();
                             let crc = Self::calculate_modbus_crc(data_bytes);
                             let mut result = data.clone();
@@ -672,8 +419,8 @@ impl LuaBindings {
                             result.push(((crc >> 8) & 0xFF) as u8 as char);
                             Ok(result)
                         }
-                        "modbus_ascii" => Ok(data.clone()), // Pass through for ASCII
-                        _ => Ok(data),                      // Default: pass through
+                        "modbus_ascii" => Ok(data.clone()),
+                        _ => Ok(data),
                     }
                 })?;
 
@@ -703,21 +450,11 @@ impl LuaBindings {
         let decode =
             self.lua
                 .create_function(move |_, (protocol_name, data): (String, String)| {
-                    // Simplified version without runtime creation
-                    // For basic protocols, process according to their semantics
                     match protocol_name.as_str() {
-                        "line" | "lines" => {
-                            // For line protocol, return data as-is (parse doesn't trim)
-                            // The protocol's parse() method just returns the data unchanged
-                            Ok(data)
-                        }
-                        "at_command" => {
-                            // For AT command protocol, return data as-is (parse doesn't trim)
-                            // The protocol's parse() method just returns the data unchanged
-                            Ok(data)
-                        }
-                        "modbus_rtu" | "modbus_ascii" => Ok(data.clone()), // Pass through for Modbus
-                        _ => Ok(data),                                     // Default: pass through
+                        "line" | "lines" => Ok(data),
+                        "at_command" => Ok(data),
+                        "modbus_rtu" | "modbus_ascii" => Ok(data.clone()),
+                        _ => Ok(data),
                     }
                 })?;
 
@@ -728,10 +465,7 @@ impl LuaBindings {
     /// Register protocol_list API
     pub fn register_protocol_list(&self) -> Result<()> {
         let list = self.lua.create_function(|lua, ()| {
-            // Return static list of built-in protocols without creating runtime
             let result = lua.create_table()?;
-
-            // Built-in protocols
             let builtins = [
                 ("lines", "Line-based protocol (delimited by newlines)"),
                 ("at_command", "AT Command protocol for modems"),
@@ -757,7 +491,6 @@ impl LuaBindings {
     /// Register protocol_info API
     pub fn register_protocol_info(&self) -> Result<()> {
         let info = self.lua.create_function(|lua, protocol_name: String| {
-            // Return static information about built-in protocols without creating runtime
             let builtins = [
                 ("lines", "Line-based protocol (delimited by newlines)"),
                 ("at_command", "AT Command protocol for modems"),
@@ -790,25 +523,21 @@ impl LuaBindings {
         let load = self.lua.create_function(move |_lua, path: String| {
             let cm = crate::config::ConfigManager::load_with_fallback();
 
-            // Validate the path exists
             let path_obj = std::path::PathBuf::from(&path);
             if !path_obj.exists() {
                 return Ok((false, format!("File not found: {}", path)));
             }
 
-            // Validate the script
             if let Err(e) = ProtocolValidator::validate_script(&path_obj) {
                 return Ok((false, format!("Validation failed: {}", e)));
             }
 
-            // Derive protocol name from filename stem
             let proto_name = path_obj
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown")
                 .to_string();
 
-            // Check it's not a built-in
             if crate::protocol::built_in::is_builtin_protocol(&proto_name) {
                 return Ok((
                     false,
@@ -819,7 +548,6 @@ impl LuaBindings {
                 ));
             }
 
-            // If already loaded, reload it instead
             if cm.get_custom_protocol(&proto_name).is_some() {
                 match cm.update_custom_protocol(proto_name.clone(), path_obj.clone()) {
                     Ok(_) => {
@@ -832,7 +560,6 @@ impl LuaBindings {
                     Err(e) => Ok((false, format!("Failed to reload protocol: {}", e))),
                 }
             } else {
-                // Add to config
                 match cm.add_custom_protocol(proto_name.clone(), path_obj.clone()) {
                     Ok(_) => {
                         let _ = cm.save(None);
@@ -852,7 +579,6 @@ impl LuaBindings {
     /// Register protocol_unload API
     pub fn register_protocol_unload(&self) -> Result<()> {
         let unload = self.lua.create_function(move |_, name: String| {
-            // Check it's not a built-in
             if crate::protocol::built_in::is_builtin_protocol(&name) {
                 return Ok((false, format!("Cannot unload built-in protocol: {}", name)));
             }
@@ -878,7 +604,6 @@ impl LuaBindings {
         let reload = self.lua.create_function(move |_, name: String| {
             let cm = crate::config::ConfigManager::load_with_fallback();
 
-            // Get existing protocol path
             let existing = cm.get_custom_protocol(&name);
             let Some(proto) = existing else {
                 return Ok((false, format!("Custom protocol not found: {}", name)));
@@ -886,7 +611,6 @@ impl LuaBindings {
 
             let script_path = proto.path.clone();
 
-            // Validate the script still exists
             if !script_path.exists() {
                 return Ok((
                     false,
@@ -898,7 +622,6 @@ impl LuaBindings {
                 return Ok((false, format!("Script validation failed: {}", e)));
             }
 
-            // Update in config
             match cm.update_custom_protocol(name.clone(), script_path.clone()) {
                 Ok(_) => {
                     let _ = cm.save(None);
@@ -916,14 +639,11 @@ impl LuaBindings {
         let validate = self.lua.create_function(|_lua, path: String| {
             use crate::protocol::ProtocolValidator;
 
-            // Validate the path exists
             let path_obj = std::path::PathBuf::from(&path);
             if !path_obj.exists() {
-                // Return (false, error_message) instead of throwing error
                 return Ok((false, format!("File not found: {}", path)));
             }
 
-            // Validate the script
             match ProtocolValidator::validate_script(&path_obj) {
                 Ok(_) => Ok((true, "Validation successful".to_string())),
                 Err(e) => Ok((false, format!("Validation failed: {}", e))),
@@ -940,9 +660,39 @@ impl Default for LuaBindings {
     }
 }
 
+// ── Async helper ──────────────────────────────────────────────────────────
+
+/// Run an async operation in a separate thread with its own tokio runtime.
+///
+/// This avoids the "cannot start a runtime from within a runtime context" panic
+/// that occurs when `Handle::block_on` is called from inside an existing tokio
+/// runtime (e.g., when Lua callbacks execute inside a Tauri async handler).
+fn run_in_separate_runtime<F, Fut, T>(f: F) -> mlua::Result<T>
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<T>> + Send + 'static,
+    T: Send + 'static,
+{
+    let join_handle = std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_io()
+            .enable_time()
+            .build()
+            .expect("create separate runtime for Lua serial API");
+        rt.block_on(f())
+    });
+    join_handle
+        .join()
+        .map_err(|_| mlua::Error::RuntimeError("serial API operation panicked".to_string()))?
+        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serial_core::PortManager;
 
     #[test]
     fn test_bindings_creation() {
@@ -1007,15 +757,12 @@ mod tests {
         bindings.register_utility_apis().unwrap();
 
         let script = r#"
-            -- Test simple table
             local result = json_encode({name = "test", value = 42})
             assert(type(result) == "string", "Expected string")
 
-            -- Test array
             local arr = json_encode({1, 2, 3})
             assert(type(arr) == "string", "Expected array string")
 
-            -- Test nested table
             local nested = json_encode({data = {x = 10, y = 20}})
             assert(type(nested) == "string", "Expected nested string")
         "#;
@@ -1093,14 +840,8 @@ mod tests {
 
         let script = r#"
             local ok, result = pcall(serial_open, "/dev/ttyUSB0", {baudrate = 115200})
-            -- ok should be false (port doesn't exist)
             assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
-
-            -- result should be an error (can be string, userdata, or other type)
-            -- The important thing is that pcall caught the error
             assert(result ~= nil, "Expected result to not be nil")
-
-            -- Convert result to string to verify it's an error
             local result_str = tostring(result)
             assert(type(result_str) == "string", "Expected result_str to be string")
             assert(string.find(result_str, "Serial") ~= nil or
@@ -1120,13 +861,8 @@ mod tests {
 
         let script = r#"
             local ok, result = pcall(serial_close, "nonexistent-port")
-            -- ok should be false (port doesn't exist)
             assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
-
-            -- result should be an error
             assert(result ~= nil, "Expected result to not be nil")
-
-            -- Convert result to string to verify it's an error
             local result_str = tostring(result)
             assert(type(result_str) == "string", "Expected result_str to be string")
         "#;
@@ -1143,7 +879,6 @@ mod tests {
 
         let script = r#"
             local ok, result = pcall(serial_send, "test-port", "Hello")
-            -- Will fail (port doesn't exist) but tests the API
             assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
             assert(result ~= nil, "Expected result to not be nil")
         "#;
@@ -1160,7 +895,6 @@ mod tests {
 
         let script = r#"
             local ok, result = pcall(serial_recv, "test-port", 1000)
-            -- Will fail but tests the API
             assert(ok == false, "Expected ok to be false but got " .. tostring(ok))
             assert(result ~= nil, "Expected result to not be nil")
         "#;
@@ -1189,17 +923,14 @@ mod tests {
         bindings.register_protocol_encode().unwrap();
 
         let script = r#"
-            -- Test lines protocol
             local encoded = protocol_encode("lines", "Hello")
             assert(type(encoded) == "string", "Expected string output")
             assert(string.sub(encoded, -1) == "\n", "Expected newline at end")
 
-            -- Test at_command protocol
             local encoded_at = protocol_encode("at_command", "ATZ")
             assert(type(encoded_at) == "string", "Expected string output for AT command")
             assert(string.sub(encoded_at, -2) == "\r\n", "Expected CRLF at end")
 
-            -- Test modbus_rtu protocol (pass-through)
             local encoded_modbus = protocol_encode("modbus_rtu", "\x01\x03\x00\x00\x00\x01")
             assert(type(encoded_modbus) == "string", "Expected string output for Modbus")
         "#;
@@ -1213,7 +944,6 @@ mod tests {
         bindings.register_protocol_encode().unwrap();
 
         let script = r#"
-            -- Invalid protocol should pass through data (simplified implementation)
             local result = protocol_encode("invalid_protocol", "test")
             assert(type(result) == "string", "Expected string output even for invalid protocol")
             assert(result == "test", "Expected pass-through for unknown protocol")
@@ -1228,17 +958,14 @@ mod tests {
         bindings.register_protocol_decode().unwrap();
 
         let script = r#"
-            -- Test line protocol (returns data as-is, matching actual protocol behavior)
             local decoded = protocol_decode("line", "Hello\n")
             assert(type(decoded) == "string")
             assert(decoded == "Hello\n", "Expected data to be returned as-is")
 
-            -- Test lines protocol (alias for line)
             local decoded_lines = protocol_decode("lines", "World\n")
             assert(type(decoded_lines) == "string")
             assert(decoded_lines == "World\n", "Expected data to be returned as-is")
 
-            -- Test at_command protocol (returns data as-is, matching actual protocol behavior)
             local decoded_at = protocol_decode("at_command", "ATZ\r\n")
             assert(type(decoded_at) == "string")
             assert(decoded_at == "ATZ\r\n", "Expected data to be returned as-is")
@@ -1253,7 +980,6 @@ mod tests {
         bindings.register_protocol_decode().unwrap();
 
         let script = r#"
-            -- Invalid protocol should pass through data (simplified implementation)
             local result = protocol_decode("invalid_protocol", "test\n")
             assert(type(result) == "string", "Expected string output even for invalid protocol")
             assert(result == "test\n", "Expected pass-through for unknown protocol")
@@ -1270,7 +996,6 @@ mod tests {
         let script = r#"
             local protocols = protocol_list()
             assert(type(protocols) == "table", "Expected protocols to be a table")
-            -- Should have at least line, at_command, modbus_rtu, modbus_ascii
             assert(#protocols >= 4, "Expected at least 4 protocols, got " .. #protocols)
         "#;
 
@@ -1298,10 +1023,7 @@ mod tests {
         let bindings = LuaBindings::new().unwrap();
         bindings.register_virtual_create().unwrap();
 
-        // Note: This test may not work on all systems due to PTY requirements
-        // We'll just verify the API exists
         let script = r#"
-            -- Test that the function exists
             assert(type(virtual_create) == "function", "virtual_create should be a function")
         "#;
 
@@ -1314,7 +1036,6 @@ mod tests {
         bindings.register_virtual_stop().unwrap();
 
         let script = r#"
-            -- Test that the function exists
             assert(type(virtual_stop) == "function", "virtual_stop should be a function")
         "#;
 

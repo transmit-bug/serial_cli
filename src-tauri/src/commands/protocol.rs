@@ -138,6 +138,33 @@ pub async fn protocol_decode(
         .map_err(|e| format!("Decode failed: {}", e))
 }
 
+/// Set the active protocol for an open port.
+/// Resolves the protocol name via the registry and attaches a fresh
+/// protocol instance to the port handle for encode/parse in the I/O path.
+#[tauri::command]
+pub async fn set_port_protocol(
+    port_id: String,
+    protocol_name: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // First verify the protocol exists in the registry
+    {
+        let registry = state.protocol_registry.lock().await;
+        registry
+            .get_protocol(&protocol_name)
+            .await
+            .map_err(|e| format!("Protocol not found '{}': {}", protocol_name, e))?;
+    }
+
+    // Set the protocol on the port (needs its own registry reference)
+    let registry = state.protocol_registry.lock().await;
+    let manager = state.port_manager.lock().await;
+    manager
+        .set_port_protocol_by_name(&port_id, &registry, &protocol_name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Save a protocol file from frontend content and return its filesystem path.
 ///
 /// The file is saved to the app data directory under `protocols/`.

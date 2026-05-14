@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react'
+import React, { useState } from 'react'
 import { useConnectionStore, useNavigationStore } from '@/stores'
 import { toast } from 'sonner'
 import { usePorts } from '@/contexts/PortContext'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plug, Settings, ArrowRight } from 'lucide-react'
+import { Plug, Settings, ArrowRight, Loader2, Network } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * DisconnectedState - 未连接状态
@@ -12,13 +13,16 @@ import { Plug, Settings, ArrowRight } from 'lucide-react'
 export function DisconnectedState() {
   const { availablePorts: ports, listPorts } = usePorts()
   const { connect } = useConnectionStore()
+  const [connectingPort, setConnectingPort] = useState<string | null>(null)
+  const { t } = useTranslation()
 
   // 初始加载端口列表
   React.useEffect(() => {
     listPorts()
   }, [])
 
-  const handleConnect = async (portName: string) => {
+  const handleConnect = async (portName: string, isVirtual: boolean) => {
+    setConnectingPort(portName)
     try {
       const config = {
         baudrate: 115200,
@@ -30,10 +34,12 @@ export function DisconnectedState() {
         dtr_enable: true,
         rts_enable: true,
       }
-      await connect(portName, config)
+      await connect(portName, config, isVirtual)
     } catch (error) {
       console.error('Failed to connect:', error)
-      toast.error('连接失败')
+      toast.error(t('terminal.connectionFailed'))
+    } finally {
+      setConnectingPort(null)
     }
   }
 
@@ -79,19 +85,40 @@ export function DisconnectedState() {
             ports.map((port) => (
               <Card
                 key={port.port_name}
-                className="p-6 hover:border-signal/50 transition-colors cursor-pointer group"
-                onClick={() => handleConnect(port.port_name)}
+                className={`p-6 transition-colors cursor-pointer group ${
+                  port.is_virtual
+                    ? 'hover:border-info/50 border-info/20'
+                    : 'hover:border-signal/50'
+                }`}
+                onClick={() => handleConnect(port.port_name, port.is_virtual || false)}
               >
                 <div className="space-y-4">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-bg-deep flex items-center justify-center group-hover:bg-signal/10 transition-colors">
-                        <Plug className="w-5 h-5 text-text-tertiary group-hover:text-signal transition-colors" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+                        port.is_virtual
+                          ? 'bg-info/10 group-hover:bg-info/20'
+                          : 'bg-bg-deep group-hover:bg-signal/10'
+                      }`}>
+                        {port.is_virtual ? (
+                          <Network className="w-5 h-5 text-info group-hover:text-info/80 transition-colors" />
+                        ) : (
+                          <Plug className="w-5 h-5 text-text-tertiary group-hover:text-signal transition-colors" />
+                        )}
                       </div>
                       <div>
-                        <h3 className="font-medium text-text-primary group-hover:text-signal transition-colors">
-                          {port.port_name}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className={`font-medium group-hover:text-signal transition-colors ${
+                            port.is_virtual ? 'text-info' : 'text-text-primary'
+                          }`}>
+                            {port.port_name}
+                          </h3>
+                          {port.is_virtual && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info font-medium">
+                              {t('terminal.virtualPort')}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-text-tertiary mt-1">
                           {port.port_type}
                         </p>
@@ -101,13 +128,23 @@ export function DisconnectedState() {
                   <Button
                     variant="signal"
                     size="sm"
-                    className="w-full"
+                    className={`w-full ${
+                      port.is_virtual ? 'bg-info/10 text-info border-info/30 hover:bg-info/20' : ''
+                    }`}
+                    disabled={connectingPort === port.port_name}
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleConnect(port.port_name)
+                      handleConnect(port.port_name, port.is_virtual || false)
                     }}
                   >
-                    连接
+                    {connectingPort === port.port_name ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {t('connection.connecting')}
+                      </>
+                    ) : (
+                      t('common.connect')
+                    )}
                   </Button>
                 </div>
               </Card>

@@ -61,6 +61,7 @@ export function TxSender() {
   const [inputData, setInputData] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [useProtocolEncode, setUseProtocolEncode] = useState(false)
+  const [hexValid, setHexValid] = useState(true)
 
   // History state
   const [showHistory, setShowHistory] = useState(false)
@@ -69,14 +70,32 @@ export function TxSender() {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([])
   const historyRef = useRef(historyStorage())
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const handleSendRef = useRef<() => Promise<void>>()
 
   // Load history on mount
   useEffect(() => {
     setHistoryEntries(historyRef.current.get())
   }, [])
 
+  // Real-time hex validation
+  useEffect(() => {
+    if (inputMode === 'hex' && inputData.trim()) {
+      const hex = inputData.replace(/\s/g, '')
+      setHexValid(/^[0-9A-Fa-f]*$/.test(hex) && hex.length % 2 === 0)
+    } else {
+      setHexValid(true)
+    }
+  }, [inputMode, inputData])
+
   // Keyboard navigation for history (up/down arrows in textarea)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl+Enter to send
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      handleSendRef.current?.()
+      return
+    }
+
     if (e.key === 'ArrowUp') {
       e.preventDefault()
       if (historyEntries.length === 0) return
@@ -110,6 +129,11 @@ export function TxSender() {
     historyRef.current.add({ content, mode })
     setHistoryEntries(historyRef.current.get())
   }, [])
+
+  // Register send function ref for keyboard handler
+  useEffect(() => {
+    handleSendRef.current = handleSend
+  }) // eslint-disable-line react-hooks/exhaustive-deps -- always use latest
 
   const handleSend = async () => {
     if (!portId) {
@@ -147,7 +171,7 @@ export function TxSender() {
       if (useProtocolEncode && activeProtocol) {
         try {
           const encodedData = await invoke<number[]>('protocol_encode', {
-            protocolName: activeProtocol,
+            protocol: activeProtocol,
             data,
           })
           data = encodedData
@@ -278,7 +302,7 @@ export function TxSender() {
 
             {/* History dropdown */}
             {showHistory && (
-              <div className="absolute right-0 bottom-full mb-2 w-72 bg-bg-elevated border border-border rounded-lg shadow-xl overflow-hidden z-50">
+              <div className="absolute right-0 bottom-full mb-2 w-72 max-h-[60vh] bg-bg-elevated border border-border rounded-lg shadow-xl overflow-hidden z-50 flex flex-col">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                   <span className="text-xs font-medium text-text-primary">{t('terminal.sendHistory')}</span>
                   <div className="flex items-center gap-1">
@@ -300,7 +324,7 @@ export function TxSender() {
                   </div>
                 </div>
 
-                <div className="max-h-64 overflow-y-auto">
+                <div className="overflow-y-auto flex-1 min-h-0">
                   {historyEntries.length === 0 ? (
                     <div className="px-3 py-4 text-center text-xs text-text-tertiary">
                       {t('terminal.noHistory')}
@@ -381,8 +405,13 @@ export function TxSender() {
             className="w-full h-full min-h-0 bg-bg-base border border-border rounded-lg p-3 text-sm font-mono resize-none focus:outline-none focus:border-signal/50 transition-colors"
             disabled={isSending}
           />
-          <div className="absolute bottom-2 right-2 text-xs text-text-tertiary">
-            {inputData.length} {t('terminal.characterCount')}
+          <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs text-text-tertiary">
+            {inputMode === 'hex' && inputData.trim() && (
+              <span className={hexValid ? 'text-signal' : 'text-alert'}>
+                {hexValid ? '✓' : '✗ Invalid HEX'}
+              </span>
+            )}
+            <span>{inputData.length} {t('terminal.characterCount')}</span>
           </div>
         </div>
 

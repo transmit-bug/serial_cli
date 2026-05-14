@@ -1,7 +1,7 @@
 //! Integration tests for Lua APIs
 
 use serial_cli::lua::executor::ScriptEngine;
-use serial_cli::lua::stdlib::LuaStdLib;
+use serial_cli::lua::ScriptRuntime;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -10,7 +10,7 @@ fn test_serial_api_integration() {
     let mut engine = ScriptEngine::new().unwrap();
     let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
     engine.bindings.set_port_manager(port_manager);
-    LuaStdLib::register_all_on(engine.bindings.lua()).unwrap();
+    ScriptRuntime::register_all(engine.bindings.lua()).unwrap();
     engine.bindings.register_all_apis().unwrap();
 
     let script = r#"
@@ -26,7 +26,7 @@ fn test_protocol_api_integration() {
     let mut engine = ScriptEngine::new().unwrap();
     let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
     engine.bindings.set_port_manager(port_manager);
-    LuaStdLib::register_all_on(engine.bindings.lua()).unwrap();
+    ScriptRuntime::register_all(engine.bindings.lua()).unwrap();
     engine.bindings.register_all_apis().unwrap();
 
     let script = r#"
@@ -50,7 +50,7 @@ fn test_protocol_api_integration() {
 #[test]
 fn test_conversion_api_integration() {
     let lua = mlua::Lua::new();
-    LuaStdLib::register_all_on(&lua).unwrap();
+    ScriptRuntime::register_all(&lua).unwrap();
 
     let script = r#"
         local bytes = hex_to_bytes("010203")
@@ -78,7 +78,7 @@ fn test_end_to_end_modbus_workflow() {
     let mut engine = ScriptEngine::new().unwrap();
     let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
     engine.bindings.set_port_manager(port_manager);
-    LuaStdLib::register_all_on(engine.bindings.lua()).unwrap();
+    ScriptRuntime::register_all(engine.bindings.lua()).unwrap();
     engine.bindings.register_all_apis().unwrap();
 
     let script = r#"
@@ -120,7 +120,7 @@ fn test_protocol_load_validate() {
     let mut engine = ScriptEngine::new().unwrap();
     let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
     engine.bindings.set_port_manager(port_manager);
-    LuaStdLib::register_all_on(engine.bindings.lua()).unwrap();
+    ScriptRuntime::register_all(engine.bindings.lua()).unwrap();
     engine.bindings.register_all_apis().unwrap();
 
     // Test loading a valid protocol

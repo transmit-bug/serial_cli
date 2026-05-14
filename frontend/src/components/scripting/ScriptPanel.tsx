@@ -58,12 +58,35 @@ export function ScriptPanel() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const outputRef = useRef<HTMLDivElement>(null)
   const { registerCallbacks } = useScriptActions()
 
   const activeScript = scripts.find(s => s.id === activeScriptId)
 
   // Limit output lines to prevent memory issues
   const MAX_OUTPUT_LINES = 1000
+
+  // Auto-scroll output to bottom
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight
+    }
+  }, [output])
+
+  // Auto-save script content (debounced)
+  useEffect(() => {
+    if (!activeScriptId) return
+    const timer = setTimeout(() => {
+      const updatedScripts = scripts.map(s =>
+        s.id === activeScriptId
+          ? { ...s, content: scriptContent, lastModified: Date.now() }
+          : s
+      )
+      setScripts(updatedScripts)
+      scriptsStorage.set(updatedScripts)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [scriptContent, activeScriptId, scripts])
 
   // Load scripts from storage on mount
   useEffect(() => {
@@ -208,6 +231,8 @@ export function ScriptPanel() {
   }
 
   const deleteScript = (id: string) => {
+    const script = scripts.find(s => s.id === id)
+    if (script && !window.confirm(`Delete script "${script.name}"?`)) return
     const updatedScripts = scripts.filter(s => s.id !== id)
     setScripts(updatedScripts)
     scriptsStorage.set(updatedScripts)
@@ -435,7 +460,7 @@ export function ScriptPanel() {
             </div>
           </div>
         )}
-        <div className="h-32 overflow-y-auto font-mono text-xs bg-bg-deepest rounded-md p-3 border border-border/50">
+        <div ref={outputRef} className="h-32 overflow-y-auto font-mono text-xs bg-bg-deepest rounded-md p-3 border border-border/50">
           {output.length === 0 ? (
             <p className="text-text-tertiary">{t('scripts.outputPlaceholder')}</p>
           ) : (

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { useQuickCommandStore, type QuickCommand, type QuickCommandMode } from '@/stores/quickCommandStore'
 import { useProtocolStore } from '@/stores'
-import { Send, Plus, Edit2, Trash2, X, Check, GripVertical } from 'lucide-react'
+import { Send, Plus, Edit2, Trash2, X, Check, GripVertical, ChevronUp, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -192,19 +192,17 @@ export function QuickCommandsCard() {
                   onClick={() => moveCommand(index, 'up')}
                   disabled={index === 0}
                   className="p-0 disabled:opacity-30 hover:!opacity-100"
+                  aria-label="Move up"
                 >
-                  <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="currentColor">
-                    <path d="M6 2L10 8H2L6 2Z" />
-                  </svg>
+                  <ChevronUp className="w-2.5 h-2.5" />
                 </button>
                 <button
                   onClick={() => moveCommand(index, 'down')}
                   disabled={index === commands.length - 1}
                   className="p-0 disabled:opacity-30 hover:!opacity-100"
+                  aria-label="Move down"
                 >
-                  <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="currentColor">
-                    <path d="M6 10L2 4H10L6 10Z" />
-                  </svg>
+                  <ChevronDown className="w-2.5 h-2.5" />
                 </button>
               </div>
 

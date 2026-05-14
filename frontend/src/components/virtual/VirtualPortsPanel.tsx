@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { useState, useMemo, useCallback } from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import {
   RefreshCw,
   Network,
@@ -35,6 +36,14 @@ const BACKEND_OPTIONS = [
 ]
 
 const BUFFER_SIZES = [4096, 8192, 16384, 32768, 65536]
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+  const hours = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  return `${hours}h ${mins}m`
+}
 
 export function VirtualPortsPanel() {
   const { t } = useTranslation()
@@ -85,6 +94,8 @@ export function VirtualPortsPanel() {
       setCreatingPort(null)
     } catch (err) {
       console.error('Failed to create virtual port:', err)
+      const msg = err instanceof Error ? err.message : 'Failed to create virtual port'
+      toast.error(msg)
     } finally {
       setCreating(false)
     }
@@ -248,7 +259,7 @@ export function VirtualPortsPanel() {
                         <div>
                           <div className="text-xs text-text-tertiary">{t('virtualPorts.uptime')}</div>
                           <div className="text-sm font-mono text-text-primary">
-                            {stats.uptime_secs}s
+                            {formatUptime(stats.uptime_secs)}
                           </div>
                         </div>
                       </div>
@@ -290,7 +301,10 @@ export function VirtualPortsPanel() {
                         {port.port_a}
                       </code>
                       <button
-                        onClick={() => navigator.clipboard.writeText(port.port_a)}
+                        onClick={() => {
+                          navigator.clipboard.writeText(port.port_a)
+                          toast.success(t('virtualPorts.copyToClipboard'))
+                        }}
                         className="text-text-tertiary hover:text-text-primary"
                         title={t('virtualPorts.copyToClipboard')}
                       >
@@ -303,7 +317,10 @@ export function VirtualPortsPanel() {
                         {port.port_b}
                       </code>
                       <button
-                        onClick={() => navigator.clipboard.writeText(port.port_b)}
+                        onClick={() => {
+                          navigator.clipboard.writeText(port.port_b)
+                          toast.success(t('virtualPorts.copyToClipboard'))
+                        }}
                         className="text-text-tertiary hover:text-text-primary"
                         title={t('virtualPorts.copyToClipboard')}
                       >

@@ -41,7 +41,7 @@ interface ConnectionState {
   statsPollingInterval: number
 
   // Actions
-  connect: (portName: string, config: SerialConfig) => Promise<void>
+  connect: (portName: string, config: SerialConfig, isVirtual?: boolean) => Promise<void>
   disconnect: () => Promise<void>
   checkHealth: () => Promise<boolean>
   refreshPortStatus: () => Promise<void>
@@ -77,12 +77,13 @@ export const useConnectionStore = create<ConnectionState>()(
     setStatsPollingInterval: (intervalMs) => set({ statsPollingInterval: intervalMs }),
 
     // Connect to a serial port
-    connect: async (portName, config) => {
+    connect: async (portName, config, isVirtual = false) => {
       set({ status: 'connecting', error: null })
       try {
         const portId = await invoke<string>('open_port', {
           portName,
           config,
+          isVirtual,
         })
 
         // Start data sniffing
@@ -126,7 +127,24 @@ export const useConnectionStore = create<ConnectionState>()(
       const { portId } = get()
       if (portId) {
         try {
+          // Detach script if attached
+          try {
+            await invoke('detach_script', { portId })
+          } catch {
+            // Ignore script detach errors
+          }
+
+          // Stop data sniffing
+          try {
+            await invoke('stop_sniffing', { portId })
+          } catch {
+            // Ignore sniffer stop errors (port may already be closed)
+          }
+
           await invoke('close_port', { portId })
+          // Clear script state
+          const { useSerialScriptStore } = await import('./serialScriptStore')
+          useSerialScriptStore.getState().clear()
           set({
             status: 'disconnected',
             portId: null,
@@ -137,9 +155,27 @@ export const useConnectionStore = create<ConnectionState>()(
           })
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error)
-          set({ error: errorMsg })
+          // Even if disconnect fails, clear the state to allow user to recover
+          set({
+            status: 'disconnected',
+            portId: null,
+            portName: null,
+            config: null,
+            error: null,
+            portStatus: null,
+          })
           throw error
         }
+      } else {
+        // No port ID - just clear error state (connection failed case)
+        set({
+          status: 'disconnected',
+          portId: null,
+          portName: null,
+          config: null,
+          error: null,
+          portStatus: null,
+        })
       }
     },
 

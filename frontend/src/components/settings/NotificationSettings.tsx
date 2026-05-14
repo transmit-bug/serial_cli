@@ -1,8 +1,10 @@
 import { useNotification } from '@/contexts/NotificationContext'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
+import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 export function NotificationSettings() {
   const { t } = useTranslation()
@@ -14,9 +16,15 @@ export function NotificationSettings() {
 
   const handleRequestPermission = async () => {
     setIsRequesting(true)
-    const granted = await requestNotificationPermission()
-    setPermissionStatus(granted ? 'granted' : 'denied')
-    setIsRequesting(false)
+    try {
+      const granted = await requestNotificationPermission()
+      setPermissionStatus(granted ? 'granted' : 'denied')
+    } catch {
+      toast.error('Failed to request notification permission')
+      setPermissionStatus('denied')
+    } finally {
+      setIsRequesting(false)
+    }
   }
 
   const getPermissionStatus = (): 'granted' | 'denied' | 'default' | 'unsupported' => {
@@ -78,18 +86,10 @@ export function NotificationSettings() {
                 <div className="text-sm text-text-primary">{t('notifications.masterToggle')}</div>
                 <div className="text-xs text-text-tertiary">{t('notifications.masterToggleHint')}</div>
               </div>
-              <button
-                onClick={() => updateSettings({ enabled: !settings.enabled })}
-                className={cn(
-                  'w-12 h-6 rounded-full p-1 transition-colors relative',
-                  settings.enabled ? 'bg-signal' : 'bg-bg-elevated'
-                )}
-              >
-                <div className={cn(
-                  'w-4 h-4 rounded-full bg-white transition-transform',
-                  settings.enabled ? 'translate-x-6' : 'translate-x-0'
-                )} />
-              </button>
+              <ToggleSwitch
+                checked={settings.enabled}
+                onChange={(v) => updateSettings({ enabled: v })}
+              />
             </div>
 
             {/* Sound */}
@@ -98,19 +98,11 @@ export function NotificationSettings() {
                 <div className="text-sm text-text-primary">{t('notifications.sound')}</div>
                 <div className="text-xs text-text-tertiary">{t('notifications.soundHint')}</div>
               </div>
-              <button
-                onClick={() => updateSettings({ sound: !settings.sound })}
+              <ToggleSwitch
+                checked={settings.sound}
+                onChange={(v) => updateSettings({ sound: v })}
                 disabled={!settings.enabled}
-                className={cn(
-                  'w-12 h-6 rounded-full p-1 transition-colors relative',
-                  settings.sound ? 'bg-signal' : 'bg-bg-elevated'
-                )}
-              >
-                <div className={cn(
-                  'w-4 h-4 rounded-full bg-white transition-transform',
-                  settings.sound ? 'translate-x-6' : 'translate-x-0'
-                )} />
-              </button>
+              />
             </div>
 
             {/* Port Events */}
@@ -119,19 +111,11 @@ export function NotificationSettings() {
                 <div className="text-sm text-text-primary">{t('notifications.portEvents')}</div>
                 <div className="text-xs text-text-tertiary">{t('notifications.portEventsHint')}</div>
               </div>
-              <button
-                onClick={() => updateSettings({ portEvents: !settings.portEvents })}
+              <ToggleSwitch
+                checked={settings.portEvents}
+                onChange={(v) => updateSettings({ portEvents: v })}
                 disabled={!settings.enabled}
-                className={cn(
-                  'w-12 h-6 rounded-full p-1 transition-colors relative',
-                  settings.portEvents ? 'bg-signal' : 'bg-bg-elevated'
-                )}
-              >
-                <div className={cn(
-                  'w-4 h-4 rounded-full bg-white transition-transform',
-                  settings.portEvents ? 'translate-x-6' : 'translate-x-0'
-                )} />
-              </button>
+              />
             </div>
 
             {/* Errors */}
@@ -140,19 +124,11 @@ export function NotificationSettings() {
                 <div className="text-sm text-text-primary">{t('notifications.errors')}</div>
                 <div className="text-xs text-text-tertiary">{t('notifications.errorsHint')}</div>
               </div>
-              <button
-                onClick={() => updateSettings({ errors: !settings.errors })}
+              <ToggleSwitch
+                checked={settings.errors}
+                onChange={(v) => updateSettings({ errors: v })}
                 disabled={!settings.enabled}
-                className={cn(
-                  'w-12 h-6 rounded-full p-1 transition-colors relative',
-                  settings.errors ? 'bg-signal' : 'bg-bg-elevated'
-                )}
-              >
-                <div className={cn(
-                  'w-4 h-4 rounded-full bg-white transition-transform',
-                  settings.errors ? 'translate-x-6' : 'translate-x-0'
-                )} />
-              </button>
+              />
             </div>
 
             {/* Script Complete */}
@@ -161,19 +137,11 @@ export function NotificationSettings() {
                 <div className="text-sm text-text-primary">{t('notifications.scriptComplete')}</div>
                 <div className="text-xs text-text-tertiary">{t('notifications.scriptCompleteHint')}</div>
               </div>
-              <button
-                onClick={() => updateSettings({ scriptComplete: !settings.scriptComplete })}
+              <ToggleSwitch
+                checked={settings.scriptComplete}
+                onChange={(v) => updateSettings({ scriptComplete: v })}
                 disabled={!settings.enabled}
-                className={cn(
-                  'w-12 h-6 rounded-full p-1 transition-colors relative',
-                  settings.scriptComplete ? 'bg-signal' : 'bg-bg-elevated'
-                )}
-              >
-                <div className={cn(
-                  'w-4 h-4 rounded-full bg-white transition-transform',
-                  settings.scriptComplete ? 'translate-x-6' : 'translate-x-0'
-                )} />
-              </button>
+              />
             </div>
           </div>
 

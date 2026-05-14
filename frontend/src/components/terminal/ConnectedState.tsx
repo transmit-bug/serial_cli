@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useDataStore, useConnectionStore } from '@/stores'
+import { useConnectionStore, useDataStore } from '@/stores'
 import { RxDataViewer } from './RxDataViewer'
 import { TxSender } from './TxSender'
 import { SidePanel } from './SidePanel'
 import { LogPanel } from './LogPanel'
+import { ScriptBadge } from './ScriptBadge'
 import { Eye, EyeOff } from 'lucide-react'
 
 /**
@@ -32,6 +33,7 @@ export function ConnectedState() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <ScriptBadge />
           <button
             onClick={() => setShowLogs(!showLogs)}
             className="p-1.5 rounded hover:bg-bg-elevated text-text-tertiary hover:text-text-primary transition-colors"
@@ -53,7 +55,7 @@ export function ConnectedState() {
         {/* 左侧：RX + TX（70%） */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* RX 数据显示区（60%） */}
-          <div className="flex-1 border-r border-border">
+          <div className="flex-1">
             <RxDataViewer />
           </div>
 

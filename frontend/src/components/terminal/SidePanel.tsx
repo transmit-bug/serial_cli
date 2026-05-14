@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { useConnectionStore, useDataStore, useProtocolStore, useNavigationStore } from '@/stores'
-import { Activity, Cpu, Zap, Settings } from 'lucide-react'
+import { Activity, Cpu, Zap, Settings, Database } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { QuickCommandsCard } from './QuickCommandsCard'
@@ -115,7 +115,7 @@ export function SidePanel() {
         {/* 数据统计卡片 */}
         <Card className="p-4 border-border/50">
           <div className="flex items-center gap-2 mb-3">
-            <Activity className="w-4 h-4 text-info" />
+            <Database className="w-4 h-4 text-info" />
             <h3 className="text-sm font-medium text-text-primary">{t('terminal.dataStats')}</h3>
           </div>
           <div className="space-y-2 text-xs">

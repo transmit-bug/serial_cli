@@ -10,20 +10,21 @@ export function TopBar() {
   const { availablePorts, activePorts } = usePorts()
   const { rxPackets } = useDataStore()
   const [dataFlowRate, setDataFlowRate] = useState(0)
-  const [lastPacketCount, setLastPacketCount] = useState(0)
   const [isTrafficActive, setIsTrafficActive] = useState(false)
+  const lastPacketCountRef = useRef(rxPackets.length)
   const trafficTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const activePortsCount = availablePorts.length
   const totalPackets = rxPackets.length
 
   // Calculate data flow rate (packets per second)
+  // Uses refs to avoid interval recreation on every packet
   useEffect(() => {
     const interval = setInterval(() => {
       const currentCount = rxPackets.length
-      const packetsPerSecond = currentCount - lastPacketCount
+      const packetsPerSecond = currentCount - lastPacketCountRef.current
+      lastPacketCountRef.current = currentCount
       setDataFlowRate(packetsPerSecond)
-      setLastPacketCount(currentCount)
 
       if (packetsPerSecond > 0) {
         setIsTrafficActive(true)
@@ -36,7 +37,8 @@ export function TopBar() {
       clearInterval(interval)
       if (trafficTimerRef.current) clearTimeout(trafficTimerRef.current)
     }
-  }, [rxPackets.length, lastPacketCount])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable interval, reads rxPackets.length directly
+  }, [])
 
   return (
     <header className="h-14 border-b border-border bg-bg-deep flex items-center justify-between px-6">

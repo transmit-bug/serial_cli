@@ -11,5 +11,6 @@ pub mod port;
 pub mod protocol;
 pub mod script;
 pub mod serial;
+pub mod serial_script;
 pub mod virtual_port;
 pub mod window;

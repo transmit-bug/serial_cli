@@ -6,6 +6,7 @@ pub mod backends;
 pub mod factory;
 pub mod io_loop;
 pub mod port;
+pub mod serial_script;
 pub mod signals;
 pub mod sniffer;
 pub mod virtual_port;
@@ -17,6 +18,7 @@ pub use backends::BackendType;
 pub use factory::BackendFactory;
 pub use io_loop::IoLoop;
 pub use port::{FlowControl, Parity, PortManager, SerialConfig, SerialPortHandle};
+pub use serial_script::SerialScriptEngine;
 pub use signals::{create_signal_controller, PlatformSignals, SignalState};
 pub use sniffer::{CapturedPacket, PacketDirection, SerialSniffer, SnifferConfig, SnifferSession};
 pub use virtual_port::{

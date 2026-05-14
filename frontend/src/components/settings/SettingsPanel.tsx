@@ -1,6 +1,7 @@
 import { NotificationSettings } from './NotificationSettings'
 import { Panel } from '@/components/ui/panel'
 import { cn } from '@/lib/utils'
+import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { RotateCcw, Check, Download, Upload, Settings, Radio, BarChart3, Bell, FileCode, Merge, GitCompare } from 'lucide-react'
 import { exportSettings, importSettings } from '@/lib/storage'
@@ -34,6 +35,7 @@ export function SettingsPanel() {
   const { setDisplayFormat, setShowTimestamp, setMaxPackets } = useDataStore()
   const [activeTab, setActiveTab] = useState<Tab>('general')
   const [isImporting, setIsImporting] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load backend config on mount
@@ -62,7 +64,15 @@ export function SettingsPanel() {
     setDisplayFormat(config.display.format === 'both' ? 'mixed' : config.display.format)
     setShowTimestamp(config.display.showTimestamp)
     setMaxPackets(config.display.maxPackets)
+    setHasUnsavedChanges(false)
   }, [config]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track unsaved changes
+  useEffect(() => {
+    if (config) {
+      setHasUnsavedChanges(true)
+    }
+  }, [settings]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show backend errors
   useEffect(() => {
@@ -93,7 +103,7 @@ export function SettingsPanel() {
     { id: 'serial', label: t('settings.serialTitle'), icon: Radio },
     { id: 'data', label: t('settings.dataTitle'), icon: BarChart3 },
     { id: 'notifications', label: t('settings.notificationsTitle'), icon: Bell },
-    { id: 'advanced', label: 'Advanced', icon: FileCode },
+    { id: 'advanced', label: t('settings.advancedTitle'), icon: FileCode },
   ]
 
   const resetToDefaults = async () => {
@@ -147,16 +157,25 @@ export function SettingsPanel() {
             onClick={async () => {
               try {
                 await saveConfig()
+                setHasUnsavedChanges(false)
                 toast.success(t('settings.saveSuccess'))
               } catch {
                 toast.error(t('settings.saveFailed'))
               }
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-signal text-black border border-signal hover:opacity-90 transition-colors"
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border transition-colors',
+              hasUnsavedChanges
+                ? 'bg-signal text-black border-signal hover:opacity-90'
+                : 'bg-bg-elevated text-text-secondary border-border hover:text-text-primary',
+            )}
             title={t('settings.saveToBackendHint')}
           >
             <Check size={14} strokeWidth={1.5} />
             {t('common.save')}
+            {hasUnsavedChanges && (
+              <span className="w-1.5 h-1.5 rounded-full bg-black/50" />
+            )}
           </button>
           <button
             onClick={handleExport}
@@ -442,31 +461,31 @@ export function SettingsPanel() {
       {activeTab === 'notifications' && <NotificationSettings />}
 
       {activeTab === 'advanced' && (
-        <Panel title="Advanced Configuration" variant="amber">
+        <Panel title={t('settings.advancedTitle')} variant="amber">
           <div className="space-y-6">
             {/* Configuration Validation */}
             <div>
-              <h4 className="text-sm font-medium text-text-primary mb-2">Configuration Validation</h4>
-              <p className="text-xs text-text-tertiary mb-3">Validate current configuration settings for errors and conflicts.</p>
+              <h4 className="text-sm font-medium text-text-primary mb-2">{t('settings.advancedValidation')}</h4>
+              <p className="text-xs text-text-tertiary mb-3">{t('settings.advancedValidationDesc')}</p>
               <button
                 onClick={async () => {
                   try {
                     await saveConfig()
-                    toast.success('Configuration is valid')
+                    toast.success(t('settings.advancedValidateSuccess'))
                   } catch (error) {
-                    toast.error(`Configuration validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                    toast.error(`${t('settings.advancedValidateFailed')}: ${error instanceof Error ? error.message : t('common.unknownError')}`)
                   }
                 }}
                 className="px-3 py-2 text-sm bg-amber/10 text-amber border border-amber/30 rounded-md hover:bg-amber/20 transition-colors"
               >
-                Validate Configuration
+                {t('settings.advancedValidate')}
               </button>
             </div>
 
             {/* Configuration Export (Enhanced) */}
             <div>
-              <h4 className="text-sm font-medium text-text-primary mb-2">Export Configuration</h4>
-              <p className="text-xs text-text-tertiary mb-3">Export current configuration as TOML or JSON format.</p>
+              <h4 className="text-sm font-medium text-text-primary mb-2">{t('settings.advancedExportTitle')}</h4>
+              <p className="text-xs text-text-tertiary mb-3">{t('settings.advancedExportDesc')}</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
@@ -479,96 +498,66 @@ export function SettingsPanel() {
                       a.download = `serial-config-${Date.now()}.json`
                       a.click()
                       URL.revokeObjectURL(url)
-                      toast.success('Configuration exported as JSON')
-                    } catch (error) {
-                      toast.error('Failed to export configuration')
+                      toast.success(t('settings.advancedExportJson'))
+                    } catch {
+                      toast.error(t('settings.exportFailed'))
                     }
                   }}
                   className="px-3 py-2 text-sm bg-bg-elevated text-text-secondary border border-border rounded-md hover:text-text-primary transition-colors"
                 >
-                  Export as JSON
+                  {t('settings.advancedExportJson')}
                 </button>
                 <button
                   onClick={handleExport}
                   className="px-3 py-2 text-sm bg-bg-elevated text-text-secondary border border-border rounded-md hover:text-text-primary transition-colors"
                 >
-                  Export as Frontend Settings
+                  {t('settings.advancedExportSettings')}
                 </button>
               </div>
             </div>
 
             {/* Configuration Backup & Restore */}
             <div>
-              <h4 className="text-sm font-medium text-text-primary mb-2">Configuration Backup & Restore</h4>
-              <p className="text-xs text-text-tertiary mb-3">Backup current configuration or restore from a previous backup.</p>
+              <h4 className="text-sm font-medium text-text-primary mb-2">{t('settings.advancedBackupTitle')}</h4>
+              <p className="text-xs text-text-tertiary mb-3">{t('settings.advancedBackupDesc')}</p>
               <div className="flex gap-2">
                 <button
                   onClick={async () => {
                     try {
-                      // Save current config as backup
                       await saveConfig()
-                      toast.success('Configuration backup created')
-                    } catch (error) {
-                      toast.error('Failed to create backup')
+                      toast.success(t('settings.advancedBackupSuccess'))
+                    } catch {
+                      toast.error(t('settings.advancedBackupFailed'))
                     }
                   }}
                   className="px-3 py-2 text-sm bg-bg-elevated text-text-secondary border border-border rounded-md hover:text-text-primary transition-colors"
                 >
-                  Create Backup
+                  {t('settings.advancedBackupCreate')}
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isImporting}
                   className="px-3 py-2 text-sm bg-bg-elevated text-text-secondary border border-border rounded-md hover:text-text-primary transition-colors disabled:opacity-50"
                 >
-                  Restore from Backup
+                  {t('settings.advancedBackupRestore')}
                 </button>
               </div>
             </div>
 
             {/* Configuration Reset */}
             <div className="pt-4 border-t border-border">
-              <h4 className="text-sm font-medium text-text-primary mb-2">Danger Zone</h4>
-              <p className="text-xs text-text-tertiary mb-3">Reset all configuration to factory defaults. This action cannot be undone.</p>
+              <h4 className="text-sm font-medium text-text-primary mb-2">{t('settings.advancedDanger')}</h4>
+              <p className="text-xs text-text-tertiary mb-3">{t('settings.advancedDangerDesc')}</p>
               <button
                 onClick={resetToDefaults}
                 className="px-3 py-2 text-sm bg-alert/10 text-alert border border-alert/30 rounded-md hover:bg-alert/20 transition-colors"
               >
-                Reset to Factory Defaults
+                {t('settings.advancedReset')}
               </button>
             </div>
           </div>
         </Panel>
       )}
     </div>
-  )
-}
-
-function ToggleSwitch({
-  checked,
-  onChange,
-}: {
-  checked: boolean
-  onChange?: (checked: boolean) => void
-}) {
-  const handleChange = () => {
-    onChange?.(!checked)
-  }
-
-  return (
-    <button
-      onClick={handleChange}
-      className={cn(
-        'w-12 h-6 rounded-full p-1 transition-colors relative',
-        checked ? 'bg-signal' : 'bg-bg-elevated'
-      )}
-    >
-      <div className={cn(
-        'w-4 h-4 rounded-full bg-white transition-transform flex items-center justify-center',
-        checked ? 'translate-x-6' : 'translate-x-0'
-      )}>
-        {checked && <Check size={10} strokeWidth={3} className="text-signal" />}
-      </div>
-    </button>
   )
 }

@@ -161,7 +161,7 @@ impl RpcDispatcher {
             .and_then(|v| v.as_u64())
             .unwrap_or(115200) as u32;
 
-        let protocol = params.get("protocol").and_then(|v| v.as_str());
+        let protocol_name = params.get("protocol").and_then(|v| v.as_str());
 
         if self.state.is_max_connections_reached().await {
             return Err((-32000, "Max connections reached".to_string(), None));
@@ -181,11 +181,29 @@ impl RpcDispatcher {
             .await
             .map_err(|e| (-32603, e.to_string(), None))?;
 
+        // Attach protocol instance to the port handle if one was requested
+        if let Some(proto_name) = protocol_name {
+            let registry = self.state.protocol_registry.lock().await;
+            let port_manager = self.state.port_manager.lock().await;
+            if let Err(e) = port_manager
+                .set_port_protocol_by_name(&port_id, &registry, proto_name)
+                .await
+            {
+                tracing::warn!(
+                    "Failed to attach protocol '{}' to port {}: {}",
+                    proto_name,
+                    port_id,
+                    e
+                );
+                // Don't fail the open — the port works without a protocol
+            }
+        }
+
         let connection_id = port_id.clone();
         let ctx = ConnectionContext {
             connection_id: connection_id.clone(),
             port_id: Some(port_id.clone()),
-            protocol_name: protocol.map(|s| s.to_string()),
+            protocol_name: protocol_name.map(|s| s.to_string()),
             created_at: SystemTime::now(),
             last_activity: SystemTime::now(),
         };
@@ -195,17 +213,10 @@ impl RpcDispatcher {
             .await
             .map_err(|e| (-32603, e.to_string(), None))?;
 
-        // Protocol name is already stored in ConnectionContext.protocol_name.
-        // v0.6.0 TODO: Use the protocol for encode/decode in port_send/port_recv:
-        //   - Get a fresh protocol instance from state.protocol_registry.get_protocol(protocol_name)
-        //   - In port_send: encode(data) before writing to the port
-        //   - In port_recv: parse(raw_bytes) before returning to the client
-        //   This requires a per-connection protocol instance cache to avoid factory churn.
-
         Ok(serde_json::json!({
             "connection_id": connection_id,
             "port": port,
-            "protocol": protocol,
+            "protocol": protocol_name,
         }))
     }
 
@@ -357,7 +368,10 @@ impl RpcDispatcher {
         .await;
 
         let (data_hex, bytes_read, timed_out) = match read_result {
-            Ok(Ok((Ok(n), buffer))) => (hex_encode(&buffer), n, false),
+            Ok(Ok((Ok(n), buffer))) => {
+                let n = n.min(buffer.len());
+                (hex_encode(&buffer[..n]), n, false)
+            }
             Ok(Ok((Err(e), _))) => return Err((-32603, e.to_string(), None)),
             Ok(Err(e)) => return Err((-32603, format!("Task join error: {:?}", e), None)),
             Err(_) => {

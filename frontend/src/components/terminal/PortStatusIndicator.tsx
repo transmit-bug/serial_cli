@@ -3,6 +3,7 @@ import { useEvents } from '@/hooks/useEvents'
 import { useConnectionStore } from '@/stores'
 import { Circle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 /**
  * PortStatusIndicator - Real-time port status indicator
@@ -14,6 +15,7 @@ export function PortStatusIndicator() {
   const { onPortStatusChanged } = useEvents()
   const [lastActivity, setLastActivity] = useState<number | null>(null)
   const [isActive, setIsActive] = useState(false)
+  const { t } = useTranslation()
 
   useEffect(() => {
     if (!portId) return
@@ -35,7 +37,7 @@ export function PortStatusIndicator() {
     return (
       <div className="flex items-center gap-2 text-xs text-text-tertiary">
         <Circle className="w-2 h-2 fill-current" />
-        <span>Not connected</span>
+        <span>{t('connection.disconnected')}</span>
       </div>
     )
   }

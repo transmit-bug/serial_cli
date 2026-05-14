@@ -183,7 +183,9 @@
 **Platform support**: Linux/macOS/Windows
 **CI/CD**: Production-grade four-stage pipeline
 
-**最近更新** (2026-05-13):
+**最近更新** (2026-05-14):
+- ✅ Bug fix: 过滤掉会导致 ENOTTY 错误的伪终端设备（debug-console、pty.、ttys）
+- ✅ Bug fix: 修复关闭串口后 sniffer 报错（connectionStore.ts:136 添加 stop_sniffing 调用）
 - ✅ 所有 P1 和 P2 功能已完成实现
 - ✅ 集成测试和用户验收测试完成
 - ✅ 前端类型安全改进（移除所有 `any` 类型）

@@ -1,8 +1,10 @@
 //! Lua protocol extension interface
 //!
 //! This module allows users to define custom protocols in Lua.
+//! Custom protocol scripts get access to all tool functions via [`ScriptRuntime`](crate::lua::runtime::ScriptRuntime).
 
 use crate::error::{ProtocolError, Result, SerialError};
+use crate::lua::runtime::ScriptRuntime;
 use crate::protocol::{Protocol, ProtocolStats};
 use mlua::{Function, Lua, Value};
 
@@ -53,11 +55,14 @@ impl LuaProtocol {
     }
 
     /// Execute Lua callback and return result as bytes
-    /// Creates a fresh Lua instance per call for thread safety
+    /// Creates a fresh Lua instance per call for thread safety, with ScriptRuntime tools registered.
     fn execute_callback(&self, callback_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         if let Some(ref script) = self.script {
             // Create fresh Lua instance for this call (thread-safe)
             let lua = Lua::new();
+
+            // Register unified tool functions
+            let _ = ScriptRuntime::register_all(&lua);
 
             // Load and cache the script
             lua.load(script).exec().map_err(|e| {
@@ -133,6 +138,7 @@ impl Protocol for LuaProtocol {
         // Execute Lua on_reset callback if it exists
         if let Some(ref script) = self.script {
             let lua = Lua::new();
+            let _ = ScriptRuntime::register_all(&lua);
 
             // Load the script
             let _ = lua.load(script).exec();

@@ -2,6 +2,10 @@
 export interface SerialPort {
   port_name: string
   port_type: string
+  /** Whether this is a virtual port (PTY/named-pipe/socat) */
+  is_virtual?: boolean
+  /** Virtual port pair ID (only set when is_virtual == true) */
+  virtual_id?: string
 }
 
 export interface PortConfig {
@@ -93,4 +97,9 @@ export interface CapturedPacket {
   direction: string
   data: number[]
   timestamp_millis: number
+}
+
+export interface ScriptStatus {
+  has_script: boolean
+  timer_interval_ms: number
 }

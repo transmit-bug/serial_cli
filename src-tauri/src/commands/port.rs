@@ -11,24 +11,62 @@ use crate::state::port_state::{PortStats, PortStatus, SerialConfig};
 use serial_cli::serial_core::{FlowControl, Parity, PortManager, SerialConfig as CoreSerialConfig};
 use tauri::State;
 
-/// List available serial ports
+/// List available serial ports (includes hardware + virtual ports)
 #[tauri::command]
 pub async fn list_ports(state: State<'_, AppState>) -> Result<Vec<PortInfo>, String> {
     use tokio::sync::MutexGuard;
 
+    // Get hardware ports
     let manager: MutexGuard<serial_cli::serial_core::PortManager> = state.port_manager.lock().await;
-    manager
+    let hw_ports = manager
         .list_ports()
         .map(|ports| {
             ports
                 .into_iter()
+                .filter(|p| {
+                    // Filter out debug consoles and pseudo-terminals that cause ENOTTY errors
+                    !p.port_name.contains("debug-console")
+                        && !p.port_name.contains("pty.")
+                        && !p.port_name.contains("ttys")
+                })
                 .map(|p| PortInfo {
                     port_name: p.port_name,
                     port_type: format!("{:?}", p.port_type),
+                    is_virtual: false,
+                    virtual_id: None,
                 })
-                .collect()
+                .collect::<Vec<_>>()
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Get virtual ports from registry (sorted by port_name for stability)
+    let registry = state.virtual_port_registry.read().await;
+    let mut virt_ports: Vec<PortInfo> = {
+        let mut ports = Vec::new();
+        for (id, pair) in registry.iter() {
+            ports.push(PortInfo {
+                port_name: pair.port_a.clone(),
+                port_type: format!("Virtual ({:?})", pair.backend_type),
+                is_virtual: true,
+                virtual_id: Some(id.clone()),
+            });
+            ports.push(PortInfo {
+                port_name: pair.port_b.clone(),
+                port_type: format!("Virtual ({:?})", pair.backend_type),
+                is_virtual: true,
+                virtual_id: Some(id.clone()),
+            });
+        }
+        ports
+    };
+    virt_ports.sort_by(|a, b| a.port_name.cmp(&b.port_name));
+    drop(registry);
+
+    // Merge: hardware ports first, then virtual ports
+    let mut all_ports = hw_ports;
+    all_ports.extend(virt_ports);
+
+    Ok(all_ports)
 }
 
 /// Open a serial port
@@ -36,6 +74,7 @@ pub async fn list_ports(state: State<'_, AppState>) -> Result<Vec<PortInfo>, Str
 pub async fn open_port(
     port_name: String,
     config: SerialConfig,
+    is_virtual: Option<bool>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
@@ -44,6 +83,8 @@ pub async fn open_port(
     let manager: MutexGuard<PortManager> = state.port_manager.lock().await;
 
     // Convert UI config to core config
+    // Note: DTR/RTS are always disabled in the UI config
+    // For hardware ports, they will be set conditionally in open_port
     let core_config = CoreSerialConfig {
         baudrate: config.baudrate,
         databits: config.databits,
@@ -56,7 +97,7 @@ pub async fn open_port(
     };
 
     let port_id = manager
-        .open_port(&port_name, core_config)
+        .open_port_virtual(&port_name, core_config, is_virtual.unwrap_or(false))
         .await
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
 
@@ -221,6 +262,12 @@ pub async fn check_port_health(
 pub struct PortInfo {
     pub port_name: String,
     pub port_type: String,
+    /// Whether this is a virtual port (PTY/named-pipe/socat)
+    #[serde(default)]
+    pub is_virtual: bool,
+    /// Virtual port pair ID (only set when is_virtual == true)
+    #[serde(default)]
+    pub virtual_id: Option<String>,
 }
 
 /// Parse parity from string

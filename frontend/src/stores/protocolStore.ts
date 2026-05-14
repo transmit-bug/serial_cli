@@ -11,7 +11,7 @@ interface ProtocolState {
 
   // Actions
   loadProtocols: () => Promise<void>
-  setActiveProtocol: (name: string | null) => void
+  setActiveProtocol: (name: string | null) => Promise<void>
   enableProtocol: (name: string) => Promise<void>
   disableProtocol: (name: string) => Promise<void>
   reloadProtocol: (name: string) => Promise<void>
@@ -38,8 +38,22 @@ export const useProtocolStore = create<ProtocolState>()(
       }
     },
 
-    // Set active protocol
-    setActiveProtocol: (name) => set({ activeProtocol: name }),
+    // Set active protocol and activate on the connected port
+    setActiveProtocol: async (name) => {
+      set({ activeProtocol: name })
+
+      // If a port is connected, set the protocol on it so backend encode/parse works
+      const { useConnectionStore } = await import('@/stores/connectionStore')
+      const { portId } = useConnectionStore.getState()
+      if (portId && name) {
+        try {
+          await invoke('set_port_protocol', { portId, protocolName: name })
+        } catch {
+          // Backend protocol not found — already tracked in activeProtocol state
+          // The frontend encode/decode path will still work via protocol_encode/decode commands
+        }
+      }
+    },
 
     // Enable/load protocol
     enableProtocol: async (name) => {

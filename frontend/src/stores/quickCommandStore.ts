@@ -126,7 +126,7 @@ export const useQuickCommandStore = create<QuickCommandState>()(
       if (cmd.protocol) {
         try {
           const encodedData = await invoke<number[]>('protocol_encode', {
-            protocolName: cmd.protocol,
+            protocol: cmd.protocol,
             data,
           })
           data = encodedData

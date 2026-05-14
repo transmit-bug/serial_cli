@@ -297,7 +297,7 @@ impl InteractiveShell {
                     println!("  Flow control: {:?}", handle.config().flow_control);
 
                     // Show protocol information
-                    match handle.protocol() {
+                    match handle.protocol_name() {
                         Some(protocol) => println!("  Protocol: {}", protocol),
                         None => println!("  Protocol: (none - raw mode)"),
                     }
@@ -356,7 +356,7 @@ impl InteractiveShell {
     /// Show protocol status for current port
     async fn show_protocol_status(&self) -> Result<()> {
         if let Some(ref port_id) = self.current_port_id {
-            match self.manager.get_port_protocol(port_id).await {
+            match self.manager.get_port_protocol_name(port_id).await {
                 Ok(Some(protocol)) => {
                     println!("Current protocol: {}", protocol);
                     println!();
@@ -407,19 +407,22 @@ impl InteractiveShell {
             return Ok(());
         }
 
-        // Validate protocol name
-        if !crate::protocol::built_in::is_builtin_protocol(protocol_name) {
-            println!("Unknown protocol: {}", protocol_name);
-            println!();
-            println!("Available protocols:");
-            self.list_protocols().await?;
-            return Ok(());
-        }
+        // Validate and create protocol instance
+        let protocol = match crate::protocol::built_in::create_builtin_protocol(protocol_name) {
+            Some(p) => p,
+            None => {
+                println!("Unknown protocol: {}", protocol_name);
+                println!();
+                println!("Available protocols:");
+                self.list_protocols().await?;
+                return Ok(());
+            }
+        };
 
         let port_id = self.current_port_id.as_ref().unwrap();
         match self
             .manager
-            .set_port_protocol(port_id, Some(protocol_name.to_string()))
+            .set_port_protocol_instance(port_id, Some(protocol))
             .await
         {
             Ok(_) => {
@@ -446,7 +449,7 @@ impl InteractiveShell {
         }
 
         let port_id = self.current_port_id.as_ref().unwrap();
-        match self.manager.set_port_protocol(port_id, None).await {
+        match self.manager.set_port_protocol_instance(port_id, None).await {
             Ok(_) => {
                 println!("Protocol cleared from port");
                 println!("Data will be processed as raw bytes");

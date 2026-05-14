@@ -10,6 +10,8 @@
 //! - [`SerialPortInfo`] — metadata about an enumerated port
 
 use crate::error::{Result, SerialError, SerialPortError};
+use crate::protocol::{Protocol, ProtocolRegistry};
+use crate::serial_core::serial_script::SerialScriptEngine;
 #[cfg(unix)]
 use crate::serial_core::signals::PlatformSignals;
 use std::collections::HashMap;
@@ -85,7 +87,8 @@ pub struct SerialPortHandle {
     name: String,
     port: Box<dyn serialport::SerialPort>,
     config: SerialConfig,
-    protocol: Option<String>,
+    protocol: Option<Box<dyn Protocol>>,
+    script_engine: Option<SerialScriptEngine>,
     dtr_state: bool,
     rts_state: bool,
     #[cfg(unix)]
@@ -318,6 +321,7 @@ impl PortManager {
             port,
             config,
             protocol: None,
+            script_engine: None,
             dtr_state,
             rts_state,
             #[cfg(unix)]
@@ -359,6 +363,31 @@ impl PortManager {
         Ok(port_id)
     }
 
+    /// Open a serial port with virtual port detection.
+    ///
+    /// This is a wrapper around `open_port` that skips DTR/RTS initialization
+    /// for virtual ports (PTY, named pipes, etc.) which don't support modem
+    /// control signals via ioctl.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Port device path (e.g., `/dev/ttyUSB0`, `/dev/pts/0`)
+    /// * `config` - Serial port settings
+    /// * `is_virtual` - Whether this is a virtual port that doesn't support DTR/RTS
+    pub async fn open_port_virtual(
+        &self,
+        name: &str,
+        mut config: SerialConfig,
+        is_virtual: bool,
+    ) -> Result<String> {
+        // For virtual ports, disable DTR/RTS to avoid ENOTTY errors
+        if is_virtual {
+            config.dtr_enable = false;
+            config.rts_enable = false;
+        }
+        self.open_port(name, config).await
+    }
+
     /// Close a serial port by its unique ID and remove it from the registry.
     ///
     /// # Errors
@@ -387,20 +416,37 @@ impl PortManager {
             .ok_or_else(|| SerialError::Serial(SerialPortError::PortNotFound(port_id.to_string())))
     }
 
-    /// Associate a protocol name with an open port.
+    /// Associate a protocol instance with an open port.
     ///
     /// # Errors
     ///
     /// Returns [`SerialError::Serial`] if the port ID is not found.
-    pub async fn set_port_protocol(
+    pub async fn set_port_protocol_instance(
         &self,
         port_id: &str,
-        protocol_name: Option<String>,
+        protocol: Option<Box<dyn Protocol>>,
     ) -> Result<()> {
         let port_handle = self.get_port(port_id).await?;
         let mut handle = port_handle.lock().await;
-        handle.set_protocol(protocol_name);
+        handle.set_protocol_instance(protocol);
         Ok(())
+    }
+
+    /// Associate a protocol by name with an open port.
+    /// Resolves the name to a protocol instance via the given registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found or the protocol is not registered.
+    pub async fn set_port_protocol_by_name(
+        &self,
+        port_id: &str,
+        registry: &ProtocolRegistry,
+        protocol_name: &str,
+    ) -> Result<()> {
+        let protocol = registry.get_protocol(protocol_name).await?;
+        self.set_port_protocol_instance(port_id, Some(protocol))
+            .await
     }
 
     /// Get the protocol name associated with a port.
@@ -408,10 +454,10 @@ impl PortManager {
     /// # Errors
     ///
     /// Returns [`SerialError::Serial`] if the port ID is not found.
-    pub async fn get_port_protocol(&self, port_id: &str) -> Result<Option<String>> {
+    pub async fn get_port_protocol_name(&self, port_id: &str) -> Result<Option<String>> {
         let port_handle = self.get_port(port_id).await?;
         let handle = port_handle.lock().await;
-        Ok(handle.protocol().map(|s| s.to_string()))
+        Ok(handle.protocol_name().map(|s| s.to_string()))
     }
 
     /// Set the DTR (Data Terminal Ready) signal for a port.
@@ -460,6 +506,86 @@ impl PortManager {
         let port_handle = self.get_port(port_id).await?;
         let handle = port_handle.lock().await;
         Ok(handle.rts_enabled())
+    }
+
+    /// Attach a Lua script engine to an open port.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the port is not found or a script is already attached.
+    pub async fn attach_script(
+        &self,
+        port_id: &str,
+        engine: SerialScriptEngine,
+    ) -> Result<()> {
+        let port_handle = self.get_port(port_id).await?;
+        let mut handle = port_handle.lock().await;
+        // Safety: the script engine is attached to this handle and the port
+        // pointer remains valid as long as the handle exists.
+        unsafe { handle.attach_script(engine) }
+    }
+
+    /// Detach the script engine from an open port.
+    /// Calls `on_close` and stops the timer before detaching.
+    pub async fn detach_script(&self, port_id: &str) -> Result<()> {
+        let port_handle = self.get_port(port_id).await?;
+        let mut handle = port_handle.lock().await;
+        handle.detach_script();
+        Ok(())
+    }
+
+    /// Check if a port has a script engine attached.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
+    pub async fn has_script(&self, port_id: &str) -> Result<bool> {
+        let port_handle = self.get_port(port_id).await?;
+        let handle = port_handle.lock().await;
+        Ok(handle.has_script())
+    }
+
+    /// Get script status for a port. Returns a tuple of (has_script, timer_interval_ms).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
+    pub async fn get_script_status(&self, port_id: &str) -> Result<(bool, u64)> {
+        let port_handle = self.get_port(port_id).await?;
+        let handle = port_handle.lock().await;
+        Ok((handle.has_script(), handle.script_timer_interval_ms()))
+    }
+}
+
+/// Thin wrapper to assert `*mut dyn SerialPort` is safe to Send/Sync between threads.
+///
+/// Safety: The pointer is only valid while the `SerialPortHandle` is alive.
+/// The script engine (which holds the callback) is always dropped before the handle.
+#[derive(Clone)]
+struct PortPtr(Arc<PortPtrInner>);
+
+struct PortPtrInner {
+    ptr: std::ptr::NonNull<dyn serialport::SerialPort>,
+}
+
+// Safety: All accesses to the port through this pointer are serialized by the
+// SerialPortHandle's tokio::Mutex. The pointer is valid as long as the handle exists.
+unsafe impl Send for PortPtr {}
+unsafe impl Sync for PortPtr {}
+
+impl PortPtr {
+    fn new(ptr: *mut dyn serialport::SerialPort) -> Self {
+        Self(Arc::new(PortPtrInner {
+            // Safety: caller guarantees the pointer is non-null and valid
+            ptr: unsafe { std::ptr::NonNull::new_unchecked(ptr) },
+        }))
+    }
+
+    /// Write data to the serial port.
+    /// Safety: the underlying port pointer must be valid.
+    unsafe fn write_all(&self, data: &[u8]) -> std::io::Result<()> {
+        let raw: *mut dyn serialport::SerialPort = self.0.ptr.as_ptr();
+        (&mut *raw).write_all(data)
     }
 }
 
@@ -531,13 +657,78 @@ impl SerialPortHandle {
     }
 
     /// Get the protocol name associated with this port, if one has been set.
-    pub fn protocol(&self) -> Option<&str> {
-        self.protocol.as_deref()
+    pub fn protocol_name(&self) -> Option<&str> {
+        self.protocol.as_ref().map(|p| p.name())
     }
 
-    /// Set or clear the protocol association for this port.
-    pub fn set_protocol(&mut self, protocol_name: Option<String>) {
-        self.protocol = protocol_name;
+    /// Set the protocol instance for this port.
+    pub fn set_protocol_instance(&mut self, protocol: Option<Box<dyn Protocol>>) {
+        self.protocol = protocol;
+    }
+
+    /// Attach a Lua script engine to this port.
+    ///
+    /// The script's `on_open` hook is called immediately with the port name and config.
+    /// If the script defines `on_timer`, the timer is started automatically.
+    ///
+    /// The `serial_send()` Lua API is automatically wired to write directly to
+    /// the underlying serial port (bypassing protocol encoding for auto-reply).
+    pub unsafe fn attach_script(
+        &mut self,
+        engine: SerialScriptEngine,
+    ) -> Result<()> {
+        if self.script_engine.is_some() {
+            return Err(SerialError::Script(
+                crate::error::ScriptError::ApiError(
+                    "A script is already attached to this port".to_string(),
+                ),
+            ));
+        }
+
+        // Capture a raw pointer to the port for the send callback.
+        // Safety: The callback is only invoked while the script engine is attached
+        // to this handle, guaranteeing the port pointer remains valid.
+        // All accesses are serialized by the SerialPortHandle's outer lock.
+        let port_ptr = PortPtr::new(&mut *self.port);
+        let send_fn = Arc::new(move |data: &[u8]| {
+            // Safety: port_ptr is valid as long as the script is attached,
+            // and all writes are serialized by the handle's outer lock.
+            unsafe { port_ptr.write_all(data) }.map_err(|e| {
+                SerialError::Serial(SerialPortError::IoError(e.to_string()))
+            })?;
+            Ok(data.len())
+        });
+
+        engine.set_send_callback(send_fn)?;
+        engine.load()?;
+
+        // Call on_open hook
+        engine.on_open(&self.name, &self.config);
+
+        self.script_engine = Some(engine);
+        Ok(())
+    }
+
+    /// Detach the script engine from this port.
+    /// Calls `on_close` and stops the timer before detaching.
+    pub fn detach_script(&mut self) {
+        if let Some(engine) = self.script_engine.take() {
+            engine.on_close();
+            // engine is dropped, which calls Drop::drop() → stop_timer()
+        }
+    }
+
+    /// Check if a script engine is attached.
+    pub fn has_script(&self) -> bool {
+        self.script_engine.is_some()
+    }
+
+    /// Get the script engine's timer interval (0 = disabled).
+    pub fn script_timer_interval_ms(&self) -> u64 {
+        self.script_engine
+            .as_ref()
+            .map(|e| e.timer_interval_ms())
+            .unwrap_or(0)
     }
 
     /// Set the DTR signal state. Reverts on platform control failure to keep
@@ -637,32 +828,104 @@ impl SerialPortHandle {
 
     /// Write raw bytes to the serial port. Returns the number of bytes written.
     ///
+    /// Data flow: raw data → script `on_send()` → protocol `encode()` → serial port.
+    /// The script can intercept, modify, or block the data entirely.
+    ///
     /// # Errors
     ///
     /// Returns [`SerialError::Serial`] with [`IoError`](SerialPortError::IoError)
     /// if the underlying write fails.
     pub fn write(&mut self, data: &[u8]) -> Result<usize> {
+        // Step 1: Script engine hook (on_send)
+        let after_script = if let Some(ref engine) = self.script_engine {
+            engine.on_send(data)?
+        } else {
+            data.to_vec()
+        };
+
+        // If script returned nil (intercepted), don't send anything
+        if after_script.is_empty() && self.script_engine.is_some() {
+            return Ok(0);
+        }
+
+        // Step 2: Protocol encoding
+        let encoded = if let Some(ref mut proto) = self.protocol {
+            proto.encode(&after_script).map_err(|e| {
+                SerialError::Protocol(crate::error::ProtocolError::InvalidFrame(format!(
+                    "encode failed: {e}"
+                )))
+            })?
+        } else {
+            after_script
+        };
+
+        // Step 3: Write to serial port
         self.port
-            .write(data)
+            .write(&encoded)
             .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
     }
 
     /// Read bytes from the serial port into the provided buffer.
     /// Returns the number of bytes actually read. Respects the configured timeout.
     ///
+    /// Data flow: serial port → protocol `parse()` → script `on_recv()` → caller.
+    /// The script can intercept, modify, suppress, or auto-reply to received data.
+    ///
     /// # Errors
     ///
     /// Returns [`SerialError::Serial`] with [`IoError`](SerialPortError::IoError)
     /// if the read fails (e.g., timeout, disconnected).
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.port
+        let n = self
+            .port
             .read(buf)
-            .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
+            .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))?;
+
+        if n == 0 {
+            return Ok(0);
+        }
+
+        // Step 1: Protocol parsing
+        let after_protocol = if let Some(ref mut proto) = self.protocol {
+            let raw = &buf[..n];
+            match proto.parse(raw) {
+                Ok(parsed) => {
+                    if parsed.is_empty() {
+                        // Incomplete frame — no data to return yet
+                        return Ok(0);
+                    }
+                    parsed
+                }
+                Err(_) => {
+                    // Parse error — return raw data as-is
+                    tracing::debug!("protocol parse error, returning raw data");
+                    buf[..n].to_vec()
+                }
+            }
+        } else {
+            buf[..n].to_vec()
+        };
+
+        // Step 2: Script engine hook (on_recv) — can auto-reply via serial_send
+        let after_script = if let Some(ref engine) = self.script_engine {
+            engine.on_recv(&after_protocol)
+        } else {
+            after_protocol
+        };
+
+        // Copy result back to buffer
+        let len = after_script.len().min(buf.len());
+        buf[..len].copy_from_slice(&after_script[..len]);
+        Ok(len)
     }
 
-    /// Close the port, consuming `self`. This is a no-op since the port
-    /// is dropped when the handle goes out of scope.
-    pub fn close(self) -> Result<()> {
+    /// Close the port, consuming `self`. Calls the script's `on_close` hook
+    /// and stops the timer before dropping.
+    pub fn close(mut self) -> Result<()> {
+        if let Some(engine) = self.script_engine.take() {
+            engine.on_close();
+            // engine dropped → Drop::drop() → stop_timer()
+        }
         Ok(())
     }
 }

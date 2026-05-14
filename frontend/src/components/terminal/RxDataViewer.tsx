@@ -2,7 +2,7 @@ import { useDataStore, useProtocolStore } from '@/stores'
 import { VirtualList } from '@/components/ui/virtual-list'
 import { Button } from '@/components/ui/button'
 import { Trash2, Download, Search, ChevronDown } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -15,10 +15,23 @@ export function RxDataViewer() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [useProtocolDecode, setUseProtocolDecode] = useState(false)
-  const [decodedData, setDecodedData] = useState<Map<string, string>>(new Map())
+  const [decodedData, setDecodedData] = useState<Map<string, number[] | null>>(new Map())
   const [isDecoding, setIsDecoding] = useState(false)
   const [exportFormat, setExportFormat] = useState<'txt' | 'csv' | 'json'>('txt')
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close export menu on click outside
+  useEffect(() => {
+    if (!showExportMenu) return
+    const handler = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showExportMenu])
 
   // Auto-decode new packets when protocol decode is enabled
   useEffect(() => {
@@ -34,14 +47,14 @@ export function RxDataViewer() {
           if (newDecodedData.has(packetKey)) continue
 
           try {
-            const decoded = await invoke<string>('protocol_decode', {
-              protocolName: activeProtocol,
+            const decoded = await invoke<number[]>('protocol_decode', {
+              protocol: activeProtocol,
               data: packet.data,
             })
             newDecodedData.set(packetKey, decoded)
           } catch (decodeError) {
             console.error('Decode error:', decodeError)
-            newDecodedData.set(packetKey, `Decode error: ${decodeError instanceof Error ? decodeError.message : 'Unknown error'}`)
+            newDecodedData.set(packetKey, null)
           }
         }
 
@@ -54,7 +67,7 @@ export function RxDataViewer() {
     if (useProtocolDecode && activeProtocol && rxPackets.length > 0) {
       decodePackets()
     }
-  })
+  }, [useProtocolDecode, activeProtocol, rxPackets])
 
   const filteredPackets = searchQuery
     ? rxPackets.filter(p => {
@@ -69,8 +82,20 @@ export function RxDataViewer() {
     if (useProtocolDecode && activeProtocol) {
       const packetKey = `${timestamp}-${data.length}`
       const decoded = decodedData.get(packetKey)
-      if (decoded) {
-        return decoded
+      if (decoded !== undefined) {
+        if (decoded === null) {
+          return '(incomplete frame)'
+        }
+        const renderData = decoded
+        if (displayFormat === 'hex') {
+          return new Uint8Array(renderData).reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
+        } else if (displayFormat === 'ascii') {
+          return String.fromCharCode(...renderData)
+        } else {
+          const hex = new Uint8Array(renderData).reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
+          const ascii = String.fromCharCode(...renderData)
+          return hex + ' | ' + ascii
+        }
       }
     }
 
@@ -208,7 +233,7 @@ export function RxDataViewer() {
           </Button>
 
           {/* 导出按钮 */}
-          <div className="relative">
+          <div ref={exportMenuRef} className="relative">
             <Button
               variant="ghost"
               size="sm"

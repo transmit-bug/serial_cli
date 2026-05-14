@@ -23,6 +23,15 @@ async fn main() {
     // Create global app state
     let app_state = AppState::new().await;
 
+    // Register all built-in protocols
+    if let Err(e) = serial_cli::protocol::registration::register_all_built_in(
+        app_state.protocol_registry.clone(),
+    )
+    .await
+    {
+        tracing::warn!("Failed to register built-in protocols: {}", e);
+    }
+
     // Build Tauri application
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -40,6 +49,11 @@ async fn main() {
             commands::serial::read_data,
             commands::serial::start_sniffing,
             commands::serial::stop_sniffing,
+            // Serial script engine commands
+            commands::serial_script::attach_script,
+            commands::serial_script::detach_script,
+            commands::serial_script::has_script,
+            commands::serial_script::get_script_status,
             // Protocol commands
             commands::protocol::list_protocols,
             commands::protocol::load_protocol,
@@ -48,6 +62,7 @@ async fn main() {
             commands::protocol::validate_protocol,
             commands::protocol::protocol_encode,
             commands::protocol::protocol_decode,
+            commands::protocol::set_port_protocol,
             commands::protocol::save_protocol_file,
             commands::protocol::get_protocol_info,
             // Script commands
