@@ -10,8 +10,6 @@ use std::time::Instant;
 /// JSON output formatter with full metadata
 pub struct JsonFormatter {
     pretty: bool,
-    #[allow(dead_code)]
-    include_metadata: bool,
 }
 
 /// Standard JSON response format
@@ -69,11 +67,8 @@ pub struct OperationStatistics {
 
 impl JsonFormatter {
     /// Create a new JSON formatter
-    pub fn new(pretty: bool, include_metadata: bool) -> Self {
-        Self {
-            pretty,
-            include_metadata,
-        }
+    pub fn new(pretty: bool) -> Self {
+        Self { pretty }
     }
 
     /// Format success response
@@ -176,7 +171,7 @@ impl JsonFormatter {
 
 impl Default for JsonFormatter {
     fn default() -> Self {
-        Self::new(true, true)
+        Self::new(true)
     }
 }
 
@@ -211,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_json_formatter_success() {
-        let formatter = JsonFormatter::new(true, true);
+        let formatter = JsonFormatter::new(true);
         let data = vec![1u8, 2u8, 3u8];
 
         let result = formatter.format_success(data.clone(), None);
@@ -225,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_json_formatter_error() {
-        let formatter = JsonFormatter::new(true, true);
+        let formatter = JsonFormatter::new(true);
 
         let result = formatter.format_error(
             "E001",

@@ -127,9 +127,15 @@ impl SerialScriptEngine {
         };
 
         let config_table = lua.create_table().unwrap();
-        config_table.set("baudrate", config.baudrate as i64).unwrap();
-        config_table.set("databits", config.databits as i64).unwrap();
-        config_table.set("stopbits", config.stopbits as i64).unwrap();
+        config_table
+            .set("baudrate", config.baudrate as i64)
+            .unwrap();
+        config_table
+            .set("databits", config.databits as i64)
+            .unwrap();
+        config_table
+            .set("stopbits", config.stopbits as i64)
+            .unwrap();
         config_table
             .set("timeout_ms", config.timeout_ms as i64)
             .unwrap();
@@ -339,8 +345,28 @@ impl SerialScriptEngine {
     /// Check if the script defines a given callback.
     pub fn has_callback(&self, name: &str) -> bool {
         let lua_guard = self.lua.lock().unwrap();
-        let has = lua_guard.inner().globals().get::<_, mlua::Function>(name).is_ok();
+        let has = lua_guard
+            .inner()
+            .globals()
+            .get::<_, mlua::Function>(name)
+            .is_ok();
         has
+    }
+
+    /// Discover all UI actions in the script
+    ///
+    /// Scans for functions with the `action_` prefix and returns their metadata.
+    pub async fn discover_actions(&self) -> Result<Vec<crate::lua::ui_actions::UiAction>> {
+        let lua_guard = self.lua.lock().unwrap();
+        crate::lua::ui_actions::discover_actions(lua_guard.inner())
+    }
+
+    /// Execute a UI action function by name.
+    ///
+    /// Calls the specified Lua function and returns its result as a string.
+    pub async fn execute_action(&self, function_name: &str) -> Result<String> {
+        let lua_guard = self.lua.lock().unwrap();
+        crate::lua::ui_actions::execute_action_string(lua_guard.inner(), function_name)
     }
 }
 

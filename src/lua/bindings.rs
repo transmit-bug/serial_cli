@@ -90,6 +90,20 @@ impl LuaBindings {
         func.call(args).map(|_: Value| ()).map_err(SerialError::Lua)
     }
 
+    /// Discover all UI actions in the Lua state
+    ///
+    /// Scans for functions with the `action_` prefix and returns their metadata.
+    pub fn discover_actions(&self) -> Result<Vec<crate::lua::ui_actions::UiAction>> {
+        crate::lua::ui_actions::discover_actions(&self.lua)
+    }
+
+    /// Execute a UI action function by name
+    ///
+    /// Calls the specified Lua function and returns its result as a string.
+    pub fn execute_action(&self, function_name: &str) -> Result<String> {
+        crate::lua::ui_actions::execute_action_string(&self.lua, function_name)
+    }
+
     /// Get a global value (simplified)
     pub fn get_global(&self, name: &str) -> Result<Value<'_>> {
         let globals = self.lua.globals();
@@ -233,9 +247,9 @@ impl LuaBindings {
                     })
                     .await
                     .map_err(|e| {
-                        crate::error::SerialError::Serial(
-                            crate::error::SerialPortError::IoError(e.to_string()),
-                        )
+                        crate::error::SerialError::Serial(crate::error::SerialPortError::IoError(
+                            e.to_string(),
+                        ))
                     })??;
 
                     Ok(read_result)
@@ -256,9 +270,10 @@ impl LuaBindings {
         let list = self.lua.create_function(move |lua, ()| {
             let pm = port_manager.clone();
             let ports = run_in_separate_runtime(|| async move {
-                    let pm_guard = pm.lock().await;
-                    pm_guard.list_ports()
-                }).map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                let pm_guard = pm.lock().await;
+                pm_guard.list_ports()
+            })
+            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
             let result = lua.create_table()?;
             for (i, port) in ports.iter().enumerate() {

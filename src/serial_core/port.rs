@@ -513,11 +513,7 @@ impl PortManager {
     /// # Errors
     ///
     /// Returns an error if the port is not found or a script is already attached.
-    pub async fn attach_script(
-        &self,
-        port_id: &str,
-        engine: SerialScriptEngine,
-    ) -> Result<()> {
+    pub async fn attach_script(&self, port_id: &str, engine: SerialScriptEngine) -> Result<()> {
         let port_handle = self.get_port(port_id).await?;
         let mut handle = port_handle.lock().await;
         // Safety: the script engine is attached to this handle and the port
@@ -554,6 +550,42 @@ impl PortManager {
         let port_handle = self.get_port(port_id).await?;
         let handle = port_handle.lock().await;
         Ok((handle.has_script(), handle.script_timer_interval_ms()))
+    }
+
+    /// Discover all UI actions (`action_*` functions) defined in the port's script.
+    ///
+    /// Returns an empty vec if no script is attached.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
+    pub async fn list_script_actions(
+        &self,
+        port_id: &str,
+    ) -> Result<Vec<crate::lua::ui_actions::UiAction>> {
+        let port_handle = self.get_port(port_id).await?;
+        let handle = port_handle.lock().await;
+        match &handle.script_engine {
+            Some(engine) => engine.discover_actions().await,
+            None => Ok(vec![]),
+        }
+    }
+
+    /// Execute a UI action function by name on the port's script engine.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
+    /// Returns an error if no script is attached or the function does not exist.
+    pub async fn call_script_action(&self, port_id: &str, function_name: &str) -> Result<String> {
+        let port_handle = self.get_port(port_id).await?;
+        let handle = port_handle.lock().await;
+        match &handle.script_engine {
+            Some(engine) => engine.execute_action(function_name).await,
+            None => Err(SerialError::Script(crate::error::ScriptError::ApiError(
+                "No script attached to port".into(),
+            ))),
+        }
     }
 }
 
@@ -673,16 +705,11 @@ impl SerialPortHandle {
     ///
     /// The `serial_send()` Lua API is automatically wired to write directly to
     /// the underlying serial port (bypassing protocol encoding for auto-reply).
-    pub unsafe fn attach_script(
-        &mut self,
-        engine: SerialScriptEngine,
-    ) -> Result<()> {
+    pub unsafe fn attach_script(&mut self, engine: SerialScriptEngine) -> Result<()> {
         if self.script_engine.is_some() {
-            return Err(SerialError::Script(
-                crate::error::ScriptError::ApiError(
-                    "A script is already attached to this port".to_string(),
-                ),
-            ));
+            return Err(SerialError::Script(crate::error::ScriptError::ApiError(
+                "A script is already attached to this port".to_string(),
+            )));
         }
 
         // Capture a raw pointer to the port for the send callback.
@@ -693,9 +720,8 @@ impl SerialPortHandle {
         let send_fn = Arc::new(move |data: &[u8]| {
             // Safety: port_ptr is valid as long as the script is attached,
             // and all writes are serialized by the handle's outer lock.
-            unsafe { port_ptr.write_all(data) }.map_err(|e| {
-                SerialError::Serial(SerialPortError::IoError(e.to_string()))
-            })?;
+            unsafe { port_ptr.write_all(data) }
+                .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))?;
             Ok(data.len())
         });
 

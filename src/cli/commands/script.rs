@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use crate::error::Result;
 use crate::lua::executor::ScriptEngine;
-use crate::lua::stdlib::LuaStdLib;
+use crate::lua::ScriptRuntime;
 
 /// Load and execute a Lua script with optional command-line arguments.
 ///
@@ -33,9 +33,9 @@ pub async fn run_lua_script(path: PathBuf, args: Vec<String>) -> Result<()> {
     // 2. Register all available APIs
     engine.bindings.register_all_apis()?;
 
-    // 3. Register stdlib utilities
+    // 3. Register runtime utilities (log, json, hex, string/bytes, time)
     let lua = engine.bindings.lua();
-    LuaStdLib::register_all_on(lua)?;
+    ScriptRuntime::register_all(lua)?;
 
     // 4. Read script file
     let script_content = std::fs::read_to_string(&path).map_err(crate::error::SerialError::Io)?;

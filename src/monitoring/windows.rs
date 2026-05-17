@@ -7,9 +7,6 @@
 use std::mem;
 #[cfg(windows)]
 use windows::Win32::Foundation::HANDLE;
-#[allow(unused_imports)]
-#[cfg(windows)]
-use windows::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 #[cfg(windows)]
 use windows::Win32::System::ProcessStatus::{
     GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX,

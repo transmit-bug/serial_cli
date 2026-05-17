@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
+use serial_cli::lua::ui_actions::UiAction;
 use serial_cli::serial_core::serial_script::SerialScriptEngine;
 use tauri::State;
 
@@ -19,8 +20,8 @@ pub async fn attach_script(
     script_source: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let engine = SerialScriptEngine::new(&script_source)
-        .map_err(|e| format!("Invalid script: {}", e))?;
+    let engine =
+        SerialScriptEngine::new(&script_source).map_err(|e| format!("Invalid script: {}", e))?;
 
     let manager = state.port_manager.lock().await;
     manager
@@ -67,6 +68,33 @@ pub async fn get_script_status(
         has_script: has,
         timer_interval_ms: timer_ms,
     })
+}
+
+/// List all UI actions (`action_*` functions) exposed by the script attached to a port.
+#[tauri::command]
+pub async fn list_script_actions(
+    port_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<UiAction>, String> {
+    let manager = state.port_manager.lock().await;
+    manager
+        .list_script_actions(&port_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Execute a UI action function on the port's attached script engine.
+#[tauri::command]
+pub async fn call_script_function(
+    port_id: String,
+    function_name: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let manager = state.port_manager.lock().await;
+    manager
+        .call_script_action(&port_id, &function_name)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Script status response

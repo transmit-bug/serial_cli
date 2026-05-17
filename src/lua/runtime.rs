@@ -115,7 +115,10 @@ impl ScriptRuntime {
             "hex_encode",
             lua.create_function(|_, data_table: mlua::Table| {
                 let bytes = lua_table_to_bytes(&data_table)?;
-                Ok(bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>())
+                Ok(bytes
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>())
             })?,
         )?;
 
@@ -195,7 +198,10 @@ impl ScriptRuntime {
                         ))
                     }
                 };
-                Ok(bytes_vec.iter().map(|b| format!("{:02x}", b)).collect::<String>())
+                Ok(bytes_vec
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>())
             })?,
         )?;
 

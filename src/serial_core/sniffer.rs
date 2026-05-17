@@ -66,27 +66,14 @@ pub enum PacketDirection {
 pub struct SerialSniffer {
     config: SnifferConfig,
     packets: Arc<Mutex<Vec<CapturedPacket>>>,
-    #[allow(dead_code)]
-    output_file: Option<PathBuf>,
 }
 
 impl SerialSniffer {
     /// Create a new serial sniffer
     pub fn new(config: SnifferConfig) -> Self {
-        let output_file = if config.save_to_file {
-            let timestamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            Some(config.output_dir.join(format!("capture_{}.log", timestamp)))
-        } else {
-            None
-        };
-
         Self {
             config,
             packets: Arc::new(Mutex::new(Vec::new())),
-            output_file,
         }
     }
 
