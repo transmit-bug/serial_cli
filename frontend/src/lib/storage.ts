@@ -325,7 +325,11 @@ export const virtualPortsStorage = {
 /**
  * Deep merge utility
  */
-function deepMerge<T>(target: T, source: Partial<T>): T {
+export type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]
+}
+
+export export function deepMerge<T>(target: T, source: DeepPartial<T>): T {
   const result = { ...target }
 
   for (const key in source) {

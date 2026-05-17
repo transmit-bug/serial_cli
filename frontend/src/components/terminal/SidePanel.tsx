@@ -5,6 +5,7 @@ import { Activity, Cpu, Zap, Settings, Database } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { QuickCommandsCard } from './QuickCommandsCard'
+import { ScriptActionsCard } from './ScriptActionsCard'
 
 /**
  * SidePanel - 右侧辅助面板
@@ -168,6 +169,9 @@ export function SidePanel() {
 
         {/* 快捷指令列表 */}
         <QuickCommandsCard />
+
+        {/* 脚本动作列表（仅在连接时显示） */}
+        {portName && <ScriptActionsCard portId={portName} />}
 
         {/* 快捷操作 + 设置 */}
         <Card className="p-4 border-border/50">

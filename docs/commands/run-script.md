@@ -61,10 +61,8 @@ The `src/lua/` module provides a full LuaJIT runtime with the following features
 - **Hex utilities** — `hex_encode`, `hex_decode` for byte-level data manipulation.
 - **Time utilities** — timestamp and duration helpers.
 - **Data conversion** — utilities for converting between data formats.
-- **Script caching** — compiled scripts are cached for faster repeated execution.
-- **Script pooling** — reusable Lua state pool for efficient batch execution.
 
-For the full API reference, see the `src/lua/bindings.rs` and `src/lua/stdlib.rs` source files.
+For the full API reference, see the `src/lua/bindings.rs` and `src/lua/runtime.rs` source files.
 
 ## Error Handling
 

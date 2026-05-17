@@ -8,12 +8,12 @@ The Lua integration is organized under `src/lua/` with the following modules:
 
 | Module | Purpose |
 |---|---|
-| `bindings.rs` | Rust API bindings exposed as Lua global functions |
-| `stdlib.rs` | Standard utility functions (hex, string, time, data conversion) |
-| `engine.rs` | Core Lua instance management |
-| `executor.rs` | Script execution engine with argument passing |
-| `pool.rs` | Lua instance pooling for performance |
-| `cache.rs` | Script compilation cache |
+| `bindings.rs` | LuaBindings — Autonomous mode for CLI scripts (serial_open/close/send/recv) |
+| `runtime.rs` | ScriptRuntime — unified tool function registration (log/json/hex/string-bytes/time) |
+| `engine.rs` | LuaEngine — lightweight wrapper (used by benchmarks only) |
+| `executor.rs` | ScriptEngine — script execution engine with argument passing |
+
+**Note**: `pool.rs`, `cache.rs`, and `stdlib.rs` were removed during ScriptCore unification. All consumers now use the unified `ScriptRuntime` for tool function registration. |
 
 ## Script Execution
 
@@ -49,7 +49,7 @@ When `serial-cli run` is invoked:
 
 1. A `ScriptEngine` is created with a fresh Lua state.
 2. All API bindings are registered (`register_all_apis`).
-3. Standard library utilities are registered (`LuaStdLib::register_all_on`).
+3. Standard library utilities are registered (`ScriptRuntime::register_all`).
 4. The script file is read from disk.
 5. Arguments are injected into the global scope.
 6. The script is executed.
@@ -275,7 +275,7 @@ Sleeps for the specified number of milliseconds.
 sleep_ms(500)  -- Sleep for 500ms
 ```
 
-### Hex Utilities (from stdlib)
+### Hex Utilities (from ScriptRuntime)
 
 #### `hex_encode(bytes)`
 
@@ -304,7 +304,7 @@ assert(bytes[2] == 2)
 assert(bytes[3] == 3)
 ```
 
-### String Utilities (from stdlib)
+### String Utilities (from ScriptRuntime)
 
 #### `string_to_hex(str)`
 
@@ -322,7 +322,7 @@ Converts a hex string to a UTF-8 string.
 local str = string_from_hex("414243")  -- "ABC"
 ```
 
-### Data Conversion (from stdlib)
+### Data Conversion (from ScriptRuntime)
 
 #### `bytes_to_hex(value)`
 
@@ -354,7 +354,7 @@ local bytes = string_to_bytes("ABC")
 -- bytes = {0x41, 0x42, 0x43}
 ```
 
-### Time Utilities (from stdlib)
+### Time Utilities (from ScriptRuntime)
 
 #### `time_now()`
 

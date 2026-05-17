@@ -127,7 +127,13 @@
     "parityNone": "None",
     "parityEven": "Even",
     "parityOdd": "Odd",
-    "flowNone": "None"
+    "flowNone": "None",
+    "scriptActions": "Script Actions",
+    "noScriptActions": "No script actions available",
+    "ungrouped": "Ungrouped",
+    "confirmAction": "Confirm Action",
+    "thisActionCannotBeUndone": "This action cannot be undone.",
+    "actionFailed": "Action failed"
   },
   "connectionError": {
     "title": "Connection Failed",

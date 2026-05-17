@@ -1,8 +1,8 @@
 # Architecture Reference
 
-**Updated**: 2026-05-10
-**Version**: 0.5.0-dev
-**Status**: All core modules implemented and tested (212 tests passing)
+**Updated**: 2026-05-14
+**Version**: 0.6.0
+**Status**: All core modules implemented and tested (231 tests passing)
 
 ---
 
@@ -41,6 +41,7 @@ src/
 │   ├── sniffer.rs          # SerialSniffer, SnifferConfig
 │   ├── virtual_port.rs     # VirtualSerialPair (PTY backend)
 │   ├── signals.rs          # Platform signal control (DTR/RTS)
+│   ├── serial_script.rs    # SerialScriptEngine (Hook mode Lua)
 │   └── windows_signals.rs  # Windows-specific signal impl
 │
 ├── protocol/               # Protocol engine
@@ -51,16 +52,14 @@ src/
 │   ├── loader.rs           # ProtocolLoader — Lua script loading
 │   ├── validator.rs        # ProtocolValidator — script validation
 │   ├── watcher.rs          # ProtocolWatcher — hot-reload via notify
-│   ├── lua_ext.rs          # Lua protocol extension
+│   ├── lua_ext.rs          # LuaProtocol — custom protocol in Lua
 │   └── built_in/           # Modbus RTU/ASCII, AT Command, Line
 │
 ├── lua/                    # LuaJIT integration
-│   ├── bindings.rs         # LuaBindings — Rust→Lua API
-│   ├── engine.rs           # LuaEngine runtime
-│   ├── executor.rs         # ScriptEngine — file/args execution
-│   ├── stdlib.rs           # LuaStdLib — hex/time/data utilities
-│   ├── cache.rs            # ScriptCache
-│   └── pool.rs             # LuaPool — instance pooling
+│   ├── bindings.rs         # LuaBindings — Autonomous mode (CLI scripts)
+│   ├── runtime.rs          # ScriptRuntime — unified tool function registration
+│   ├── engine.rs           # LuaEngine — lightweight wrapper (benchmarks only)
+│   └── executor.rs         # ScriptEngine — script execution engine
 │
 ├── task/                   # Task scheduling
 │   ├── queue.rs            # TaskQueue
@@ -77,6 +76,12 @@ src/
 └── monitoring/             # System monitoring
     └── windows.rs          # Windows-specific monitoring
 ```
+
+**Key changes from Task #10 (ScriptCore unification)**:
+- Removed `lua/pool.rs`, `lua/cache.rs`, and `lua/stdlib.rs` (dead code / superseded by ScriptRuntime)
+- Created `lua/runtime.rs` as unified ScriptRuntime for tool registration
+- SerialScriptEngine (Hook mode), LuaBindings (Autonomous mode), and LuaProtocol (Protocol mode) all use ScriptRuntime
+- LuaEngine retained for benchmark compatibility (marked `#[allow(dead_code)]`)
 
 ---
 
@@ -102,7 +107,7 @@ main.rs
        ├→ serial_core (port I/O, sniffer, virtual ports)
        ├→ protocol/* (registry, built-in, Lua protocols)
        ├→ config (ConfigManager)
-       └→ lua/* (script execution, stdlib)
+       └→ lua/* (script execution, runtime)
             └→ protocol/* (custom Lua protocols)
 ```
 

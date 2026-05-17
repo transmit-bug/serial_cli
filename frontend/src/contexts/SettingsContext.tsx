@@ -1,9 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
-import { settingsStorage, type Settings } from '@/lib/storage'
-
-type DeepPartial<T> = {
-  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]
-}
+import { settingsStorage, type Settings, deepMerge, type DeepPartial } from '@/lib/storage'
 
 interface SettingsContextType {
   settings: Settings
@@ -80,28 +76,4 @@ export function useSettings() {
     throw new Error('useSettings must be used within SettingsProvider')
   }
   return context
-}
-
-function deepMerge<T>(target: T, source: DeepPartial<T>): T {
-  const result = { ...target } as T
-
-  for (const key in source) {
-    const sourceValue = source[key as keyof T]
-    const targetValue = result[key as keyof T]
-
-    if (
-      sourceValue &&
-      typeof sourceValue === 'object' &&
-      !Array.isArray(sourceValue) &&
-      targetValue &&
-      typeof targetValue === 'object' &&
-      !Array.isArray(targetValue)
-    ) {
-      ;(result as any)[key] = deepMerge(targetValue, sourceValue)
-    } else if (sourceValue !== undefined) {
-      ;(result as any)[key] = sourceValue
-    }
-  }
-
-  return result
 }

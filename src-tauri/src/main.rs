@@ -71,6 +71,11 @@ async fn main() {
             commands::script::list_scripts,
             commands::script::save_script,
             commands::script::delete_script,
+            // Script UI actions commands
+            commands::script_ui_actions::list_script_actions,
+            commands::script_ui_actions::call_script_function,
+            commands::script_ui_actions::list_standalone_script_actions,
+            commands::script_ui_actions::call_standalone_script_function,
             // Config commands
             commands::config::get_config,
             commands::config::update_config,

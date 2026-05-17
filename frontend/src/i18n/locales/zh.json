@@ -128,7 +128,13 @@
     "parityNone": "无",
     "parityEven": "偶",
     "parityOdd": "奇",
-    "flowNone": "无"
+    "flowNone": "无",
+    "scriptActions": "脚本动作",
+    "noScriptActions": "无可用脚本动作",
+    "ungrouped": "未分组",
+    "confirmAction": "确认动作",
+    "thisActionCannotBeUndone": "此操作无法撤销。",
+    "actionFailed": "动作执行失败"
   },
   "connectionError": {
     "title": "连接失败",

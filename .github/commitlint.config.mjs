@@ -7,7 +7,7 @@ export default {
     ]],
     'scope-enum': [2, 'always', [
       'cli', 'gui', 'serial', 'protocol', 'lua',
-      'task', 'config', 'build', 'ci'
+      'task', 'config', 'build', 'ci', 'deps'
     ]],
     'type-case': [2, 'always', 'lower-case'],
     'subject-case': [0],

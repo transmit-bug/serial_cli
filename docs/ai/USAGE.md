@@ -402,4 +402,4 @@ end
 
 ## Version Compatibility
 
-This guide applies to Serial CLI v0.5.0+. Features may change in future versions.
+This guide applies to Serial CLI v0.6.0. Features may change in future versions.
