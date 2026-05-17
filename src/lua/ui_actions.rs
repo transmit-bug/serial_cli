@@ -160,7 +160,7 @@ pub fn execute_action(lua: &Lua, function_name: &str) -> Result<()> {
     let globals = lua.globals();
     let func = globals
         .get::<_, mlua::Function>(function_name)
-        .map_err(|e| SerialError::Lua(e))?;
+        .map_err(SerialError::Lua)?;
 
     // Call with no arguments
     func.call::<_, ()>(()).map_err(SerialError::Lua)?;
@@ -175,7 +175,7 @@ pub fn execute_action_string(lua: &Lua, function_name: &str) -> Result<String> {
     let globals = lua.globals();
     let func = globals
         .get::<_, mlua::Function>(function_name)
-        .map_err(|e| SerialError::Lua(e))?;
+        .map_err(SerialError::Lua)?;
 
     let result = func.call::<_, Value>(()).map_err(SerialError::Lua)?;
 

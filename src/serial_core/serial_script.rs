@@ -48,6 +48,9 @@ pub struct SerialScriptEngine {
     timer_stop: Arc<Mutex<bool>>,
 }
 
+/// Type alias for the send function callback.
+pub type SendFn = Arc<dyn Fn(&[u8]) -> Result<usize> + Send + Sync>;
+
 impl SerialScriptEngine {
     /// Create a new script engine from Lua source code.
     ///
@@ -96,7 +99,7 @@ impl SerialScriptEngine {
     /// This must be called after `load()` and before using the engine.
     pub fn set_send_callback(
         &self,
-        send_fn: Arc<dyn Fn(&[u8]) -> Result<usize> + Send + Sync>,
+        send_fn: SendFn,
     ) -> Result<()> {
         let lua_guard = self.lua.lock().unwrap();
         let lua = lua_guard.inner();
@@ -221,6 +224,7 @@ impl SerialScriptEngine {
             let lua_guard = self.lua.lock().unwrap();
             let lua = lua_guard.inner();
             let globals = lua.globals();
+            #[allow(clippy::let_and_return)]
             let has = globals.get::<_, mlua::Function>("on_timer").is_ok();
             has
         };

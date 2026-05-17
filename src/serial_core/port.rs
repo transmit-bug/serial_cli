@@ -602,6 +602,11 @@ struct PortPtrInner {
 
 // Safety: All accesses to the port through this pointer are serialized by the
 // SerialPortHandle's tokio::Mutex. The pointer is valid as long as the handle exists.
+unsafe impl Send for PortPtrInner {}
+unsafe impl Sync for PortPtrInner {}
+
+// Safety: All accesses to the port through this pointer are serialized by the
+// SerialPortHandle's tokio::Mutex. The pointer is valid as long as the handle exists.
 unsafe impl Send for PortPtr {}
 unsafe impl Sync for PortPtr {}
 
@@ -705,6 +710,9 @@ impl SerialPortHandle {
     ///
     /// The `serial_send()` Lua API is automatically wired to write directly to
     /// the underlying serial port (bypassing protocol encoding for auto-reply).
+    /// # Safety
+    ///
+    /// The script engine must not outlive the port handle.
     pub unsafe fn attach_script(&mut self, engine: SerialScriptEngine) -> Result<()> {
         if self.script_engine.is_some() {
             return Err(SerialError::Script(crate::error::ScriptError::ApiError(
