@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { tauriApi } from "@/lib/tauri-api";
-import type { ScriptInfo, ValidationError } from "@/types";
+import type { OutputLine, ScriptInfo, ValidationError } from "@/types";
 
 interface ScriptStore {
   scripts: ScriptInfo[];
   currentScript: { name: string; content: string } | null;
   isDirty: boolean;
-  output: string[];
+  output: OutputLine[];
   loading: boolean;
 
   loadScriptList: () => Promise<void>;
@@ -38,20 +38,15 @@ export const useScriptStore = create<ScriptStore>()((set, get) => ({
   },
 
   openScript: async (name) => {
-    // Scripts are stored as files; we need to read them.
-    // Since there's no read_script command, we use save_script path to find the file
-    // and read it via the backend. For now, load by name.
     const { scripts } = get();
     const info = scripts.find((s) => s.name === name);
     if (!info) return;
 
     try {
-      // Read file content - the backend stores scripts at ~/.serial-cli/scripts/{name}.lua
       const response = await fetch(`file://${info.path}`);
       const content = await response.text();
       set({ currentScript: { name, content }, isDirty: false });
     } catch {
-      // Fallback: try to get from backend via execute (not ideal but works for now)
       set({ currentScript: { name, content: "" }, isDirty: false });
     }
   },
@@ -72,11 +67,22 @@ export const useScriptStore = create<ScriptStore>()((set, get) => ({
   },
 
   executeScript: async (content) => {
+    const ts = Date.now();
     try {
       const result = await tauriApi.executeScript(content);
-      set((s) => ({ output: [...s.output, `> ${result}`] }));
+      set((s) => ({
+        output: [
+          ...s.output,
+          { text: result, timestamp: ts, type: "success" as const },
+        ],
+      }));
     } catch (e) {
-      set((s) => ({ output: [...s.output, `Error: ${e}`] }));
+      set((s) => ({
+        output: [
+          ...s.output,
+          { text: String(e), timestamp: ts, type: "error" as const },
+        ],
+      }));
     }
   },
 

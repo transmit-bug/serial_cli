@@ -13,6 +13,10 @@ default:
 dev:
     cargo build
 
+# Start frontend dev server only (no Tauri backend)
+dev-frontend:
+    cd frontend && pnpm dev
+
 # Release build (optimized)
 build:
     cargo build --release

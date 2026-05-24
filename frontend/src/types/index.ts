@@ -182,3 +182,16 @@ export type ConnectionStatus =
   | "error";
 
 export type Locale = "en" | "zh";
+
+export interface QuickCommand {
+  label: string;
+  data: string;
+  format: "hex" | "ascii";
+  hotkey?: string;
+}
+
+export interface OutputLine {
+  text: string;
+  timestamp: number;
+  type: "info" | "error" | "success";
+}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSettingsStore } from "@/stores/settings";
-import type { ConfigData } from "@/types";
+import type { ConfigData, SerialConfig } from "@/types";
 
 const SETTINGS_TABS = [
   "serial",
@@ -11,14 +11,38 @@ const SETTINGS_TABS = [
   "output",
   "protocolsTab",
   "display",
+  "general",
+  "about",
 ] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
+interface ConnectionPreset {
+  name: string;
+  config: Partial<SerialConfig>;
+}
+
+const PRESET_STORAGE_KEY = "serial-cli-connection-presets";
+
+function loadPresets(): ConnectionPreset[] {
+  try {
+    const raw = localStorage.getItem(PRESET_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePresets(presets: ConnectionPreset[]) {
+  localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(presets));
+}
+
 export function SettingsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { config, loading, loadConfig, updateConfig, resetConfig } =
     useSettingsStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>("serial");
+  const [presets, setPresets] = useState<ConnectionPreset[]>(loadPresets);
+  const [newPresetName, setNewPresetName] = useState("");
 
   useEffect(() => {
     loadConfig();
@@ -58,6 +82,53 @@ export function SettingsPage() {
     [config, updateConfig],
   );
 
+  const savePreset = useCallback(() => {
+    if (!newPresetName.trim() || !config) return;
+    const preset: ConnectionPreset = {
+      name: newPresetName,
+      config: {
+        baudrate: config.serial.defaultBaudrate,
+        databits: config.serial.databits,
+        stopbits: config.serial.stopbits,
+        parity: config.serial.parity,
+        timeout_ms: config.serial.timeoutMs,
+      },
+    };
+    const updated = [...presets, preset];
+    setPresets(updated);
+    savePresets(updated);
+    setNewPresetName("");
+  }, [newPresetName, config, presets]);
+
+  const loadPreset = useCallback(
+    (preset: ConnectionPreset) => {
+      if (!config) return;
+      updateConfig({
+        ...config,
+        serial: {
+          ...config.serial,
+          defaultBaudrate:
+            preset.config.baudrate ?? config.serial.defaultBaudrate,
+          databits: preset.config.databits ?? config.serial.databits,
+          stopbits: preset.config.stopbits ?? config.serial.stopbits,
+          parity: preset.config.parity ?? config.serial.parity,
+          timeoutMs: preset.config.timeout_ms ?? config.serial.timeoutMs,
+        },
+      });
+      toast.success(`Preset "${preset.name}" loaded`);
+    },
+    [config, updateConfig],
+  );
+
+  const deletePreset = useCallback(
+    (index: number) => {
+      const updated = presets.filter((_, i) => i !== index);
+      setPresets(updated);
+      savePresets(updated);
+    },
+    [presets],
+  );
+
   if (loading || !config) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
@@ -92,7 +163,10 @@ export function SettingsPage() {
             <h2 className="text-sm font-semibold mb-4">
               {t("settings.serialDefaults")}
             </h2>
-            <FieldRow label={t("common.baudRate")}>
+            <FieldRow
+              label={t("common.baudRate")}
+              desc={t("settings.baudRateDesc")}
+            >
               <select
                 value={config.serial.defaultBaudrate}
                 onChange={(e) =>
@@ -108,7 +182,10 @@ export function SettingsPage() {
                 ))}
               </select>
             </FieldRow>
-            <FieldRow label={t("common.dataBits")}>
+            <FieldRow
+              label={t("common.dataBits")}
+              desc={t("settings.dataBitsDesc")}
+            >
               <select
                 value={config.serial.databits}
                 onChange={(e) =>
@@ -122,7 +199,10 @@ export function SettingsPage() {
                 ))}
               </select>
             </FieldRow>
-            <FieldRow label={t("common.stopBits")}>
+            <FieldRow
+              label={t("common.stopBits")}
+              desc={t("settings.stopBitsDesc")}
+            >
               <select
                 value={config.serial.stopbits}
                 onChange={(e) =>
@@ -136,7 +216,10 @@ export function SettingsPage() {
                 ))}
               </select>
             </FieldRow>
-            <FieldRow label={t("common.parity")}>
+            <FieldRow
+              label={t("common.parity")}
+              desc={t("settings.parityDesc")}
+            >
               <select
                 value={config.serial.parity}
                 onChange={(e) => update("serial", "parity", e.target.value)}
@@ -148,7 +231,10 @@ export function SettingsPage() {
                 ))}
               </select>
             </FieldRow>
-            <FieldRow label={t("common.timeout")}>
+            <FieldRow
+              label={t("common.timeout")}
+              desc={t("settings.timeoutDesc")}
+            >
               <input
                 type="number"
                 value={config.serial.timeoutMs}
@@ -159,6 +245,50 @@ export function SettingsPage() {
               />
               <span className="text-xs text-text-muted ml-1">ms</span>
             </FieldRow>
+
+            {/* Connection Presets */}
+            <div className="pt-4 border-t border-border">
+              <h3 className="text-xs font-medium text-text-secondary mb-2">
+                {t("settings.connectionPresets")}
+              </h3>
+              <div className="space-y-1 mb-2">
+                {presets.map((preset, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-surface text-xs"
+                  >
+                    <span className="flex-1">{preset.name}</span>
+                    <button
+                      className="text-accent hover:text-accent-hover"
+                      onClick={() => loadPreset(preset)}
+                    >
+                      {t("common.save")}
+                    </button>
+                    <button
+                      className="text-danger hover:text-danger/80"
+                      onClick={() => deletePreset(i)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 h-6 text-xs rounded border border-border bg-transparent px-2"
+                  placeholder={t("settings.presetName")}
+                  value={newPresetName}
+                  onChange={(e) => setNewPresetName(e.target.value)}
+                />
+                <button
+                  className="px-2 py-1 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
+                  disabled={!newPresetName.trim()}
+                  onClick={savePreset}
+                >
+                  {t("common.add")}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -167,7 +297,10 @@ export function SettingsPage() {
             <h2 className="text-sm font-semibold mb-4">
               {t("settings.logging")}
             </h2>
-            <FieldRow label={t("settings.logLevel")}>
+            <FieldRow
+              label={t("settings.logLevel")}
+              desc={t("settings.logLevelDesc")}
+            >
               <select
                 value={config.logging.level}
                 onChange={(e) => update("logging", "level", e.target.value)}
@@ -179,7 +312,10 @@ export function SettingsPage() {
                 ))}
               </select>
             </FieldRow>
-            <FieldRow label={t("settings.logFormat")}>
+            <FieldRow
+              label={t("settings.logFormat")}
+              desc={t("settings.logFormatDesc")}
+            >
               <select
                 value={config.logging.format}
                 onChange={(e) => update("logging", "format", e.target.value)}
@@ -191,7 +327,10 @@ export function SettingsPage() {
                 ))}
               </select>
             </FieldRow>
-            <FieldRow label={t("settings.logFile")}>
+            <FieldRow
+              label={t("settings.logFile")}
+              desc={t("settings.logFileDesc")}
+            >
               <input
                 type="text"
                 value={config.logging.file}
@@ -207,7 +346,10 @@ export function SettingsPage() {
             <h2 className="text-sm font-semibold mb-4">
               {t("settings.luaEngine")}
             </h2>
-            <FieldRow label={t("settings.memoryLimit")}>
+            <FieldRow
+              label={t("settings.memoryLimit")}
+              desc={t("settings.memoryLimitDesc")}
+            >
               <input
                 type="number"
                 value={config.lua.memory_limit_mb}
@@ -218,7 +360,10 @@ export function SettingsPage() {
               />
               <span className="text-xs text-text-muted ml-1">MB</span>
             </FieldRow>
-            <FieldRow label={t("settings.timeoutSeconds")}>
+            <FieldRow
+              label={t("settings.timeoutSeconds")}
+              desc={t("settings.timeoutSecondsDesc")}
+            >
               <input
                 type="number"
                 value={config.lua.timeout_seconds}
@@ -229,7 +374,10 @@ export function SettingsPage() {
               />
               <span className="text-xs text-text-muted ml-1">s</span>
             </FieldRow>
-            <FieldRow label={t("settings.sandbox")}>
+            <FieldRow
+              label={t("settings.sandbox")}
+              desc={t("settings.sandboxDesc")}
+            >
               <input
                 type="checkbox"
                 checked={config.lua.enable_sandbox}
@@ -246,7 +394,10 @@ export function SettingsPage() {
             <h2 className="text-sm font-semibold mb-4">
               {t("settings.output")}
             </h2>
-            <FieldRow label={t("settings.jsonPretty")}>
+            <FieldRow
+              label={t("settings.jsonPretty")}
+              desc={t("settings.jsonPrettyDesc")}
+            >
               <input
                 type="checkbox"
                 checked={config.output.json_pretty}
@@ -255,7 +406,10 @@ export function SettingsPage() {
                 }
               />
             </FieldRow>
-            <FieldRow label={t("settings.showTimestamp")}>
+            <FieldRow
+              label={t("settings.showTimestamp")}
+              desc={t("settings.showTimestampDesc")}
+            >
               <input
                 type="checkbox"
                 checked={config.output.show_timestamp}
@@ -272,7 +426,10 @@ export function SettingsPage() {
             <h2 className="text-sm font-semibold mb-4">
               {t("settings.protocolsTab")}
             </h2>
-            <FieldRow label={t("settings.hotReload")}>
+            <FieldRow
+              label={t("settings.hotReload")}
+              desc={t("settings.hotReloadDesc")}
+            >
               <input
                 type="checkbox"
                 checked={config.protocols.hotReload}
@@ -289,7 +446,10 @@ export function SettingsPage() {
             <h2 className="text-sm font-semibold mb-4">
               {t("settings.display")}
             </h2>
-            <FieldRow label={t("settings.maxPackets")}>
+            <FieldRow
+              label={t("settings.maxPackets")}
+              desc={t("settings.maxPacketsDesc")}
+            >
               <input
                 type="number"
                 value={config.display.maxPackets}
@@ -299,7 +459,10 @@ export function SettingsPage() {
                 className="w-24"
               />
             </FieldRow>
-            <FieldRow label={t("settings.showTimestamp")}>
+            <FieldRow
+              label={t("settings.showTimestamp")}
+              desc={t("settings.showTimestampDesc")}
+            >
               <input
                 type="checkbox"
                 checked={config.display.showTimestamp}
@@ -308,6 +471,72 @@ export function SettingsPage() {
                 }
               />
             </FieldRow>
+          </div>
+        )}
+
+        {activeTab === "general" && (
+          <div className="space-y-4 max-w-md">
+            <h2 className="text-sm font-semibold mb-4">
+              {t("settings.general")}
+            </h2>
+            <FieldRow
+              label={t("settings.language")}
+              desc={t("settings.languageDesc")}
+            >
+              <select
+                value={i18n.language}
+                onChange={(e) => {
+                  i18n.changeLanguage(e.target.value);
+                }}
+              >
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </select>
+            </FieldRow>
+          </div>
+        )}
+
+        {activeTab === "about" && (
+          <div className="space-y-4 max-w-md">
+            <h2 className="text-sm font-semibold mb-4">
+              {t("settings.about")}
+            </h2>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-muted">{t("settings.appName")}</span>
+                <span>Serial CLI</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-muted">{t("settings.version")}</span>
+                <span>{import.meta.env.VITE_APP_VERSION ?? "dev"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-muted">
+                  {t("settings.description")}
+                </span>
+                <span className="text-right text-xs text-text-muted">
+                  {t("settings.appDescription")}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <a
+                href="https://github.com/pony/serial_cli"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent hover:text-accent-hover"
+              >
+                GitHub
+              </a>
+              <a
+                href="https://github.com/pony/serial_cli/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent hover:text-accent-hover"
+              >
+                {t("settings.reportIssue")}
+              </a>
+            </div>
           </div>
         )}
 
@@ -332,17 +561,22 @@ export function SettingsPage() {
 
 function FieldRow({
   label,
+  desc,
   children,
 }: {
   label: string;
+  desc?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <label className="text-xs text-text-secondary w-28 shrink-0">
-        {label}
-      </label>
-      <div className="flex items-center gap-1">{children}</div>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-3">
+        <label className="text-xs text-text-secondary w-28 shrink-0">
+          {label}
+        </label>
+        <div className="flex items-center gap-1">{children}</div>
+      </div>
+      {desc && <p className="text-[10px] text-text-muted ml-28">{desc}</p>}
     </div>
   );
 }

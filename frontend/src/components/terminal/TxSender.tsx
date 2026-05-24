@@ -5,6 +5,7 @@ import { tauriApi } from "@/lib/tauri-api";
 import { hexToBytes } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
 import { useDataStore } from "@/stores/data";
+import { QuickSendPanel } from "./QuickSendPanel";
 
 export function TxSender() {
   const { t } = useTranslation();
@@ -12,6 +13,7 @@ export function TxSender() {
   const portId = useConnectionStore((s) => s.portId);
   const addPacket = useDataStore((s) => s.addPacket);
 
+  const [tab, setTab] = useState<"free" | "quick">("free");
   const [input, setInput] = useState("");
   const [hexMode, setHexMode] = useState(false);
   const [loopActive, setLoopActive] = useState(false);
@@ -34,7 +36,6 @@ export function TxSender() {
       await tauriApi.sendData(portId, data);
       addPacket("tx", data, Date.now());
 
-      // Add to history
       if (historyRef.current[historyRef.current.length - 1] !== input) {
         historyRef.current.push(input);
         if (historyRef.current.length > 100) historyRef.current.shift();
@@ -44,6 +45,17 @@ export function TxSender() {
       toast.error(String(e));
     }
   }, [portId, input, hexMode, addPacket]);
+
+  const handleQuickSend = useCallback(
+    (data: string, _format: "hex" | "ascii") => {
+      if (historyRef.current[historyRef.current.length - 1] !== data) {
+        historyRef.current.push(data);
+        if (historyRef.current.length > 100) historyRef.current.shift();
+      }
+      historyIdx.current = historyRef.current.length;
+    },
+    [],
+  );
 
   const toggleLoop = useCallback(() => {
     if (loopActive) {
@@ -84,54 +96,70 @@ export function TxSender() {
 
   return (
     <div className="flex flex-col h-full">
-      <textarea
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={t("terminal.inputPlaceholder")}
-        disabled={!isConnected}
-        className="flex-1 resize-none p-2 font-mono text-xs border-b border-border rounded-none"
-        spellCheck={false}
-      />
-      <div className="flex items-center gap-2 px-3 py-1.5 shrink-0">
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 border-b border-border px-2 shrink-0">
         <button
-          onClick={() => setHexMode(!hexMode)}
-          className={`px-2 py-0.5 rounded text-xs ${
-            hexMode ? "bg-warning/20 text-warning" : "text-text-muted"
-          }`}
+          className={`px-3 py-1.5 text-xs font-medium transition ${tab === "free" ? "text-accent border-b-2 border-accent" : "text-text-muted hover:text-text"}`}
+          onClick={() => setTab("free")}
         >
-          {t("terminal.hexMode")}
+          {t("txSender.freeSend")}
         </button>
-
         <button
-          onClick={send}
-          disabled={!isConnected || !input.trim()}
-          className="px-3 py-1 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
+          className={`px-3 py-1.5 text-xs font-medium transition ${tab === "quick" ? "text-accent border-b-2 border-accent" : "text-text-muted hover:text-text"}`}
+          onClick={() => setTab("quick")}
         >
-          {t("common.send")} ▶
-        </button>
-
-        {loopActive && (
-          <input
-            type="number"
-            value={loopInterval}
-            onChange={(e) => setLoopInterval(Number(e.target.value))}
-            className="w-20 h-6 text-xs"
-            min={100}
-          />
-        )}
-        <button
-          onClick={toggleLoop}
-          disabled={!isConnected}
-          className={`px-2 py-0.5 rounded text-xs ${
-            loopActive
-              ? "bg-danger/20 text-danger"
-              : "text-text-muted hover:text-text"
-          }`}
-        >
-          {t("terminal.sendLoop")} {loopActive ? "■" : "↻"}
+          {t("txSender.quickSend")}
         </button>
       </div>
+
+      {tab === "free" ? (
+        <>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={t("terminal.inputPlaceholder")}
+            disabled={!isConnected}
+            className="flex-1 resize-none p-2 font-mono text-xs border-b border-border rounded-none"
+            spellCheck={false}
+          />
+          <div className="flex items-center gap-2 px-3 py-1.5 shrink-0">
+            <button
+              onClick={() => setHexMode(!hexMode)}
+              className={`px-2 py-0.5 rounded text-xs ${hexMode ? "bg-warning/20 text-warning" : "text-text-muted"}`}
+            >
+              {t("terminal.hexMode")}
+            </button>
+
+            <button
+              onClick={send}
+              disabled={!isConnected || !input.trim()}
+              className="px-3 py-1 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
+            >
+              {t("common.send")} ▶
+            </button>
+
+            {loopActive && (
+              <input
+                type="number"
+                value={loopInterval}
+                onChange={(e) => setLoopInterval(Number(e.target.value))}
+                className="w-20 h-6 text-xs"
+                min={100}
+              />
+            )}
+            <button
+              onClick={toggleLoop}
+              disabled={!isConnected}
+              className={`px-2 py-0.5 rounded text-xs ${loopActive ? "bg-danger/20 text-danger" : "text-text-muted hover:text-text"}`}
+            >
+              {t("terminal.sendLoop")} {loopActive ? "■" : "↻"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <QuickSendPanel onSent={handleQuickSend} />
+      )}
     </div>
   );
 }

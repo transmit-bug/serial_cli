@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { formatBytes } from "@/lib/utils";
+import { formatBytes, formatDuration } from "@/lib/utils";
 import { useVirtualPortStore } from "@/stores/virtualPort";
 import type { VirtualPortStats } from "@/types";
+
+type DirectionFilter = "all" | "a2b" | "b2a";
 
 export function VirtualPortsPage() {
   const { t } = useTranslation();
@@ -23,6 +25,10 @@ export function VirtualPortsPage() {
   const [statsMap, setStatsMap] = useState<Record<string, VirtualPortStats>>(
     {},
   );
+  const [prevBytes, setPrevBytes] = useState<Record<string, number>>({});
+  const [throughput, setThroughput] = useState<Record<string, number>>({});
+  const [directionFilter, setDirectionFilter] =
+    useState<DirectionFilter>("all");
 
   useEffect(() => {
     refreshPorts();
@@ -30,15 +36,19 @@ export function VirtualPortsPage() {
     return () => clearInterval(interval);
   }, [refreshPorts]);
 
-  // Load stats for all ports
+  // Load stats and compute throughput
   useEffect(() => {
     ports.forEach(async (p) => {
       const stats = await getStats(p.id);
       if (stats) {
         setStatsMap((prev) => ({ ...prev, [p.id]: stats }));
+        const prev = prevBytes[p.id] ?? stats.bytes_bridged;
+        const delta = stats.bytes_bridged - prev;
+        setThroughput((prev) => ({ ...prev, [p.id]: delta }));
+        setPrevBytes((prev) => ({ ...prev, [p.id]: stats.bytes_bridged }));
       }
     });
-  }, [ports, getStats]);
+  }, [ports, getStats, prevBytes]);
 
   const handleCreate = useCallback(async () => {
     try {
@@ -69,6 +79,31 @@ export function VirtualPortsPage() {
     [setSelectedPort, loadCapturedPackets],
   );
 
+  const handleExportCapture = useCallback(() => {
+    if (capturedPackets.length === 0) return;
+    const header = "timestamp,direction,data\n";
+    const rows = capturedPackets
+      .map(
+        (p) =>
+          `${p.timestamp_millis},${p.direction},"${p.data.map((b) => b.toString(16).padStart(2, "0")).join(" ")}"`,
+      )
+      .join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `capture-${selectedPort}-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [capturedPackets, selectedPort]);
+
+  const filteredPackets = capturedPackets.filter((p) => {
+    if (directionFilter === "all") return true;
+    return directionFilter === "a2b"
+      ? p.direction === "a2b"
+      : p.direction === "b2a";
+  });
+
   return (
     <div className="flex flex-col h-full p-4 overflow-y-auto">
       <div className="flex items-center justify-between mb-4">
@@ -77,7 +112,7 @@ export function VirtualPortsPage() {
           <select
             value={backend}
             onChange={(e) => setBackend(e.target.value)}
-            className="text-xs"
+            className="text-xs rounded border border-border bg-transparent px-2 py-1"
           >
             <option value="pty">PTY</option>
             <option value="socat">socat</option>
@@ -93,13 +128,27 @@ export function VirtualPortsPage() {
       </div>
 
       {ports.length === 0 ? (
-        <div className="flex items-center justify-center flex-1 text-text-muted">
-          {t("virtual.noPorts")}
+        <div className="flex items-center justify-center flex-1">
+          <div className="text-center space-y-3 p-8 rounded-lg border border-dashed border-border">
+            <div className="text-text-muted text-sm">
+              {t("virtual.emptyState")}
+            </div>
+            <div className="text-xs text-text-muted max-w-xs">
+              {t("virtual.emptyStateDesc")}
+            </div>
+            <button
+              onClick={handleCreate}
+              className="px-4 py-2 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30"
+            >
+              + {t("virtual.createPair")}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
           {ports.map((port) => {
             const stats = statsMap[port.id];
+            const tp = throughput[port.id] ?? 0;
             return (
               <div
                 key={port.id}
@@ -114,6 +163,11 @@ export function VirtualPortsPage() {
                     <span className="text-text-muted text-xs">
                       {t("virtual.backend")}: {port.backend}
                     </span>
+                    {tp > 0 && (
+                      <span className="text-xs text-accent font-mono">
+                        {formatBytes(tp)}/s
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -138,13 +192,17 @@ export function VirtualPortsPage() {
                   <span className="text-text-muted">
                     {t("virtual.uptime")}:
                   </span>
-                  <span>{port.uptime_secs}s</span>
+                  <span>{formatDuration(port.uptime_secs * 1000)}</span>
                   {stats && (
                     <>
                       <span className="text-text-muted">
                         {t("virtual.bridged")}:
                       </span>
                       <span>{formatBytes(stats.bytes_bridged)}</span>
+                      <span className="text-text-muted">
+                        {t("virtual.packetsBridged")}:
+                      </span>
+                      <span>{stats.packets_bridged}</span>
                     </>
                   )}
                 </div>
@@ -157,9 +215,36 @@ export function VirtualPortsPage() {
       {/* Captured packets */}
       {selectedPort && capturedPackets.length > 0 && (
         <div className="mt-4">
-          <h2 className="text-sm font-medium mb-2">
-            {t("virtual.capturedPackets")}
-          </h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-medium">
+              {t("virtual.capturedPackets")}
+            </h2>
+            <div className="flex items-center gap-2">
+              {/* Direction filter */}
+              <div className="flex rounded border border-border overflow-hidden text-xs">
+                {(["all", "a2b", "b2a"] as const).map((f) => (
+                  <button
+                    key={f}
+                    className={`px-2 py-0.5 ${directionFilter === f ? "bg-accent/20 text-accent" : "text-text-muted hover:bg-surface"}`}
+                    onClick={() => setDirectionFilter(f)}
+                  >
+                    {f === "all"
+                      ? t("virtual.filterAll")
+                      : f === "a2b"
+                        ? "A→B"
+                        : "B→A"}
+                  </button>
+                ))}
+              </div>
+              {/* Export */}
+              <button
+                onClick={handleExportCapture}
+                className="px-2 py-0.5 rounded text-xs text-text-muted hover:text-text"
+              >
+                {t("common.export")} CSV
+              </button>
+            </div>
+          </div>
           <div className="bg-base-deep rounded border border-border overflow-auto max-h-64">
             <table className="w-full text-xs font-mono">
               <thead>
@@ -171,7 +256,7 @@ export function VirtualPortsPage() {
                 </tr>
               </thead>
               <tbody>
-                {capturedPackets.map((pkt, i) => (
+                {filteredPackets.map((pkt, i) => (
                   <tr
                     key={i}
                     className="border-b border-border/50 hover:bg-surface/30"

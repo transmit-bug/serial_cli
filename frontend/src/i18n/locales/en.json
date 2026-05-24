@@ -70,9 +70,23 @@
     "commandData": "Data",
     "commandFormat": "Format",
     "duration": "Duration",
+    "connectedSince": "Connected Since",
+    "lastActivity": "Last Activity",
+    "exportData": "Export Data",
+    "connectToStart": "Connect a serial port to start",
     "noData": "No data received",
     "historyUp": "↑",
     "historyDown": "↓"
+  },
+  "txSender": {
+    "freeSend": "Free Send",
+    "quickSend": "Quick Send"
+  },
+  "quickSend": {
+    "editCommand": "Edit Command",
+    "label": "Label",
+    "data": "Data",
+    "addCommand": "Add Command"
   },
   "virtual": {
     "title": "Virtual Serial Ports",
@@ -99,7 +113,24 @@
     "saveSuccess": "Script saved",
     "deleteSuccess": "Script deleted",
     "unsavedChanges": "Unsaved changes",
-    "noScripts": "No scripts found"
+    "noScripts": "No scripts found",
+    "emptyState": "No scripts yet",
+    "templateTip": "Start from a template",
+    "attachToPort": "Attach to Port",
+    "attached": "Attached"
+  },
+  "scriptTemplates": {
+    "title": "Script Templates",
+    "basicTxRx": "Basic TX/RX",
+    "basicTxRxDesc": "Basic serial send/receive example",
+    "autoResponder": "Auto Responder",
+    "autoResponderDesc": "Auto-reply to received commands",
+    "protocolParser": "Protocol Parser",
+    "protocolParserDesc": "Modbus RTU parsing example",
+    "scheduledTask": "Scheduled Task",
+    "scheduledTaskDesc": "Send heartbeat data periodically",
+    "dataLogger": "Data Logger",
+    "dataLoggerDesc": "Log received data with timestamps"
   },
   "protocols": {
     "title": "Protocols",
@@ -111,7 +142,35 @@
     "saveAndLoad": "Save & Load",
     "reload": "Reload",
     "unload": "Unload",
-    "noProtocols": "No custom protocols"
+    "noProtocols": "No custom protocols",
+    "noCustomProtocols": "No custom protocols yet",
+    "validationFail": "Protocol validation failed",
+    "validationErrors": "Validation Errors"
+  },
+  "protocolTester": {
+    "selectProtocol": "Select protocol",
+    "encode": "Encode",
+    "decode": "Decode",
+    "input": "Input",
+    "result": "Result"
+  },
+  "virtual": {
+    "title": "Virtual Serial Ports",
+    "createPair": "Create New Pair",
+    "backend": "Backend",
+    "portA": "Port A",
+    "portB": "Port B",
+    "uptime": "Uptime",
+    "bridged": "Bridged",
+    "capture": "Capture",
+    "capturedPackets": "Captured Packets",
+    "noPorts": "No virtual ports",
+    "startCapture": "Start Capture",
+    "stopCapture": "Stop Capture",
+    "emptyState": "No virtual ports",
+    "emptyStateDesc": "Virtual port pairs let you test serial communication without physical hardware",
+    "filterAll": "All",
+    "packetsBridged": "Packets Bridged"
   },
   "settings": {
     "title": "Settings",
@@ -136,7 +195,33 @@
     "customDir": "Custom Protocol Directory",
     "theme": "Theme",
     "maxPackets": "Max Packets",
-    "defaultFormat": "Default Format"
+    "defaultFormat": "Default Format",
+    "general": "General",
+    "about": "About",
+    "language": "Language",
+    "languageDesc": "Choose interface language",
+    "appName": "App Name",
+    "version": "Version",
+    "description": "Description",
+    "appDescription": "Serial port communication tool with Lua scripting",
+    "reportIssue": "Report Issue",
+    "connectionPresets": "Connection Presets",
+    "presetName": "Preset name",
+    "baudRateDesc": "Serial communication speed",
+    "dataBitsDesc": "Number of data bits",
+    "stopBitsDesc": "Number of stop bits",
+    "parityDesc": "Parity checking method",
+    "timeoutDesc": "Operation timeout",
+    "logLevelDesc": "Log verbosity level",
+    "logFormatDesc": "Log output format",
+    "logFileDesc": "Log file path",
+    "memoryLimitDesc": "Lua engine memory limit",
+    "timeoutSecondsDesc": "Lua script execution timeout",
+    "sandboxDesc": "Restrict Lua script access",
+    "jsonPrettyDesc": "Output formatted JSON",
+    "showTimestampDesc": "Show timestamps in output",
+    "hotReloadDesc": "Auto-reload protocol files",
+    "maxPacketsDesc": "Maximum packets in buffer"
   },
   "statusbar": {
     "connectedInfo": "Connected {{port}} @ {{baud}}",

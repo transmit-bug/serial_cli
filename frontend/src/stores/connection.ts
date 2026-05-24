@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { tauriApi } from "@/lib/tauri-api";
-import type { ConnectionStatus, PortInfo, SerialConfig } from "@/types";
+import type {
+  ConnectionStatus,
+  PortInfo,
+  PortStats,
+  SerialConfig,
+} from "@/types";
 
 const DEFAULT_CONFIG: SerialConfig = {
   baudrate: 115200,
@@ -18,6 +23,8 @@ interface ConnectionStore {
   config: SerialConfig;
   availablePorts: PortInfo[];
   error: string | null;
+  portStatus: PortStats | null;
+  connectedAt: number | null;
 
   refreshPorts: () => Promise<void>;
   connect: (portName: string, config?: Partial<SerialConfig>) => Promise<void>;
@@ -25,7 +32,11 @@ interface ConnectionStore {
   checkHealth: () => Promise<boolean>;
   setConfig: (config: Partial<SerialConfig>) => void;
   setError: (error: string | null) => void;
+  startStatusPolling: () => void;
+  stopStatusPolling: () => void;
 }
+
+let pollingTimer: ReturnType<typeof setInterval> | null = null;
 
 export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
   portId: null,
@@ -34,6 +45,8 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
   config: DEFAULT_CONFIG,
   availablePorts: [],
   error: null,
+  portStatus: null,
+  connectedAt: null,
 
   refreshPorts: async () => {
     try {
@@ -53,9 +66,16 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
 
     try {
       const portId = await tauriApi.openPort(portName, finalConfig);
-      set({ portId, portName, status: "connected", config: finalConfig });
+      set({
+        portId,
+        portName,
+        status: "connected",
+        config: finalConfig,
+        connectedAt: Date.now(),
+      });
 
       await tauriApi.startSniffing(portId);
+      get().startStatusPolling();
     } catch (e) {
       set({ status: "error", error: String(e) });
     }
@@ -65,13 +85,22 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
     const { portId } = get();
     if (!portId) return;
 
+    get().stopStatusPolling();
+
     try {
       await tauriApi.stopSniffing(portId);
       await tauriApi.closePort(portId);
     } catch {
       // Port may already be closed
     }
-    set({ portId: null, portName: null, status: "disconnected", error: null });
+    set({
+      portId: null,
+      portName: null,
+      status: "disconnected",
+      error: null,
+      portStatus: null,
+      connectedAt: null,
+    });
   },
 
   checkHealth: async () => {
@@ -86,4 +115,27 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
 
   setConfig: (config) => set((s) => ({ config: { ...s.config, ...config } })),
   setError: (error) => set({ error }),
+
+  startStatusPolling: () => {
+    get().stopStatusPolling();
+    const poll = async () => {
+      const { portId, status } = get();
+      if (!portId || status !== "connected") return;
+      try {
+        const portStatus = await tauriApi.getPortStatus(portId);
+        set({ portStatus: portStatus.stats });
+      } catch {
+        // ignore polling errors
+      }
+    };
+    pollingTimer = setInterval(poll, 2000);
+    poll();
+  },
+
+  stopStatusPolling: () => {
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+  },
 }));

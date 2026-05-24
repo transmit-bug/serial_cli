@@ -70,9 +70,23 @@
     "commandData": "数据",
     "commandFormat": "格式",
     "duration": "持续时间",
+    "connectedSince": "连接时长",
+    "lastActivity": "最后活动",
+    "exportData": "导出数据",
+    "connectToStart": "连接串口以开始",
     "noData": "暂无数据",
     "historyUp": "↑",
     "historyDown": "↓"
+  },
+  "txSender": {
+    "freeSend": "自由发送",
+    "quickSend": "快捷发送"
+  },
+  "quickSend": {
+    "editCommand": "编辑命令",
+    "label": "标签",
+    "data": "数据",
+    "addCommand": "添加命令"
   },
   "virtual": {
     "title": "虚拟串口",
@@ -99,7 +113,24 @@
     "saveSuccess": "脚本已保存",
     "deleteSuccess": "脚本已删除",
     "unsavedChanges": "有未保存的更改",
-    "noScripts": "暂无脚本"
+    "noScripts": "暂无脚本",
+    "emptyState": "还没有脚本",
+    "templateTip": "从模板开始创建",
+    "attachToPort": "附加到端口",
+    "attached": "已附加"
+  },
+  "scriptTemplates": {
+    "title": "脚本模板",
+    "basicTxRx": "基础收发",
+    "basicTxRxDesc": "基本的串口收发示例",
+    "autoResponder": "自动应答",
+    "autoResponderDesc": "根据收到的命令自动回复",
+    "protocolParser": "协议解析",
+    "protocolParserDesc": "Modbus RTU 协议解析示例",
+    "scheduledTask": "定时任务",
+    "scheduledTaskDesc": "定时发送心跳数据",
+    "dataLogger": "数据记录",
+    "dataLoggerDesc": "记录收到的数据带时间戳"
   },
   "protocols": {
     "title": "协议",
@@ -111,7 +142,35 @@
     "saveAndLoad": "保存并加载",
     "reload": "重载",
     "unload": "卸载",
-    "noProtocols": "暂无自定义协议"
+    "noProtocols": "暂无自定义协议",
+    "noCustomProtocols": "暂无自定义协议",
+    "validationFail": "协议验证失败",
+    "validationErrors": "验证错误"
+  },
+  "protocolTester": {
+    "selectProtocol": "选择协议",
+    "encode": "编码",
+    "decode": "解码",
+    "input": "输入",
+    "result": "结果"
+  },
+  "virtual": {
+    "title": "虚拟串口",
+    "createPair": "创建新端口对",
+    "backend": "后端",
+    "portA": "端口 A",
+    "portB": "端口 B",
+    "uptime": "运行时间",
+    "bridged": "桥接数据",
+    "capture": "抓包",
+    "capturedPackets": "抓包数据",
+    "noPorts": "暂无虚拟端口",
+    "startCapture": "开始抓包",
+    "stopCapture": "停止抓包",
+    "emptyState": "没有虚拟端口",
+    "emptyStateDesc": "虚拟端口对可以用于测试串口通信而无需物理硬件",
+    "filterAll": "全部",
+    "packetsBridged": "桥接包数"
   },
   "settings": {
     "title": "设置",
@@ -136,7 +195,33 @@
     "customDir": "自定义协议目录",
     "theme": "主题",
     "maxPackets": "最大数据包数",
-    "defaultFormat": "默认格式"
+    "defaultFormat": "默认格式",
+    "general": "通用",
+    "about": "关于",
+    "language": "语言",
+    "languageDesc": "选择界面语言",
+    "appName": "应用名称",
+    "version": "版本",
+    "description": "描述",
+    "appDescription": "串口通信工具，支持 Lua 脚本",
+    "reportIssue": "报告问题",
+    "connectionPresets": "连接预设",
+    "presetName": "预设名称",
+    "baudRateDesc": "串口通信速率",
+    "dataBitsDesc": "数据位数量",
+    "stopBitsDesc": "停止位数量",
+    "parityDesc": "奇偶校验方式",
+    "timeoutDesc": "操作超时时间",
+    "logLevelDesc": "日志输出详细程度",
+    "logFormatDesc": "日志输出格式",
+    "logFileDesc": "日志文件路径",
+    "memoryLimitDesc": "Lua 引擎内存上限",
+    "timeoutSecondsDesc": "Lua 脚本执行超时",
+    "sandboxDesc": "限制 Lua 脚本的访问权限",
+    "jsonPrettyDesc": "输出格式化的 JSON",
+    "showTimestampDesc": "在输出中显示时间戳",
+    "hotReloadDesc": "自动重新加载协议文件",
+    "maxPacketsDesc": "缓冲区最大数据包数量"
   },
   "statusbar": {
     "connectedInfo": "已连接 {{port}} @ {{baud}}",

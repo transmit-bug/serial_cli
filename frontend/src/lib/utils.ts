@@ -47,3 +47,11 @@ export function hexToBytes(hex: string): number[] {
   }
   return bytes;
 }
+
+export function formatDuration(ms: number): string {
+  const secs = Math.floor(ms / 1000);
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}

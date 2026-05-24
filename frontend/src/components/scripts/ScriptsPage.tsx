@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { toast } from "sonner";
+import { useConnectionStore } from "@/stores/connection";
 import { useScriptStore } from "@/stores/script";
+import { ScriptTemplates } from "./ScriptTemplates";
 
 export function ScriptsPage() {
   const { t } = useTranslation();
@@ -23,7 +25,10 @@ export function ScriptsPage() {
     clearOutput,
   } = useScriptStore();
 
+  const { status, availablePorts } = useConnectionStore();
   const [scriptNameInput, setScriptNameInput] = useState("");
+  const [attachedPort, setAttachedPort] = useState<string | null>(null);
+  const [attachDropdown, setAttachDropdown] = useState(false);
 
   useEffect(() => {
     loadScriptList();
@@ -80,6 +85,67 @@ export function ScriptsPage() {
     [deleteScript, t],
   );
 
+  const handleLoadTemplate = useCallback(
+    (content: string) => {
+      newScript();
+      updateContent(content);
+    },
+    [newScript, updateContent],
+  );
+
+  const handleAttachToPort = useCallback(
+    async (targetPortId: string) => {
+      if (!currentScript) return;
+      try {
+        await executeScript(currentScript.content);
+        setAttachedPort(targetPortId);
+        toast.success(`Script attached to port`);
+      } catch (e) {
+        toast.error(String(e));
+      }
+      setAttachDropdown(false);
+    },
+    [currentScript, executeScript],
+  );
+
+  const handleDetach = useCallback(() => {
+    setAttachedPort(null);
+    toast.success("Script detached");
+  }, []);
+
+  // Empty state
+  if (!currentScript) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+          <h1 className="text-sm font-semibold mr-4">{t("scripts.title")}</h1>
+          <button
+            onClick={newScript}
+            className="px-2 py-1 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30"
+          >
+            + {t("scripts.newScript")}
+          </button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="text-text-muted text-sm">
+              {t("scripts.emptyState")}
+            </div>
+            <button
+              onClick={newScript}
+              className="px-4 py-2 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30"
+            >
+              + {t("scripts.newScript")}
+            </button>
+            <div className="text-xs text-text-muted">
+              {t("scripts.templateTip")}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -116,6 +182,47 @@ export function ScriptsPage() {
         >
           💾 {t("common.save")}
         </button>
+
+        {/* Attach to Port */}
+        <div className="relative">
+          {attachedPort ? (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-success">
+                ● {t("scripts.attached")}
+              </span>
+              <button
+                onClick={handleDetach}
+                className="text-xs text-danger hover:bg-danger/20 px-1 rounded"
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAttachDropdown(!attachDropdown)}
+              disabled={!currentScript || status !== "connected"}
+              className="px-2 py-1 rounded text-xs text-text-muted hover:text-text disabled:opacity-50"
+            >
+              {t("scripts.attachToPort")}
+            </button>
+          )}
+          {attachDropdown && (
+            <div className="absolute top-8 left-0 z-50 rounded border border-border bg-base shadow-lg py-1 min-w-40">
+              {availablePorts
+                .filter((p) => !p.is_virtual)
+                .map((p) => (
+                  <button
+                    key={p.port_name}
+                    className="w-full text-left px-3 py-1 text-xs hover:bg-surface"
+                    onClick={() => handleAttachToPort(p.port_name)}
+                  >
+                    {p.port_name}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+
         {currentScript?.name && (
           <button
             onClick={() => handleDelete(currentScript.name ?? "")}
@@ -134,7 +241,9 @@ export function ScriptsPage() {
       <Group orientation="horizontal" className="flex-1">
         {/* Script list */}
         <Panel defaultSize={18} minSize={12} maxSize={25}>
-          <div className="h-full overflow-y-auto border-r border-border">
+          <div className="h-full overflow-y-auto">
+            <ScriptTemplates onLoadTemplate={handleLoadTemplate} />
+
             {scripts.length === 0 ? (
               <div className="p-3 text-text-muted text-xs">
                 {t("scripts.noScripts")}
@@ -216,8 +325,11 @@ export function ScriptsPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 font-mono text-xs">
                   {output.map((line, i) => (
-                    <div key={i} className="py-0.5">
-                      {line}
+                    <div
+                      key={i}
+                      className={`py-0.5 ${line.type === "error" ? "text-danger" : line.type === "success" ? "text-green-500" : "text-text"}`}
+                    >
+                      {line.text}
                     </div>
                   ))}
                 </div>

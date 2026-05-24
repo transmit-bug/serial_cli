@@ -44,7 +44,7 @@ export function TerminalWorkbench() {
       <ConnectionBar />
 
       <Group orientation="horizontal" className="flex-1">
-        <Panel defaultSize={75} minSize={50}>
+        <Panel defaultSize={65} minSize={50}>
           <Group orientation="vertical">
             <Panel defaultSize={65} minSize={30}>
               <RxViewer />
@@ -58,8 +58,8 @@ export function TerminalWorkbench() {
 
         {!rightPanelCollapsed && (
           <>
-            <Separator className="w-px bg-border hover:bg-accent transition-colors" />
-            <Panel defaultSize={25} minSize={15} maxSize={35}>
+            <Separator className="w-1.5 bg-border hover:bg-accent cursor-col-resize transition-colors" />
+            <Panel defaultSize={35} minSize={25}>
               <RightPanel />
             </Panel>
           </>
