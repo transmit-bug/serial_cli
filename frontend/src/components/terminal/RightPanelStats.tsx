@@ -5,7 +5,9 @@ import { useConnectionStore } from "@/stores/connection";
 import { useDataStore } from "@/stores/data";
 
 function useConnectionDuration(): string {
-  const connectedAt = useConnectionStore((s) => s.connectedAt);
+  const connectedAt = useConnectionStore(
+    (s) => s.connections.find((c) => c.portId === s.activePortId)?.connectedAt,
+  );
   const [, setTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 1000);
@@ -17,9 +19,15 @@ function useConnectionDuration(): string {
 
 export function RightPanelStats() {
   const { t } = useTranslation();
-  const isConnected = useConnectionStore((s) => s.status === "connected");
-  const portStatus = useConnectionStore((s) => s.portStatus);
-  const packets = useDataStore((s) => s.packets);
+  const activePortId = useConnectionStore((s) => s.activePortId);
+  const activeEntry = useConnectionStore((s) =>
+    s.connections.find((c) => c.portId === s.activePortId),
+  );
+  const isConnected = activeEntry?.status === "connected";
+  const portStatus = activeEntry?.portStatus;
+  const packets = useDataStore((s) =>
+    activePortId ? s.packets.filter((p) => p.portId === activePortId) : [],
+  );
 
   const duration = useConnectionDuration();
 

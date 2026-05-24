@@ -353,6 +353,19 @@ fn get_config_file_path() -> Option<PathBuf> {
     }
 }
 
+/// Connection preset for quick serial port configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionPreset {
+    pub name: String,
+    pub port_name: String,
+    pub baudrate: u32,
+    pub databits: u8,
+    pub stopbits: u8,
+    pub parity: String,
+    pub flow_control: String,
+    pub timeout_ms: u64,
+}
+
 /// Configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
@@ -375,6 +388,9 @@ pub struct Config {
     /// Display / UI configuration
     #[serde(default)]
     pub display: DisplayConfig,
+    /// Saved connection presets
+    #[serde(default)]
+    pub connection_presets: Vec<ConnectionPreset>,
 }
 
 /// Serial port configuration

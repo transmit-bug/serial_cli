@@ -6,14 +6,16 @@ import { hexToBytes } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
 import { useDataStore } from "@/stores/data";
 import { QuickSendPanel } from "./QuickSendPanel";
+import { SequenceList } from "./SequenceList";
 
-export function TxSender() {
+export function TxSender({ portId }: { portId?: string }) {
   const { t } = useTranslation();
-  const isConnected = useConnectionStore((s) => s.status === "connected");
-  const portId = useConnectionStore((s) => s.portId);
+  const isConnected = useConnectionStore((s) =>
+    s.connections.some((c) => c.portId === portId && c.status === "connected"),
+  );
   const addPacket = useDataStore((s) => s.addPacket);
 
-  const [tab, setTab] = useState<"free" | "quick">("free");
+  const [tab, setTab] = useState<"free" | "quick" | "sequences">("free");
   const [input, setInput] = useState("");
   const [hexMode, setHexMode] = useState(false);
   const [loopActive, setLoopActive] = useState(false);
@@ -34,7 +36,7 @@ export function TxSender() {
       }
 
       await tauriApi.sendData(portId, data);
-      addPacket("tx", data, Date.now());
+      addPacket(portId, "tx", data, Date.now());
 
       if (historyRef.current[historyRef.current.length - 1] !== input) {
         historyRef.current.push(input);
@@ -110,6 +112,12 @@ export function TxSender() {
         >
           {t("txSender.quickSend")}
         </button>
+        <button
+          className={`px-3 py-1.5 text-xs font-medium transition ${tab === "sequences" ? "text-accent border-b-2 border-accent" : "text-text-muted hover:text-text"}`}
+          onClick={() => setTab("sequences")}
+        >
+          {t("txSender.sequences")}
+        </button>
       </div>
 
       {tab === "free" ? (
@@ -160,6 +168,7 @@ export function TxSender() {
       ) : (
         <QuickSendPanel onSent={handleQuickSend} />
       )}
+      {tab === "sequences" && <SequenceList />}
     </div>
   );
 }

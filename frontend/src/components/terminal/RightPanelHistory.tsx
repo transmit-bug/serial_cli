@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDataStore } from "@/stores/data";
+import { ExportControls } from "./ExportControls";
 
 type DirectionFilter = "all" | "rx" | "tx";
 
@@ -34,43 +35,6 @@ export function RightPanelHistory() {
       return true;
     });
   }, [packets, searchQuery, directionFilter]);
-
-  const handleExport = useCallback(
-    (format: "txt" | "csv" | "json") => {
-      if (filtered.length === 0) return;
-
-      let content: string;
-      let mimeType = "text/plain";
-
-      if (format === "json") {
-        content = JSON.stringify(filtered, null, 2);
-        mimeType = "application/json";
-      } else if (format === "csv") {
-        const header = "timestamp,direction,data\n";
-        const rows = filtered
-          .map((p) => `${p.timestamp},${p.direction},"${p.data.join(" ")}"`)
-          .join("\n");
-        content = header + rows;
-        mimeType = "text/csv";
-      } else {
-        content = filtered
-          .map(
-            (p) =>
-              `[${new Date(p.timestamp).toISOString()}] ${p.direction.toUpperCase()} ${p.data.join(" ")}`,
-          )
-          .join("\n");
-      }
-
-      const blob = new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `serial-data-${Date.now()}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    [filtered],
-  );
 
   return (
     <div className="flex flex-col h-full">
@@ -159,24 +123,7 @@ export function RightPanelHistory() {
       </div>
 
       {/* Export */}
-      {filtered.length > 0 && (
-        <div className="p-2 border-t border-border">
-          <div className="text-[10px] text-text-muted mb-1">
-            {t("history.export")}
-          </div>
-          <div className="flex gap-1">
-            {(["txt", "csv", "json"] as const).map((fmt) => (
-              <button
-                key={fmt}
-                onClick={() => handleExport(fmt)}
-                className="flex-1 rounded px-2 py-1 text-xs uppercase bg-surface text-text-muted hover:bg-surface-hover hover:text-text transition"
-              >
-                .{fmt}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <ExportControls />
     </div>
   );
 }

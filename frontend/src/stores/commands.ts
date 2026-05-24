@@ -1,8 +1,15 @@
 import { create } from "zustand";
 import { tauriApi } from "@/lib/tauri-api";
-import type { QuickCommand } from "@/types";
+import { useDataStore } from "@/stores/data";
+import type {
+  CommandSequence,
+  QuickCommand,
+  SequenceExecutionState,
+  SequenceStep,
+} from "@/types";
 
 const STORAGE_KEY = "serial-cli-quick-commands";
+const SEQUENCE_STORAGE_KEY = "serial-cli-command-sequences";
 
 const DEFAULT_COMMANDS: QuickCommand[] = [
   { label: "AT", data: "AT\r\n", format: "ascii", hotkey: "F1" },
@@ -42,26 +49,72 @@ function persistCommands(cmds: QuickCommand[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cmds));
 }
 
+function loadSequences(): CommandSequence[] {
+  try {
+    const raw = localStorage.getItem(SEQUENCE_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as CommandSequence[];
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+function persistSequences(seq: CommandSequence[]) {
+  localStorage.setItem(SEQUENCE_STORAGE_KEY, JSON.stringify(seq));
+}
+
+const defaultExecutionState: SequenceExecutionState = {
+  sequenceId: null,
+  sequenceName: null,
+  stepIndex: -1,
+  loopIteration: 0,
+  status: "idle",
+};
+
+function stepToBytes(step: SequenceStep): number[] {
+  if (step.format === "hex") {
+    return step.data.split(/\s+/).map((b) => Number.parseInt(b, 16));
+  }
+  return Array.from(new TextEncoder().encode(step.data));
+}
+
+function bytesToAsciiString(data: number[]): string {
+  return data
+    .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : ""))
+    .join("");
+}
+
+function bytesToHexString(data: number[]): string {
+  return data
+    .map((b) => b.toString(16).padStart(2, "0").toUpperCase())
+    .join(" ");
+}
+
 interface CommandStore {
   commands: QuickCommand[];
 
-  /** Load commands from localStorage */
   loadCommands: () => void;
-  /** Add a new command */
   addCommand: (cmd: QuickCommand) => void;
-  /** Update a command by index */
   updateCommand: (index: number, cmd: QuickCommand) => void;
-  /** Delete a command by index */
   deleteCommand: (index: number) => void;
-  /** Reorder: move command from `from` to `to` */
   reorderCommand: (from: number, to: number) => void;
-  /** Send a command to the given port */
   sendCommand: (
     index: number,
     portId: string,
     addPacket: (direction: "tx", data: number[], ts: number) => void,
   ) => Promise<void>;
+
+  sequences: CommandSequence[];
+  executionState: SequenceExecutionState;
+
+  addSequence: (seq: CommandSequence) => void;
+  updateSequence: (id: string, seq: CommandSequence) => void;
+  deleteSequence: (id: string) => void;
+  executeSequence: (sequenceId: string, portId: string) => Promise<void>;
+  stopSequence: () => void;
 }
+
+let abortController: AbortController | null = null;
 
 export const useCommandStore = create<CommandStore>()((set, get) => ({
   commands: loadCommands(),
@@ -108,5 +161,179 @@ export const useCommandStore = create<CommandStore>()((set, get) => ({
         : Array.from(new TextEncoder().encode(cmd.data));
     await tauriApi.sendData(portId, data);
     addPacket("tx", data, Date.now());
+  },
+
+  sequences: loadSequences(),
+  executionState: defaultExecutionState,
+
+  addSequence: (seq) =>
+    set((s) => {
+      const updated = [...s.sequences, seq];
+      persistSequences(updated);
+      return { sequences: updated };
+    }),
+
+  updateSequence: (id, seq) =>
+    set((s) => {
+      const updated = s.sequences.map((s2) => (s2.id === id ? seq : s2));
+      persistSequences(updated);
+      return { sequences: updated };
+    }),
+
+  deleteSequence: (id) =>
+    set((s) => {
+      const updated = s.sequences.filter((s2) => s2.id !== id);
+      persistSequences(updated);
+      return { sequences: updated };
+    }),
+
+  executeSequence: async (sequenceId, portId) => {
+    const sequence = get().sequences.find((s) => s.id === sequenceId);
+    if (!sequence || sequence.steps.length === 0) return;
+
+    abortController?.abort();
+    abortController = new AbortController();
+    const { signal } = abortController;
+
+    const addPacket = useDataStore.getState().addPacket;
+
+    set({
+      executionState: {
+        sequenceId,
+        sequenceName: sequence.name,
+        stepIndex: 0,
+        loopIteration: 0,
+        status: "running",
+      },
+    });
+
+    try {
+      for (let stepIdx = 0; stepIdx < sequence.steps.length; stepIdx++) {
+        if (signal.aborted) break;
+
+        const step = sequence.steps[stepIdx];
+        if (!step) continue;
+
+        const loopN = step.loopCount ?? 1;
+        for (let loopI = 0; loopI < loopN; loopI++) {
+          if (signal.aborted) break;
+
+          set({
+            executionState: {
+              sequenceId,
+              sequenceName: sequence.name,
+              stepIndex: stepIdx,
+              loopIteration: loopN > 1 ? loopI : -1,
+              status: "running",
+            },
+          });
+
+          const bytes = stepToBytes(step);
+          await tauriApi.sendData(portId, bytes);
+          addPacket("tx", bytes, Date.now());
+
+          if (step.delay > 0) {
+            await new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, step.delay);
+              const onAbort = () => {
+                clearTimeout(timer);
+                resolve();
+              };
+              signal.addEventListener("abort", onAbort, { once: true });
+            });
+          }
+
+          if (signal.aborted) break;
+
+          if (step.waitFor && stepIdx < sequence.steps.length - 1) {
+            const timeout = step.waitTimeout ?? 5000;
+            const startTime = Date.now();
+            const snapshotLen = useDataStore.getState().packets.length;
+            let found = false;
+
+            while (Date.now() - startTime < timeout && !signal.aborted) {
+              const currentPackets = useDataStore.getState().packets;
+              for (let p = snapshotLen; p < currentPackets.length; p++) {
+                const pkt = currentPackets[p];
+                if (pkt && pkt.direction === "rx") {
+                  const ascii = bytesToAsciiString(pkt.data);
+                  const hex = bytesToHexString(pkt.data);
+                  if (
+                    ascii.includes(step.waitFor) ||
+                    hex.includes(step.waitFor)
+                  ) {
+                    found = true;
+                    break;
+                  }
+                }
+              }
+              if (found) break;
+              await new Promise<void>((resolve) => {
+                const timer = setTimeout(resolve, 50);
+                signal.addEventListener(
+                  "abort",
+                  () => {
+                    clearTimeout(timer);
+                    resolve();
+                  },
+                  { once: true },
+                );
+              });
+            }
+
+            if (!found && !signal.aborted) {
+              set({
+                executionState: {
+                  sequenceId,
+                  sequenceName: sequence.name,
+                  stepIndex: stepIdx,
+                  loopIteration: loopI,
+                  status: "error",
+                  error: `Wait for "${step.waitFor}" timed out after ${timeout}ms at step ${stepIdx + 1}`,
+                },
+              });
+              return;
+            }
+          }
+        }
+      }
+
+      if (!signal.aborted) {
+        set({
+          executionState: {
+            sequenceId,
+            sequenceName: sequence.name,
+            stepIndex: sequence.steps.length - 1,
+            loopIteration: -1,
+            status: "completed",
+          },
+        });
+      }
+    } catch (e) {
+      set({
+        executionState: {
+          sequenceId,
+          sequenceName: sequence.name,
+          stepIndex: get().executionState.stepIndex,
+          loopIteration: -1,
+          status: "error",
+          error: String(e),
+        },
+      });
+    }
+  },
+
+  stopSequence: () => {
+    abortController?.abort();
+    abortController = null;
+    set({
+      executionState: {
+        sequenceId: null,
+        sequenceName: null,
+        stepIndex: -1,
+        loopIteration: 0,
+        status: "idle",
+      },
+    });
   },
 }));

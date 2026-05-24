@@ -35,7 +35,8 @@
     "timeout": "Timeout",
     "protocol": "Protocol",
     "script": "Script",
-    "copy": "Copy"
+    "copy": "Copy",
+    "apply": "Apply"
   },
   "nav": {
     "terminal": "Terminal",
@@ -117,11 +118,30 @@
     "connectToStart": "Connect a serial port to start",
     "noData": "No data received",
     "historyUp": "↑",
-    "historyDown": "↓"
+    "historyDown": "↓",
+    "searchMatchCount": "{{matched}} / {{total}}",
+    "searchRegex": ".*",
+    "searchCaseSensitive": "Aa"
   },
   "txSender": {
     "freeSend": "Free Send",
-    "quickSend": "Quick Send"
+    "quickSend": "Quick Send",
+    "sequences": "Sequences"
+  },
+  "sequences": {
+    "title": "Command Sequences",
+    "newSequence": "New Sequence",
+    "emptyState": "No sequences yet. Create one to get started.",
+    "sequenceName": "Sequence name",
+    "addStep": "Add Step",
+    "steps": "steps",
+    "stepLabel": "Label",
+    "stepData": "Data to send",
+    "delay": "Delay",
+    "waitFor": "Wait for RX",
+    "timeout": "Timeout",
+    "loop": "Repeat",
+    "executingStep": "Step {{current}}/{{total}}"
   },
   "quickSend": {
     "editCommand": "Edit Command",
@@ -287,6 +307,25 @@
     "showTimestampDesc": "Show timestamps in output",
     "hotReloadDesc": "Auto-reload protocol files",
     "maxPacketsDesc": "Maximum packets in buffer"
+  },
+  "presets": {
+    "apply": "Apply Preset",
+    "noPresets": "No saved presets",
+    "manageTitle": "Manage Presets"
+  },
+  "export": {
+    "title": "Export Data",
+    "format": "Format",
+    "filteredOnly": "Export filtered only",
+    "download": "Download",
+    "fields": {
+      "id": "ID",
+      "timestamp": "Timestamp",
+      "direction": "Direction",
+      "hex": "Hex",
+      "ascii": "ASCII",
+      "decoded": "Decoded"
+    }
   },
   "statusbar": {
     "connectedInfo": "Connected {{port}} @ {{baud}}",

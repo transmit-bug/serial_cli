@@ -7,7 +7,7 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use serial_cli::config::Config;
+use serial_cli::config::{Config, ConnectionPreset};
 use std::fs;
 use std::path::PathBuf;
 use tauri::State;
@@ -134,6 +134,101 @@ fn get_config_path() -> Result<PathBuf, String> {
         // Fallback to project-local config
         Ok(PathBuf::from(".serial-cli.toml"))
     }
+}
+
+/// Get connection presets
+#[tauri::command]
+pub async fn get_connection_presets() -> Result<Vec<ConnectionPresetData>, String> {
+    let config = serial_cli::config::load_config_with_fallback();
+    Ok(config
+        .connection_presets
+        .into_iter()
+        .map(|p| ConnectionPresetData {
+            name: p.name,
+            port_name: p.port_name,
+            baudrate: p.baudrate,
+            databits: p.databits,
+            stopbits: p.stopbits,
+            parity: p.parity,
+            flow_control: p.flow_control,
+            timeout_ms: p.timeout_ms,
+        })
+        .collect())
+}
+
+/// Save all connection presets (replaces entire list)
+#[tauri::command]
+pub async fn save_connection_presets(
+    presets: Vec<ConnectionPresetData>,
+) -> Result<(), String> {
+    let config_path = get_config_path()?;
+
+    if let Some(parent) = config_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create config directory: {}", e))?;
+        }
+    }
+
+    let mut existing_config = if config_path.exists() {
+        serial_cli::config::load_config(&config_path)
+            .map_err(|e| format!("Failed to load config: {}", e))?
+    } else {
+        Config::default()
+    };
+
+    existing_config.connection_presets = presets
+        .into_iter()
+        .map(|p| ConnectionPreset {
+            name: p.name,
+            port_name: p.port_name,
+            baudrate: p.baudrate,
+            databits: p.databits,
+            stopbits: p.stopbits,
+            parity: p.parity,
+            flow_control: p.flow_control,
+            timeout_ms: p.timeout_ms,
+        })
+        .collect();
+
+    let toml_string =
+        toml::to_string_pretty(&existing_config).map_err(|e| format!("Failed to serialize config: {}", e))?;
+    fs::write(&config_path, toml_string)
+        .map_err(|e| format!("Failed to write config file: {}", e))
+}
+
+/// Delete a connection preset by name
+#[tauri::command]
+pub async fn delete_connection_preset(name: String) -> Result<(), String> {
+    let config_path = get_config_path()?;
+
+    let mut existing_config = if config_path.exists() {
+        serial_cli::config::load_config(&config_path)
+            .map_err(|e| format!("Failed to load config: {}", e))?
+    } else {
+        return Ok(());
+    };
+
+    existing_config
+        .connection_presets
+        .retain(|p| p.name != name);
+
+    let toml_string =
+        toml::to_string_pretty(&existing_config).map_err(|e| format!("Failed to serialize config: {}", e))?;
+    fs::write(&config_path, toml_string)
+        .map_err(|e| format!("Failed to write config file: {}", e))
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ConnectionPresetData {
+    pub name: String,
+    pub port_name: String,
+    pub baudrate: u32,
+    pub databits: u8,
+    pub stopbits: u8,
+    pub parity: String,
+    pub flow_control: String,
+    pub timeout_ms: u64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

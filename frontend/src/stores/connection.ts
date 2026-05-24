@@ -16,126 +16,195 @@ const DEFAULT_CONFIG: SerialConfig = {
   flow_control: "None",
 };
 
-interface ConnectionStore {
-  portId: string | null;
-  portName: string | null;
+export interface ConnectionEntry {
+  portId: string;
+  portName: string;
   status: ConnectionStatus;
   config: SerialConfig;
-  availablePorts: PortInfo[];
-  error: string | null;
   portStatus: PortStats | null;
   connectedAt: number | null;
+  error: string | null;
+}
+
+interface ConnectionStore {
+  availablePorts: PortInfo[];
+  connections: ConnectionEntry[];
+  activePortId: string | null;
+  pendingPort: string | null;
+  defaultConfig: SerialConfig;
 
   refreshPorts: () => Promise<void>;
   connect: (portName: string, config?: Partial<SerialConfig>) => Promise<void>;
-  disconnect: () => Promise<void>;
-  checkHealth: () => Promise<boolean>;
-  setConfig: (config: Partial<SerialConfig>) => void;
-  setError: (error: string | null) => void;
-  startStatusPolling: () => void;
-  stopStatusPolling: () => void;
+  disconnect: (portId: string) => Promise<void>;
+  disconnectAll: () => Promise<void>;
+  setActivePort: (portId: string | null) => void;
+  setPendingPort: (portName: string | null) => void;
+  removePort: (portId: string) => void;
+  setDefaultConfig: (config: Partial<SerialConfig>) => void;
+  setPortError: (portId: string, error: string | null) => void;
 }
 
-let pollingTimer: ReturnType<typeof setInterval> | null = null;
+const pollingTimers = new Map<string, ReturnType<typeof setInterval>>();
+
+const startPolling = (portId: string) => {
+  stopPolling(portId);
+  const poll = async () => {
+    try {
+      const status = await tauriApi.getPortStatus(portId);
+      useConnectionStore.setState((s) => {
+        const entry = s.connections.find((c) => c.portId === portId);
+        if (!entry) return s;
+        return {
+          connections: s.connections.map((c) =>
+            c.portId === portId ? { ...c, portStatus: status.stats } : c,
+          ),
+        };
+      });
+    } catch {
+      // ignore polling errors
+    }
+  };
+  const timer = setInterval(poll, 2000);
+  pollingTimers.set(portId, timer);
+  poll();
+};
+
+const stopPolling = (portId: string) => {
+  const timer = pollingTimers.get(portId);
+  if (timer) {
+    clearInterval(timer);
+    pollingTimers.delete(portId);
+  }
+};
 
 export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
-  portId: null,
-  portName: null,
-  status: "disconnected",
-  config: DEFAULT_CONFIG,
   availablePorts: [],
-  error: null,
-  portStatus: null,
-  connectedAt: null,
+  connections: [],
+  activePortId: null,
+  pendingPort: null,
+  defaultConfig: DEFAULT_CONFIG,
 
   refreshPorts: async () => {
     try {
       const ports = await tauriApi.listPorts();
       set({ availablePorts: ports });
     } catch (e) {
-      set({ error: String(e) });
+      set({ availablePorts: [] });
     }
   },
 
-  connect: async (portName, configOverride) => {
-    const { config, status } = get();
-    if (status === "connected" || status === "connecting") return;
+  connect: async (_portName, configOverride) => {
+    const { pendingPort, connections, defaultConfig } = get();
+    const portName = pendingPort;
+    if (!portName) return;
+    if (
+      connections.some(
+        (c) => c.portName === portName && c.status === "connected",
+      )
+    )
+      return;
 
-    const finalConfig = { ...config, ...configOverride };
-    set({ status: "connecting", error: null });
+    const finalConfig = { ...defaultConfig, ...configOverride };
+
+    const entry: ConnectionEntry = {
+      portId: "",
+      portName,
+      status: "connecting",
+      config: finalConfig,
+      portStatus: null,
+      connectedAt: null,
+      error: null,
+    };
+
+    set((s) => ({
+      connections: [...s.connections, entry],
+      activePortId: s.activePortId ?? "pending",
+    }));
 
     try {
       const portId = await tauriApi.openPort(portName, finalConfig);
-      set({
-        portId,
-        portName,
-        status: "connected",
-        config: finalConfig,
-        connectedAt: Date.now(),
-      });
+
+      set((s) => ({
+        connections: s.connections.map((c) =>
+          c.portName === portName && c.status === "connecting"
+            ? { ...c, portId, status: "connected", connectedAt: Date.now() }
+            : c,
+        ),
+        activePortId: portId,
+      }));
 
       await tauriApi.startSniffing(portId);
-      get().startStatusPolling();
+      startPolling(portId);
     } catch (e) {
-      set({ status: "error", error: String(e) });
+      set((s) => ({
+        connections: s.connections.map((c) =>
+          c.portName === portName && c.status === "connecting"
+            ? { ...c, status: "error", error: String(e) }
+            : c,
+        ),
+      }));
     }
   },
 
-  disconnect: async () => {
-    const { portId } = get();
-    if (!portId) return;
-
-    get().stopStatusPolling();
-
+  disconnect: async (portId) => {
     try {
       await tauriApi.stopSniffing(portId);
       await tauriApi.closePort(portId);
     } catch {
       // Port may already be closed
     }
-    set({
-      portId: null,
-      portName: null,
-      status: "disconnected",
-      error: null,
-      portStatus: null,
-      connectedAt: null,
+    stopPolling(portId);
+    set((s) => {
+      const newConnections = s.connections.map((c) =>
+        c.portId === portId
+          ? {
+              ...c,
+              status: "disconnected" as ConnectionStatus,
+              portStatus: null,
+              connectedAt: null,
+            }
+          : c,
+      );
+      let newActive = s.activePortId;
+      if (s.activePortId === portId) {
+        const next = newConnections.find((c) => c.status === "connected");
+        newActive = next?.portId ?? null;
+      }
+      return { connections: newConnections, activePortId: newActive };
     });
   },
 
-  checkHealth: async () => {
-    const { portId } = get();
-    if (!portId) return false;
-    try {
-      return await tauriApi.checkPortHealth(portId);
-    } catch {
-      return false;
-    }
+  disconnectAll: async () => {
+    const { connections } = get();
+    await Promise.all(
+      connections
+        .filter((c) => c.status === "connected")
+        .map((c) => get().disconnect(c.portId)),
+    );
   },
 
-  setConfig: (config) => set((s) => ({ config: { ...s.config, ...config } })),
-  setError: (error) => set({ error }),
+  setActivePort: (portId) => set({ activePortId: portId }),
 
-  startStatusPolling: () => {
-    get().stopStatusPolling();
-    const poll = async () => {
-      const { portId, status } = get();
-      if (!portId || status !== "connected") return;
-      try {
-        const portStatus = await tauriApi.getPortStatus(portId);
-        set({ portStatus: portStatus.stats });
-      } catch {
-        // ignore polling errors
+  setPendingPort: (portName) => set({ pendingPort: portName }),
+
+  removePort: (portId) =>
+    set((s) => {
+      const newConnections = s.connections.filter((c) => c.portId !== portId);
+      let newActive = s.activePortId;
+      if (s.activePortId === portId) {
+        newActive =
+          newConnections.find((c) => c.status === "connected")?.portId ?? null;
       }
-    };
-    pollingTimer = setInterval(poll, 2000);
-    poll();
-  },
+      return { connections: newConnections, activePortId: newActive };
+    }),
 
-  stopStatusPolling: () => {
-    if (pollingTimer) {
-      clearInterval(pollingTimer);
-      pollingTimer = null;
-    }
-  },
+  setDefaultConfig: (config) =>
+    set((s) => ({ defaultConfig: { ...s.defaultConfig, ...config } })),
+
+  setPortError: (portId, error) =>
+    set((s) => ({
+      connections: s.connections.map((c) =>
+        c.portId === portId ? { ...c, error } : c,
+      ),
+    })),
 }));

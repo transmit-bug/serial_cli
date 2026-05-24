@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   CapturedPacket,
   ConfigData,
+  ConnectionPreset,
   CreateVirtualPortConfig,
   PortInfo,
   PortStatus,
@@ -99,4 +100,12 @@ export const tauriApi = {
   updateConfig: (config: ConfigData) =>
     invoke<void>("update_config", { config }),
   resetConfig: () => invoke<void>("reset_config"),
+
+  // Preset commands
+  getConnectionPresets: () =>
+    invoke<ConnectionPreset[]>("get_connection_presets"),
+  saveConnectionPresets: (presets: ConnectionPreset[]) =>
+    invoke<void>("save_connection_presets", { presets }),
+  deleteConnectionPreset: (name: string) =>
+    invoke<void>("delete_connection_preset", { name }),
 };

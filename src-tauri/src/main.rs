@@ -126,6 +126,9 @@ async fn main() {
             commands::config::get_config,
             commands::config::update_config,
             commands::config::reset_config,
+            commands::config::get_connection_presets,
+            commands::config::save_connection_presets,
+            commands::config::delete_connection_preset,
             // Data export command
             commands::export::export_data,
             // Window commands

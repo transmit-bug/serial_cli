@@ -35,7 +35,8 @@
     "timeout": "超时",
     "protocol": "协议",
     "script": "脚本",
-    "copy": "复制"
+    "copy": "复制",
+    "apply": "应用"
   },
   "nav": {
     "terminal": "终端",
@@ -117,11 +118,30 @@
     "connectToStart": "连接串口以开始",
     "noData": "暂无数据",
     "historyUp": "↑",
-    "historyDown": "↓"
+    "historyDown": "↓",
+    "searchMatchCount": "{{matched}} / {{total}}",
+    "searchRegex": ".*",
+    "searchCaseSensitive": "Aa"
   },
   "txSender": {
     "freeSend": "自由发送",
-    "quickSend": "快捷发送"
+    "quickSend": "快捷发送",
+    "sequences": "命令序列"
+  },
+  "sequences": {
+    "title": "命令序列",
+    "newSequence": "新建序列",
+    "emptyState": "暂无序列，创建一个开始使用",
+    "sequenceName": "序列名称",
+    "addStep": "添加步骤",
+    "steps": "步",
+    "stepLabel": "标签",
+    "stepData": "发送数据",
+    "delay": "延时",
+    "waitFor": "等待响应",
+    "timeout": "超时",
+    "loop": "重复",
+    "executingStep": "第 {{current}}/{{total}} 步"
   },
   "quickSend": {
     "editCommand": "编辑命令",
@@ -287,6 +307,25 @@
     "showTimestampDesc": "在输出中显示时间戳",
     "hotReloadDesc": "自动重新加载协议文件",
     "maxPacketsDesc": "缓冲区最大数据包数量"
+  },
+  "presets": {
+    "apply": "应用预设",
+    "noPresets": "暂无保存的预设",
+    "manageTitle": "管理预设"
+  },
+  "export": {
+    "title": "导出数据",
+    "format": "格式",
+    "filteredOnly": "仅导出筛选结果",
+    "download": "下载",
+    "fields": {
+      "id": "编号",
+      "timestamp": "时间戳",
+      "direction": "方向",
+      "hex": "十六进制",
+      "ascii": "ASCII",
+      "decoded": "解码"
+    }
   },
   "statusbar": {
     "connectedInfo": "已连接 {{port}} @ {{baud}}",

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useConnectionStore } from "@/stores/connection";
+import { usePresetsStore } from "@/stores/presets";
 import { useSettingsStore } from "@/stores/settings";
-import type { ConfigData, SerialConfig } from "@/types";
+import type { ConfigData, ConnectionPreset } from "@/types";
 
 const SETTINGS_TABS = [
   "serial",
@@ -16,37 +18,31 @@ const SETTINGS_TABS = [
 ] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
-interface ConnectionPreset {
-  name: string;
-  config: Partial<SerialConfig>;
-}
-
-const PRESET_STORAGE_KEY = "serial-cli-connection-presets";
-
-function loadPresets(): ConnectionPreset[] {
-  try {
-    const raw = localStorage.getItem(PRESET_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function savePresets(presets: ConnectionPreset[]) {
-  localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(presets));
-}
-
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { config, loading, loadConfig, updateConfig, resetConfig } =
     useSettingsStore();
+  const {
+    presets,
+    loading: presetsLoading,
+    loadPresets,
+    addPreset,
+    updatePreset,
+    deletePreset,
+    movePresetUp,
+    movePresetDown,
+  } = usePresetsStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>("serial");
-  const [presets, setPresets] = useState<ConnectionPreset[]>(loadPresets);
   const [newPresetName, setNewPresetName] = useState("");
+  const [editingPreset, setEditingPreset] = useState<ConnectionPreset | null>(
+    null,
+  );
+  const [editingOriginalName, setEditingOriginalName] = useState("");
 
   useEffect(() => {
     loadConfig();
-  }, [loadConfig]);
+    loadPresets();
+  }, [loadConfig, loadPresets]);
 
   const handleSave = useCallback(async () => {
     if (!config) return;
@@ -86,48 +82,75 @@ export function SettingsPage() {
     if (!newPresetName.trim() || !config) return;
     const preset: ConnectionPreset = {
       name: newPresetName,
-      config: {
-        baudrate: config.serial.defaultBaudrate,
-        databits: config.serial.databits,
-        stopbits: config.serial.stopbits,
-        parity: config.serial.parity,
-        timeout_ms: config.serial.timeoutMs,
-      },
+      port_name: "",
+      baudrate: config.serial.defaultBaudrate,
+      databits: config.serial.databits,
+      stopbits: config.serial.stopbits,
+      parity: config.serial.parity,
+      flow_control: "None",
+      timeout_ms: config.serial.timeoutMs,
     };
-    const updated = [...presets, preset];
-    setPresets(updated);
-    savePresets(updated);
+    addPreset(preset);
     setNewPresetName("");
-  }, [newPresetName, config, presets]);
+  }, [newPresetName, config, addPreset]);
 
-  const loadPreset = useCallback(
+  const handleApplyPreset = useCallback(
     (preset: ConnectionPreset) => {
       if (!config) return;
       updateConfig({
         ...config,
         serial: {
           ...config.serial,
-          defaultBaudrate:
-            preset.config.baudrate ?? config.serial.defaultBaudrate,
-          databits: preset.config.databits ?? config.serial.databits,
-          stopbits: preset.config.stopbits ?? config.serial.stopbits,
-          parity: preset.config.parity ?? config.serial.parity,
-          timeoutMs: preset.config.timeout_ms ?? config.serial.timeoutMs,
+          defaultBaudrate: preset.baudrate,
+          databits: preset.databits,
+          stopbits: preset.stopbits,
+          parity: preset.parity,
+          timeoutMs: preset.timeout_ms,
         },
       });
+      useConnectionStore.setState({ pendingPort: preset.port_name || null });
       toast.success(`Preset "${preset.name}" loaded`);
     },
     [config, updateConfig],
   );
 
-  const deletePreset = useCallback(
-    (index: number) => {
-      const updated = presets.filter((_, i) => i !== index);
-      setPresets(updated);
-      savePresets(updated);
+  const handleDeletePreset = useCallback(
+    (name: string) => {
+      deletePreset(name);
     },
-    [presets],
+    [deletePreset],
   );
+
+  const handleMoveUp = useCallback(
+    (index: number) => {
+      movePresetUp(index);
+    },
+    [movePresetUp],
+  );
+
+  const handleMoveDown = useCallback(
+    (index: number) => {
+      movePresetDown(index);
+    },
+    [movePresetDown],
+  );
+
+  const startEdit = useCallback((preset: ConnectionPreset) => {
+    setEditingPreset({ ...preset });
+    setEditingOriginalName(preset.name);
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingPreset(null);
+    setEditingOriginalName("");
+  }, []);
+
+  const saveEdit = useCallback(() => {
+    if (!editingPreset) return;
+    updatePreset(editingOriginalName, editingPreset);
+    setEditingPreset(null);
+    setEditingOriginalName("");
+  }, [editingPreset, editingOriginalName, updatePreset]);
 
   if (loading || !config) {
     return (
@@ -251,28 +274,121 @@ export function SettingsPage() {
               <h3 className="text-xs font-medium text-text-secondary mb-2">
                 {t("settings.connectionPresets")}
               </h3>
-              <div className="space-y-1 mb-2">
-                {presets.map((preset, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 px-2 py-1 rounded bg-surface text-xs"
-                  >
-                    <span className="flex-1">{preset.name}</span>
-                    <button
-                      className="text-accent hover:text-accent-hover"
-                      onClick={() => loadPreset(preset)}
+              {presetsLoading ? (
+                <p className="text-xs text-text-muted">{t("common.loading")}</p>
+              ) : presets.length === 0 ? (
+                <p className="text-xs text-text-muted">
+                  {t("presets.noPresets")}
+                </p>
+              ) : (
+                <div className="space-y-1 mb-2">
+                  {presets.map((preset, i) => (
+                    <div
+                      key={preset.name}
+                      className="flex items-center gap-1 px-2 py-1 rounded bg-surface text-xs"
                     >
-                      {t("common.save")}
-                    </button>
-                    <button
-                      className="text-danger hover:text-danger/80"
-                      onClick={() => deletePreset(i)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
+                      {editingPreset?.name === preset.name ? (
+                        <>
+                          <input
+                            className="w-20 h-5 text-xs rounded border border-border bg-transparent px-1"
+                            value={editingPreset.name}
+                            onChange={(e) =>
+                              setEditingPreset({
+                                ...editingPreset,
+                                name: e.target.value,
+                              })
+                            }
+                          />
+                          <span className="text-text-muted">@</span>
+                          <input
+                            className="w-20 h-5 text-xs rounded border border-border bg-transparent px-1"
+                            value={editingPreset.port_name}
+                            onChange={(e) =>
+                              setEditingPreset({
+                                ...editingPreset,
+                                port_name: e.target.value,
+                              })
+                            }
+                            placeholder={t("common.port")}
+                          />
+                          <select
+                            value={editingPreset.baudrate}
+                            onChange={(e) =>
+                              setEditingPreset({
+                                ...editingPreset,
+                                baudrate: Number(e.target.value),
+                              })
+                            }
+                            className="w-18 h-5"
+                          >
+                            {[
+                              9600, 19200, 38400, 57600, 115200, 230400, 460800,
+                              921600,
+                            ].map((b) => (
+                              <option key={b} value={b}>
+                                {b}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            className="text-success hover:text-success/80"
+                            onClick={saveEdit}
+                          >
+                            {t("common.save")}
+                          </button>
+                          <button
+                            className="text-text-muted hover:text-text"
+                            onClick={cancelEdit}
+                          >
+                            {t("common.cancel")}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="text-text-muted hover:text-text disabled:opacity-30"
+                            disabled={i === 0}
+                            onClick={() => handleMoveUp(i)}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            className="text-text-muted hover:text-text disabled:opacity-30"
+                            disabled={i === presets.length - 1}
+                            onClick={() => handleMoveDown(i)}
+                          >
+                            ↓
+                          </button>
+                          <span className="flex-1 cursor-default">
+                            {preset.name}
+                          </span>
+                          <span className="text-text-muted">
+                            {preset.baudrate}
+                          </span>
+                          <button
+                            className="text-accent hover:text-accent-hover"
+                            onClick={() => handleApplyPreset(preset)}
+                          >
+                            {t("common.apply")}
+                          </button>
+                          <button
+                            className="text-text-muted hover:text-text"
+                            onClick={() => startEdit(preset)}
+                          >
+                            {t("common.edit")}
+                          </button>
+                          <button
+                            className="text-danger hover:text-danger/80"
+                            onClick={() => handleDeletePreset(preset.name)}
+                          >
+                            ×
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   className="flex-1 h-6 text-xs rounded border border-border bg-transparent px-2"

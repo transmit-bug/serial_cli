@@ -6,8 +6,14 @@ import { useSerialScriptStore } from "@/stores/serialScript";
 
 export function RightPanelActions() {
   const { t } = useTranslation();
-  const portId = useConnectionStore((s) => s.portId);
-  const isConnected = useConnectionStore((s) => s.status === "connected");
+  const portId = useConnectionStore((s) => s.activePortId);
+  const isConnected = useConnectionStore(
+    (s) =>
+      s.activePortId != null &&
+      s.connections.some(
+        (c) => c.portId === s.activePortId && c.status === "connected",
+      ),
+  );
   const actions = useSerialScriptStore((s) => s.actions);
   const callAction = useSerialScriptStore((s) => s.callAction);
 

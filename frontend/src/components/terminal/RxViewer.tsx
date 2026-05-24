@@ -1,33 +1,185 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { bytesToAscii, bytesToHex, formatTimestamp } from "@/lib/utils";
-import { useDataStore } from "@/stores/data";
+import { type SearchOptions, useDataStore } from "@/stores/data";
 import type { DataPacket, DisplayFormat } from "@/types";
 
-export function RxViewer() {
+/** Split text into segments, marking which ones match the query. */
+function splitHighlights(
+  text: string,
+  query: string,
+  options: SearchOptions,
+): { text: string; match: boolean }[] {
+  if (!query) return [{ text, match: false }];
+  try {
+    const flags = options.caseSensitive ? "g" : "gi";
+    const re = options.useRegex ? new RegExp(query, flags) : undefined;
+
+    if (re) {
+      const segments: { text: string; match: boolean }[] = [];
+      let last = 0;
+      for (const m of text.matchAll(re)) {
+        if (m.index > last)
+          segments.push({ text: text.slice(last, m.index), match: false });
+        segments.push({ text: m[0], match: true });
+        last = m.index + m[0].length;
+      }
+      if (last < text.length)
+        segments.push({ text: text.slice(last), match: false });
+      return segments.length ? segments : [{ text, match: false }];
+    }
+
+    // Plain text search
+    const lower = options.caseSensitive ? text : text.toLowerCase();
+    const q = options.caseSensitive ? query : query.toLowerCase();
+    const segments: { text: string; match: boolean }[] = [];
+    let last = 0;
+    let idx = lower.indexOf(q, 0);
+    while (idx !== -1) {
+      if (idx > last)
+        segments.push({ text: text.slice(last, idx), match: false });
+      segments.push({ text: text.slice(idx, idx + q.length), match: true });
+      last = idx + q.length;
+      idx = lower.indexOf(q, last);
+    }
+    if (last < text.length)
+      segments.push({ text: text.slice(last), match: false });
+    return segments.length ? segments : [{ text, match: false }];
+  } catch {
+    return [{ text, match: false }];
+  }
+}
+
+function HighlightedText({
+  text,
+  query,
+  options,
+  className,
+}: {
+  text: string;
+  query: string;
+  options: SearchOptions;
+  className?: string;
+}) {
+  const segments = useMemo(
+    () => splitHighlights(text, query, options),
+    [text, query, options],
+  );
+
+  return (
+    <span className={className}>
+      {query
+        ? segments.map((seg, i) =>
+            seg.match ? (
+              <mark
+                key={i}
+                className="bg-warning/30 text-warning rounded-sm px-px"
+              >
+                {seg.text}
+              </mark>
+            ) : (
+              <span key={i}>{seg.text}</span>
+            ),
+          )
+        : text}
+    </span>
+  );
+}
+
+function PacketRow({
+  packet,
+  displayFormat,
+  searchQuery,
+  searchOptions,
+}: {
+  packet: DataPacket;
+  displayFormat: DisplayFormat;
+  searchQuery: string;
+  searchOptions: SearchOptions;
+}) {
+  const hexStr = bytesToHex(packet.data);
+  const asciiStr = bytesToAscii(packet.data);
+  const dirClass = packet.direction === "rx" ? "text-accent" : "text-success";
+  const dirLabel = packet.direction === "rx" ? "RX" : "TX";
+
+  const dataCols = useMemo(() => {
+    const q = searchQuery;
+    const opts = searchOptions;
+
+    if (displayFormat === "hex") {
+      return (
+        <HighlightedText
+          text={hexStr}
+          query={q}
+          options={opts}
+          className="text-text break-all"
+        />
+      );
+    }
+    if (displayFormat === "ascii") {
+      return (
+        <HighlightedText
+          text={asciiStr}
+          query={q}
+          options={opts}
+          className="text-text break-all"
+        />
+      );
+    }
+    // Mixed
+    return (
+      <>
+        <HighlightedText
+          text={hexStr}
+          query={q}
+          options={opts}
+          className="text-warning w-52 shrink-0 truncate"
+        />
+        <HighlightedText
+          text={asciiStr}
+          query={q}
+          options={opts}
+          className="text-text break-all"
+        />
+      </>
+    );
+  }, [displayFormat, hexStr, asciiStr, searchQuery, searchOptions]);
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-0.5 hover:bg-surface/50 font-mono text-xs">
+      <span className="text-text-muted w-8 shrink-0 text-right">
+        {packet.id}
+      </span>
+      <span className="text-text-secondary w-20 shrink-0">
+        {formatTimestamp(packet.timestamp)}
+      </span>
+      <span className={`w-6 shrink-0 ${dirClass}`}>{dirLabel}</span>
+      {dataCols}
+    </div>
+  );
+}
+
+export function RxViewer({ portId }: { portId?: string }) {
   const { t } = useTranslation();
   const packets = useDataStore((s) => s.packets);
   const displayFormat = useDataStore((s) => s.displayFormat);
   const autoScroll = useDataStore((s) => s.autoScroll);
   const searchQuery = useDataStore((s) => s.searchQuery);
+  const searchOptions = useDataStore((s) => s.searchOptions);
   const clearBuffer = useDataStore((s) => s.clearBuffer);
   const setDisplayFormat = useDataStore((s) => s.setDisplayFormat);
   const toggleAutoScroll = useDataStore((s) => s.toggleAutoScroll);
   const setSearchQuery = useDataStore((s) => s.setSearchQuery);
+  const setSearchOptions = useDataStore((s) => s.setSearchOptions);
+  const getFilteredPackets = useDataStore((s) => s.getFilteredPackets);
 
   const parentRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const filteredPackets = searchQuery
-    ? packets.filter((p) => {
-        const hex = bytesToHex(p.data).toLowerCase();
-        const ascii = bytesToAscii(p.data).toLowerCase();
-        return (
-          hex.includes(searchQuery.toLowerCase()) ||
-          ascii.includes(searchQuery.toLowerCase())
-        );
-      })
-    : packets;
+  const filteredPackets = useMemo(() => {
+    return getFilteredPackets(portId);
+  }, [getFilteredPackets, portId]);
 
   const virtualizer = useVirtualizer({
     count: filteredPackets.length,
@@ -43,73 +195,32 @@ export function RxViewer() {
     }
   }, [filteredPackets.length, autoScroll, virtualizer]);
 
-  const renderRow = useCallback(
-    (packet: DataPacket) => {
-      if (displayFormat === "hex") {
-        return (
-          <div className="flex items-center gap-2 px-2 py-0.5 hover:bg-surface/50 font-mono text-xs">
-            <span className="text-text-muted w-8 shrink-0 text-right">
-              {packet.id}
-            </span>
-            <span className="text-text-secondary w-20 shrink-0">
-              {formatTimestamp(packet.timestamp)}
-            </span>
-            <span
-              className={`w-6 shrink-0 ${packet.direction === "rx" ? "text-accent" : "text-success"}`}
-            >
-              {packet.direction === "rx" ? "RX" : "TX"}
-            </span>
-            <span className="text-text break-all">
-              {bytesToHex(packet.data)}
-            </span>
-          </div>
-        );
+  // Ctrl+F / Cmd+F → focus search input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
       }
-      if (displayFormat === "ascii") {
-        return (
-          <div className="flex items-center gap-2 px-2 py-0.5 hover:bg-surface/50 font-mono text-xs">
-            <span className="text-text-muted w-8 shrink-0 text-right">
-              {packet.id}
-            </span>
-            <span className="text-text-secondary w-20 shrink-0">
-              {formatTimestamp(packet.timestamp)}
-            </span>
-            <span
-              className={`w-6 shrink-0 ${packet.direction === "rx" ? "text-accent" : "text-success"}`}
-            >
-              {packet.direction === "rx" ? "RX" : "TX"}
-            </span>
-            <span className="text-text break-all">
-              {bytesToAscii(packet.data)}
-            </span>
-          </div>
-        );
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Escape → blur and clear search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (
+        e.key === "Escape" &&
+        document.activeElement === searchInputRef.current
+      ) {
+        setSearchQuery("");
+        searchInputRef.current?.blur();
       }
-      // Mixed mode — table layout
-      return (
-        <div className="flex items-center gap-2 px-2 py-0.5 hover:bg-surface/50 font-mono text-xs">
-          <span className="text-text-muted w-8 shrink-0 text-right">
-            {packet.id}
-          </span>
-          <span className="text-text-secondary w-20 shrink-0">
-            {formatTimestamp(packet.timestamp)}
-          </span>
-          <span
-            className={`w-6 shrink-0 ${packet.direction === "rx" ? "text-accent" : "text-success"}`}
-          >
-            {packet.direction === "rx" ? "RX" : "TX"}
-          </span>
-          <span className="text-warning w-52 shrink-0 truncate">
-            {bytesToHex(packet.data)}
-          </span>
-          <span className="text-text break-all">
-            {bytesToAscii(packet.data)}
-          </span>
-        </div>
-      );
-    },
-    [displayFormat],
-  );
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [setSearchQuery]);
 
   const formatBtn = (fmt: DisplayFormat, label: string) => (
     <button
@@ -132,13 +243,54 @@ export function RxViewer() {
         {formatBtn("ascii", t("terminal.asciiMode"))}
         {formatBtn("mixed", t("terminal.mixedMode"))}
         <div className="mx-1 w-px h-4 bg-border" />
-        <input
-          type="text"
-          placeholder={t("common.search")}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-40 h-6 text-xs"
-        />
+
+        {/* Search input + toggles */}
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder={t("common.search")}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-40 h-6 text-xs shrink-0"
+          />
+          <button
+            onClick={() =>
+              setSearchOptions({ caseSensitive: !searchOptions.caseSensitive })
+            }
+            className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
+              searchOptions.caseSensitive
+                ? "bg-accent/20 text-accent"
+                : "text-text-muted hover:text-text"
+            }`}
+            title={t("terminal.searchCaseSensitive")}
+          >
+            Aa
+          </button>
+          <button
+            onClick={() =>
+              setSearchOptions({ useRegex: !searchOptions.useRegex })
+            }
+            className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
+              searchOptions.useRegex
+                ? "bg-accent/20 text-accent"
+                : "text-text-muted hover:text-text"
+            }`}
+            title={t("terminal.searchRegex")}
+          >
+            .*
+          </button>
+          {searchQuery && (
+            <span className="text-text-muted text-[10px] shrink-0">
+              {t("terminal.searchMatchCount", {
+                matched: filteredPackets.length,
+                total: packets.length,
+              })}
+            </span>
+          )}
+        </div>
+
+        <div className="mx-1 w-px h-4 bg-border" />
         <button
           onClick={toggleAutoScroll}
           className={`px-2 py-0.5 rounded text-xs ${
@@ -148,21 +300,27 @@ export function RxViewer() {
           {t("terminal.autoScroll")}
         </button>
         <button
-          onClick={clearBuffer}
+          onClick={() => clearBuffer(portId)}
           className="px-2 py-0.5 rounded text-xs text-text-muted hover:text-text"
         >
           {t("terminal.clearBuffer")}
         </button>
-        <span className="text-text-muted text-xs ml-auto">
-          {t("terminal.packetCount", { count: packets.length })}
-        </span>
+        {portId && (
+          <span className="text-text-muted text-xs shrink-0">
+            {t("terminal.packetCount", {
+              count: filteredPackets.length,
+            })}
+          </span>
+        )}
       </div>
 
       {/* Data area */}
       <div ref={parentRef} className="flex-1 overflow-auto">
         {filteredPackets.length === 0 ? (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
-            {t("terminal.noData")}
+            {searchQuery && packets.length > 0
+              ? t("terminal.noData")
+              : t("terminal.noData")}
           </div>
         ) : (
           <div
@@ -186,7 +344,12 @@ export function RxViewer() {
                     height: `${virtualRow.size}px`,
                   }}
                 >
-                  {renderRow(packet)}
+                  <PacketRow
+                    packet={packet}
+                    displayFormat={displayFormat}
+                    searchQuery={searchQuery}
+                    searchOptions={searchOptions}
+                  />
                 </div>
               );
             })}

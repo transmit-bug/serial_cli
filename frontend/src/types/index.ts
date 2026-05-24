@@ -160,6 +160,7 @@ export interface DisplayConfigData {
 
 export interface DataPacket {
   id: number;
+  portId: string;
   direction: "rx" | "tx";
   timestamp: number;
   data: number[];
@@ -168,11 +169,7 @@ export interface DataPacket {
 
 export type DisplayFormat = "hex" | "ascii" | "mixed";
 
-export type PageName =
-  | "terminal"
-  | "virtual"
-  | "editor"
-  | "settings";
+export type PageName = "terminal" | "virtual" | "editor" | "settings";
 
 export type ConnectionStatus =
   | "disconnected"
@@ -193,4 +190,40 @@ export interface OutputLine {
   text: string;
   timestamp: number;
   type: "info" | "error" | "success";
+}
+
+export interface SequenceStep {
+  label: string;
+  data: string;
+  format: "hex" | "ascii";
+  delay: number;
+  waitFor?: string;
+  waitTimeout?: number;
+  loopCount?: number;
+}
+
+export interface CommandSequence {
+  id: string;
+  name: string;
+  steps: SequenceStep[];
+}
+
+export interface SequenceExecutionState {
+  sequenceId: string | null;
+  sequenceName: string | null;
+  stepIndex: number;
+  loopIteration: number;
+  status: "idle" | "running" | "paused" | "completed" | "error";
+  error?: string;
+}
+
+export interface ConnectionPreset {
+  name: string;
+  port_name: string;
+  baudrate: number;
+  databits: number;
+  stopbits: number;
+  parity: string;
+  flow_control: string;
+  timeout_ms: number;
 }
