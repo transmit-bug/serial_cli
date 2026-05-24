@@ -372,6 +372,9 @@ pub struct Config {
     /// Virtual serial port configuration
     #[serde(default)]
     pub virtual_ports: VirtualPortsConfig,
+    /// Display / UI configuration
+    #[serde(default)]
+    pub display: DisplayConfig,
 }
 
 /// Serial port configuration
@@ -541,6 +544,30 @@ impl Default for VirtualPortsConfig {
             max_packets: 0,
             bridge_buffer_size: 8192,
             bridge_poll_interval_ms: 10,
+        }
+    }
+}
+
+/// Display / UI configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DisplayConfig {
+    /// UI theme (dark / light)
+    pub theme: String,
+    /// Default data display format (hex / ascii / mixed)
+    pub format: String,
+    /// Maximum packets to keep in display buffer (0 = unlimited)
+    pub max_packets: usize,
+    /// Show timestamps in data view
+    pub show_timestamp: bool,
+}
+
+impl Default for DisplayConfig {
+    fn default() -> Self {
+        Self {
+            theme: "dark".to_string(),
+            format: "mixed".to_string(),
+            max_packets: 10000,
+            show_timestamp: true,
         }
     }
 }

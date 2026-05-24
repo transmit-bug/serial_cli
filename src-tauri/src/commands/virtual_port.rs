@@ -52,6 +52,7 @@ pub struct CapturedPacketDto {
 /// Virtual port configuration from Tauri frontend
 #[derive(serde::Deserialize)]
 pub struct CreateVirtualPortConfig {
+    #[allow(dead_code)]
     pub name: Option<String>,
     pub backend: String,
     pub buffer_size: Option<usize>,
@@ -180,13 +181,14 @@ pub async fn stop_virtual_port(
 #[tauri::command]
 pub async fn get_virtual_port_stats(
     id: String,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<VirtualPortStats, String> {
     let registry = state.virtual_port_registry.read().await;
 
     if let Some(pair) = registry.get(&id) {
         let stats = pair.stats().await;
-        Ok(VirtualPortStats {
+        let result = VirtualPortStats {
             id: stats.id.clone(),
             port_a: stats.port_a.clone(),
             port_b: stats.port_b.clone(),
@@ -200,7 +202,22 @@ pub async fn get_virtual_port_stats(
             capture_packets: stats.capture_packets,
             capture_bytes: stats.capture_bytes,
             monitoring: pair.is_monitoring(),
-        })
+        };
+
+        let stats_json = serde_json::json!({
+            "bytes_bridged": result.bytes_bridged,
+            "packets_bridged": result.packets_bridged,
+            "running": result.running,
+        });
+
+        if let Err(e) =
+            crate::events::emitter::emit_virtual_port_stats_updated(app, id.clone(), stats_json)
+                .await
+        {
+            log::warn!("Failed to emit virtual-port-stats-updated event: {}", e);
+        }
+
+        Ok(result)
     } else {
         Err(format!("Virtual port not found: {}", id))
     }

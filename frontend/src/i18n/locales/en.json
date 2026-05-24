@@ -40,8 +40,7 @@
   "nav": {
     "terminal": "Terminal",
     "virtual": "Virtual Ports",
-    "scripts": "Scripts",
-    "protocols": "Protocols",
+    "editor": "Editor",
     "settings": "Settings"
   },
   "rightPanel": {
@@ -153,13 +152,15 @@
     "validateFail": "Validation failed",
     "executeSuccess": "Script executed successfully",
     "saveSuccess": "Script saved",
+    "saveError": "Script name is required",
     "deleteSuccess": "Script deleted",
     "unsavedChanges": "Unsaved changes",
     "noScripts": "No scripts found",
     "emptyState": "No scripts yet",
     "templateTip": "Start from a template",
     "attachToPort": "Attach to Port",
-    "attached": "Attached"
+    "attached": "Attached",
+    "detached": "Script detached"
   },
   "scriptTemplates": {
     "title": "Script Templates",
@@ -179,11 +180,17 @@
     "builtIn": "Built-in Protocols",
     "custom": "Custom Protocols",
     "loadProtocol": "Load Protocol",
-    "importFile": "Import Protocol File",
+    "importFile": "Import",
     "protocolEditor": "Protocol Editor",
     "saveAndLoad": "Save & Load",
-    "reload": "Reload",
+    "saveSuccess": "Protocol saved and loaded",
+    "saveError": "Protocol name is required",
+    "deleteSuccess": "Protocol unloaded",
+    "importSuccess": "Protocol imported",
+    "reload": "Reloaded",
     "unload": "Unload",
+    "protocolName": "Protocol name",
+    "newProtocol": "New Protocol",
     "noProtocols": "No custom protocols",
     "noCustomProtocols": "No custom protocols yet",
     "validationFail": "Protocol validation failed",
@@ -194,7 +201,23 @@
     "encode": "Encode",
     "decode": "Decode",
     "input": "Input",
-    "result": "Result"
+    "result": "Result",
+    "noProtocol": "Please select a protocol",
+    "noInput": "Please enter data"
+  },
+  "editor": {
+    "title": "Editor",
+    "emptyState": "Create a script or protocol to get started",
+    "templateTip": "Or start from a template below"
+  },
+  "protocolTemplates": {
+    "title": "Protocol Templates",
+    "modbusRtu": "Modbus RTU",
+    "modbusRtuDesc": "Complete Modbus RTU with CRC16",
+    "customFrame": "Custom Frame",
+    "customFrameDesc": "STX/LEN/CMD/DATA/CHECKSUM/ETX format",
+    "simpleAt": "Simple AT",
+    "simpleAtDesc": "Line-based AT command/response protocol"
   },
   "virtual": {
     "title": "Virtual Serial Ports",

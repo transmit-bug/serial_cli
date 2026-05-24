@@ -75,7 +75,7 @@ pub async fn open_port(
     port_name: String,
     config: SerialConfig,
     is_virtual: Option<bool>,
-    _app: tauri::AppHandle,
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     use tokio::sync::MutexGuard;
@@ -98,17 +98,46 @@ pub async fn open_port(
         .await
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
 
+    drop(manager);
+
+    if let Err(e) = crate::events::emitter::emit_port_status_changed(
+        app,
+        port_id.clone(),
+        serde_json::json!({"status": "opened", "port_name": port_name}),
+    )
+    .await
+    {
+        log::warn!("Failed to emit port-status-changed event: {}", e);
+    }
+
     Ok(port_id)
 }
 
 /// Close a serial port
 #[tauri::command]
-pub async fn close_port(port_id: String, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn close_port(
+    port_id: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let manager = state.port_manager.lock().await;
     manager
         .close_port(&port_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    drop(manager);
+
+    if let Err(e) = crate::events::emitter::emit_port_status_changed(
+        app,
+        port_id.clone(),
+        serde_json::json!({"status": "closed"}),
+    )
+    .await
+    {
+        log::warn!("Failed to emit port-status-changed event: {}", e);
+    }
+
+    Ok(())
 }
 
 /// Get port status
@@ -163,22 +192,54 @@ pub async fn get_port_status(
 /// Get all active ports status
 #[tauri::command]
 pub async fn get_all_ports_status(state: State<'_, AppState>) -> Result<Vec<PortStatus>, String> {
-    use tokio::sync::MutexGuard;
+    let open_ports = {
+        let manager = state.port_manager.lock().await;
+        manager.list_open_ports().await
+    };
 
-    let manager: MutexGuard<PortManager> = state.port_manager.lock().await;
-    let ports = manager.list_ports().map_err(|e| e.to_string())?;
+    let mut statuses = Vec::with_capacity(open_ports.len());
 
-    let mut statuses = Vec::new();
+    for (port_id, port_name) in open_ports {
+        let stats_snapshot = {
+            let port_stats = state.port_stats.lock().await;
+            port_stats
+                .get(&port_id)
+                .map(|s| {
+                    let (br, bs, pr, ps, la) = s.snapshot();
+                    PortStats {
+                        bytes_received: br,
+                        bytes_sent: bs,
+                        packets_received: pr,
+                        packets_sent: ps,
+                        last_activity: if la > 0 { Some(la) } else { None },
+                    }
+                })
+                .unwrap_or_default()
+        };
 
-    for port in ports {
-        // Try to get port status for each available port
-        // If port is not open, it won't be in the manager
+        let config = {
+            let manager = state.port_manager.lock().await;
+            if let Ok(port_handle) = manager.get_port(&port_id).await {
+                let handle = port_handle.lock().await;
+                Some(SerialConfig {
+                    baudrate: handle.config().baudrate,
+                    databits: handle.config().databits,
+                    stopbits: handle.config().stopbits,
+                    parity: format!("{:?}", handle.config().parity),
+                    timeout_ms: handle.config().timeout_ms,
+                    flow_control: format!("{:?}", handle.config().flow_control),
+                })
+            } else {
+                None
+            }
+        };
+
         statuses.push(PortStatus {
-            id: port.port_name.clone(),
-            port_name: port.port_name.clone(),
-            is_open: false, // We'll update this if we can get the handle
-            config: None,
-            stats: PortStats::default(),
+            id: port_id,
+            port_name,
+            is_open: true,
+            config,
+            stats: stats_snapshot,
         });
     }
 

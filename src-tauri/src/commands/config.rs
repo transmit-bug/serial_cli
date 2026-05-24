@@ -51,10 +51,10 @@ pub async fn get_config(_state: State<'_, AppState>) -> Result<ConfigData, Strin
             monitor: config.virtual_ports.monitor,
         },
         display: DisplayConfigData {
-            theme: String::from("dark"),
-            max_packets: config.virtual_ports.max_packets,
-            format: String::from("both"),
-            show_timestamp: config.output.show_timestamp,
+            theme: config.display.theme,
+            max_packets: config.display.max_packets,
+            format: config.display.format,
+            show_timestamp: config.display.show_timestamp,
         },
     })
 }
@@ -101,9 +101,10 @@ pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> R
     existing_config.output.json_pretty = config.output.json_pretty;
     existing_config.output.show_timestamp = config.output.show_timestamp;
 
-    // Update display config (store in virtual_ports for now)
-    existing_config.virtual_ports.max_packets = config.display.max_packets;
-    existing_config.output.show_timestamp = config.display.show_timestamp;
+    existing_config.display.theme = config.display.theme;
+    existing_config.display.format = config.display.format;
+    existing_config.display.max_packets = config.display.max_packets;
+    existing_config.display.show_timestamp = config.display.show_timestamp;
 
     // Serialize to TOML
     let toml_string = toml::to_string_pretty(&existing_config)

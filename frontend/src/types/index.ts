@@ -171,8 +171,7 @@ export type DisplayFormat = "hex" | "ascii" | "mixed";
 export type PageName =
   | "terminal"
   | "virtual"
-  | "scripts"
-  | "protocols"
+  | "editor"
   | "settings";
 
 export type ConnectionStatus =

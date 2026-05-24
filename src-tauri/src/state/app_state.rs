@@ -64,6 +64,7 @@ pub struct DataSniffer {
     /// Channel to stop the sniffer
     pub stop_tx: tokio::sync::oneshot::Sender<()>,
     /// Statistics for this port
+    #[allow(dead_code)]
     pub stats: Arc<PortStatsTracker>,
 }
 

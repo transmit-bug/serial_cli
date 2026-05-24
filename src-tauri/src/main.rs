@@ -53,6 +53,8 @@ async fn main() {
             commands::serial_script::detach_script,
             commands::serial_script::has_script,
             commands::serial_script::get_script_status,
+            commands::serial_script::list_script_actions,
+            commands::serial_script::call_script_function,
             // Protocol commands
             commands::protocol::list_protocols,
             commands::protocol::load_protocol,

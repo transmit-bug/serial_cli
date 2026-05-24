@@ -40,8 +40,7 @@
   "nav": {
     "terminal": "终端",
     "virtual": "虚拟端口",
-    "scripts": "脚本",
-    "protocols": "协议",
+    "editor": "编辑器",
     "settings": "设置"
   },
   "rightPanel": {
@@ -153,13 +152,15 @@
     "validateFail": "验证失败",
     "executeSuccess": "脚本执行成功",
     "saveSuccess": "脚本已保存",
+    "saveError": "请输入脚本名称",
     "deleteSuccess": "脚本已删除",
     "unsavedChanges": "有未保存的更改",
     "noScripts": "暂无脚本",
     "emptyState": "还没有脚本",
     "templateTip": "从模板开始创建",
     "attachToPort": "附加到端口",
-    "attached": "已附加"
+    "attached": "已附加",
+    "detached": "脚本已分离"
   },
   "scriptTemplates": {
     "title": "脚本模板",
@@ -179,11 +180,17 @@
     "builtIn": "内置协议",
     "custom": "自定义协议",
     "loadProtocol": "加载协议",
-    "importFile": "导入协议文件",
+    "importFile": "导入",
     "protocolEditor": "协议编辑器",
     "saveAndLoad": "保存并加载",
-    "reload": "重载",
+    "saveSuccess": "协议已保存并加载",
+    "saveError": "请输入协议名称",
+    "deleteSuccess": "协议已卸载",
+    "importSuccess": "协议已导入",
+    "reload": "已重载",
     "unload": "卸载",
+    "protocolName": "协议名称",
+    "newProtocol": "新建协议",
     "noProtocols": "暂无自定义协议",
     "noCustomProtocols": "暂无自定义协议",
     "validationFail": "协议验证失败",
@@ -194,7 +201,23 @@
     "encode": "编码",
     "decode": "解码",
     "input": "输入",
-    "result": "结果"
+    "result": "结果",
+    "noProtocol": "请选择协议",
+    "noInput": "请输入数据"
+  },
+  "editor": {
+    "title": "编辑器",
+    "emptyState": "创建脚本或协议开始使用",
+    "templateTip": "或从下方模板开始"
+  },
+  "protocolTemplates": {
+    "title": "协议模板",
+    "modbusRtu": "Modbus RTU",
+    "modbusRtuDesc": "完整 Modbus RTU 协议 (含 CRC16)",
+    "customFrame": "自定义帧",
+    "customFrameDesc": "STX/LEN/CMD/DATA/CHECKSUM/ETX 格式",
+    "simpleAt": "简单 AT",
+    "simpleAtDesc": "基于行的 AT 命令/响应协议"
   },
   "virtual": {
     "title": "虚拟串口",

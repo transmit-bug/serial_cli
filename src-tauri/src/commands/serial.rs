@@ -177,6 +177,11 @@ pub async fn start_sniffing(
                 } else {
                     // Port might be closed, stop sniffing
                     error!("Port {} not found, stopping sniffer", port_id_clone);
+                    let _ = crate::events::emitter::emit_error(
+                        app_clone.clone(),
+                        format!("Port {} disconnected, sniffer stopped", port_id_clone),
+                    )
+                    .await;
                     break;
                 }
             }
@@ -199,7 +204,7 @@ pub async fn start_sniffing(
         DataSniffer {
             task_handle,
             stop_tx,
-            stats: stats,
+            stats,
         },
     );
 

@@ -1,8 +1,7 @@
 import {
   ChevronLeft,
   ChevronRight,
-  Code,
-  Layers,
+  Code2,
   Settings,
   Split,
   Terminal,
@@ -16,8 +15,7 @@ const NAV_ITEMS: { page: PageName; icon: typeof Terminal; labelKey: string }[] =
   [
     { page: "terminal", icon: Terminal, labelKey: "nav.terminal" },
     { page: "virtual", icon: Split, labelKey: "nav.virtual" },
-    { page: "scripts", icon: Code, labelKey: "nav.scripts" },
-    { page: "protocols", icon: Layers, labelKey: "nav.protocols" },
+    { page: "editor", icon: Code2, labelKey: "nav.editor" },
     { page: "settings", icon: Settings, labelKey: "nav.settings" },
   ];
 

@@ -1,5 +1,4 @@
-import { ProtocolsPage } from "@/components/protocols/ProtocolsPage";
-import { ScriptsPage } from "@/components/scripts/ScriptsPage";
+import { EditorPage } from "@/components/editor/EditorPage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { TerminalWorkbench } from "@/components/terminal/TerminalWorkbench";
 import { VirtualPortsPage } from "@/components/virtual/VirtualPortsPage";
@@ -10,8 +9,7 @@ import { StatusBar } from "./StatusBar";
 const PAGES = {
   terminal: TerminalWorkbench,
   virtual: VirtualPortsPage,
-  scripts: ScriptsPage,
-  protocols: ProtocolsPage,
+  editor: EditorPage,
   settings: SettingsPage,
 } as const;
 

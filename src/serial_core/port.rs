@@ -416,6 +416,24 @@ impl PortManager {
             .ok_or_else(|| SerialError::Serial(SerialPortError::PortNotFound(port_id.to_string())))
     }
 
+    /// Return `(port_id, port_name)` pairs for all currently open ports.
+    pub async fn list_open_ports(&self) -> Vec<(String, String)> {
+        let ports_guard = self.ports.lock().await;
+        let entries: Vec<(String, Arc<Mutex<SerialPortHandle>>)> = ports_guard
+            .iter()
+            .map(|(id, handle)| (id.clone(), handle.clone()))
+            .collect();
+        drop(ports_guard);
+
+        let mut result = Vec::with_capacity(entries.len());
+        for (id, handle) in entries {
+            let h = handle.lock().await;
+            result.push((id, h.name().to_string()));
+        }
+        result.sort_by(|a, b| a.1.cmp(&b.1));
+        result
+    }
+
     /// Associate a protocol instance with an open port.
     ///
     /// # Errors
