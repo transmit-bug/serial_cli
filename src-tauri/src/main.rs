@@ -17,8 +17,54 @@ use tauri::Manager;
 
 #[tokio::main]
 async fn main() {
-    // Initialize logging
-    tracing_subscriber::fmt().with_env_filter("info").init();
+    // Initialize logging — stderr + optional file output
+    {
+        let log_dir = dirs::data_local_dir()
+            .map(|mut p| {
+                p.push("serial-cli");
+                p.push("logs");
+                p
+            })
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+        let _ = std::fs::create_dir_all(&log_dir);
+
+        // Try to open log file; fall back to stderr-only
+        let log_path = log_dir.join("serial-cli.log");
+        if let Ok(file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+        {
+            use std::sync::Arc;
+            use tracing_subscriber::layer::SubscriberExt;
+            use tracing_subscriber::util::SubscriberInitExt;
+            use tracing_subscriber::Layer;
+
+            let file = Arc::new(std::sync::Mutex::new(file));
+            let file_layer = tracing_subscriber::fmt::layer()
+                .with_writer(move || -> Box<dyn std::io::Write + Send + Sync> {
+                    match Arc::clone(&file).lock().unwrap().try_clone() {
+                        Ok(f) => Box::new(f),
+                        Err(_) => Box::new(std::io::empty()),
+                    }
+                })
+                .with_ansi(false)
+                .with_filter(tracing_subscriber::filter::EnvFilter::new("info"));
+
+            let stderr_layer = tracing_subscriber::fmt::layer()
+                .with_filter(tracing_subscriber::filter::EnvFilter::new("warn"));
+
+            tracing_subscriber::registry()
+                .with(file_layer)
+                .with(stderr_layer)
+                .init();
+        } else {
+            tracing_subscriber::fmt()
+                .with_env_filter("info")
+                .init();
+        }
+    }
 
     // Create global app state
     let app_state = AppState::new().await;
@@ -80,6 +126,8 @@ async fn main() {
             commands::config::get_config,
             commands::config::update_config,
             commands::config::reset_config,
+            // Data export command
+            commands::export::export_data,
             // Window commands
             commands::window::show_window,
             commands::window::hide_window,

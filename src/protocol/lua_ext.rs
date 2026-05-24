@@ -8,16 +8,32 @@ use crate::lua::runtime::ScriptRuntime;
 use crate::protocol::{Protocol, ProtocolStats};
 use mlua::{Function, Lua, Value};
 
-/// Custom protocol defined in Lua
-#[derive(Clone)]
+/// Custom protocol defined in Lua.
+///
+/// The Lua VM is lazily initialized on first use and reused across subsequent
+/// `parse`/`encode` calls, allowing scripts to maintain state (counters,
+/// buffers, etc.). Clones start with a fresh VM.
 pub struct LuaProtocol {
     name: String,
     script: Option<String>,
+    /// Cached Lua VM — lazily initialized.
+    lua: Option<Lua>,
     stats: ProtocolStats,
 }
 
-// Lua is not Send + Sync, but we only use it locally within methods
-// The Protocol trait requires Send + Sync for the struct, not for internal state
+impl Clone for LuaProtocol {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            script: self.script.clone(),
+            lua: None,
+            stats: self.stats.clone(),
+        }
+    }
+}
+
+// Safety: LuaProtocol is only mutated through &mut self (parse/encode),
+// so the Lua VM is never accessed concurrently.
 unsafe impl Send for LuaProtocol {}
 unsafe impl Sync for LuaProtocol {}
 
@@ -36,6 +52,7 @@ impl LuaProtocol {
         Ok(Self {
             name,
             script: Some(script.to_string()),
+            lua: None,
             stats: ProtocolStats::default(),
         })
     }
@@ -45,6 +62,7 @@ impl LuaProtocol {
         Ok(Self {
             name,
             script: None,
+            lua: None,
             stats: ProtocolStats::default(),
         })
     }
@@ -54,61 +72,67 @@ impl LuaProtocol {
         self.script.as_ref()
     }
 
-    /// Execute Lua callback and return result as bytes
-    /// Creates a fresh Lua instance per call for thread safety, with ScriptRuntime tools registered.
-    fn execute_callback(&self, callback_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        if let Some(ref script) = self.script {
-            // Create fresh Lua instance for this call (thread-safe)
-            let lua = Lua::new();
-
-            // Register unified tool functions
-            let _ = ScriptRuntime::register_all(&lua);
-
-            // Load and cache the script
-            lua.load(script).exec().map_err(|e| {
-                SerialError::Protocol(ProtocolError::InvalidFrame(format!(
-                    "Failed to load Lua script: {}",
-                    e
-                )))
-            })?;
-
-            // Set global data variable
-            let globals = lua.globals();
-            let data_table = lua.create_table()?;
-            for (i, &byte) in data.iter().enumerate() {
-                data_table.set(i + 1, byte)?;
+    /// Ensure the Lua VM is initialized with the script.
+    fn ensure_lua(&mut self) -> Result<()> {
+        if self.lua.is_none() {
+            if let Some(ref script) = self.script {
+                let lua = Lua::new();
+                let _ = ScriptRuntime::register_all(&lua);
+                lua.load(script).exec().map_err(|e| {
+                    SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                        "Failed to load Lua script: {}",
+                        e
+                    )))
+                })?;
+                self.lua = Some(lua);
             }
-            globals.set("data", data_table.clone())?;
+        }
+        Ok(())
+    }
 
-            // Get the callback function directly (more efficient than eval)
-            let callback: Function = globals.get(callback_name).map_err(|_| {
-                SerialError::Protocol(ProtocolError::InvalidFrame(format!(
-                    "Callback function '{}' not found",
-                    callback_name
-                )))
-            })?;
+    /// Execute Lua callback on the cached VM.
+    fn execute_callback(&mut self, callback_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+        self.ensure_lua()?;
 
-            // Call the callback function
-            let result = callback.call::<_, Value>(data_table.clone());
+        let lua = match &self.lua {
+            Some(l) => l,
+            None => return Ok(data.to_vec()),
+        };
 
-            match result {
-                Ok(Value::Table(table)) => {
-                    let mut bytes = Vec::new();
-                    let len = table.len().unwrap_or(0);
-                    for i in 1..=len {
-                        let byte: u8 = table.get(i).unwrap_or(0);
-                        bytes.push(byte);
-                    }
-                    Ok(bytes)
+        let globals = lua.globals();
+
+        // Set global data variable
+        let data_table = lua.create_table()?;
+        for (i, &byte) in data.iter().enumerate() {
+            data_table.set(i + 1, byte)?;
+        }
+        globals.set("data", data_table.clone())?;
+
+        // Get the callback function
+        let callback: Function = globals.get(callback_name).map_err(|_| {
+            SerialError::Protocol(ProtocolError::InvalidFrame(format!(
+                "Callback function '{}' not found",
+                callback_name
+            )))
+        })?;
+
+        // Call the callback function
+        let result = callback.call::<_, Value>(data_table);
+
+        match result {
+            Ok(Value::Table(table)) => {
+                let mut bytes = Vec::new();
+                let len = table.len().unwrap_or(0);
+                for i in 1..=len {
+                    let byte: u8 = table.get(i).unwrap_or(0);
+                    bytes.push(byte);
                 }
-                Ok(Value::String(s)) => Ok(s.to_str().unwrap_or("").as_bytes().to_vec()),
-                Ok(Value::Integer(n)) => Ok(vec![n as u8]),
-                Ok(Value::Number(n)) => Ok(vec![n as u8]),
-                Ok(_) | Err(_) => Ok(data.to_vec()),
+                Ok(bytes)
             }
-        } else {
-            // No script, return data as-is
-            Ok(data.to_vec())
+            Ok(Value::String(s)) => Ok(s.to_str().unwrap_or("").as_bytes().to_vec()),
+            Ok(Value::Integer(n)) => Ok(vec![n as u8]),
+            Ok(Value::Number(n)) => Ok(vec![n as u8]),
+            Ok(_) | Err(_) => Ok(data.to_vec()),
         }
     }
 }
@@ -120,33 +144,19 @@ impl Protocol for LuaProtocol {
 
     fn parse(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         self.stats.frames_parsed += 1;
-
-        // Execute Lua on_frame callback
         self.execute_callback("on_frame", data)
-            .or_else(|_| Ok(data.to_vec())) // Fallback to passthrough on error
+            .or_else(|_| Ok(data.to_vec()))
     }
 
     fn encode(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         self.stats.frames_encoded += 1;
-
-        // Execute Lua on_encode callback
         self.execute_callback("on_encode", data)
-            .or_else(|_| Ok(data.to_vec())) // Fallback to passthrough on error
+            .or_else(|_| Ok(data.to_vec()))
     }
 
     fn reset(&mut self) -> Result<()> {
-        // Execute Lua on_reset callback if it exists
-        if let Some(ref script) = self.script {
-            let lua = Lua::new();
-            let _ = ScriptRuntime::register_all(&lua);
-
-            // Load the script
-            let _ = lua.load(script).exec();
-
-            // Try to call on_reset
-            let _ = lua.load("if on_reset then on_reset() end").eval::<Value>();
-        }
-
+        // Discard cached VM — next call will reinitialize
+        self.lua = None;
         Ok(())
     }
 

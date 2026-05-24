@@ -294,8 +294,7 @@ impl LuaBindings {
 
     /// Register virtual_create API
     pub fn register_virtual_create(&self) -> Result<()> {
-        let create = self.lua.create_function(move |lua, (backend, monitor): (Option<String>, Option<bool>)| {
-            use crate::serial_core::{VirtualConfig, VirtualSerialPair};
+        let create = self.lua.create_function(move |_lua, (backend, _monitor): (Option<String>, Option<bool>)| {
             use crate::serial_core::backends::BackendType;
 
             let backend_type = match backend.as_deref() {
@@ -311,33 +310,16 @@ impl LuaBindings {
                 }
             };
 
-            let config = VirtualConfig {
-                backend: backend_type,
-                monitor: monitor.unwrap_or(false),
-                monitor_output: None,
-                max_packets: 0,
-                bridge_buffer_size: 8192,
-            };
+            if !backend_type.is_available() {
+                return Err(mlua::Error::RuntimeError(format!(
+                    "Backend {:?} is not available on this platform",
+                    backend_type
+                )));
+            }
 
-            let pair = run_in_separate_runtime(|| VirtualSerialPair::create(config))
-                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to create virtual pair: {}", e)))?;
-
-            let id = pair.id.clone();
-            let port_a = pair.port_a.clone();
-            let port_b = pair.port_b.clone();
-            let backend = format!("{:?}", pair.backend_type);
-            let running = pair.is_running();
-
-            let result = lua.create_table()?;
-            result.set("id", id)?;
-            result.set("port_a", port_a)?;
-            result.set("port_b", port_b)?;
-            result.set("backend", backend)?;
-            result.set("running", running)?;
-
-            tracing::warn!("Virtual pair created but not stored. Resources will be cleaned up immediately.");
-
-            Ok(result)
+            Err::<(), _>(mlua::Error::RuntimeError(
+                "virtual_create is not supported in Lua scripts — use the GUI or CLI instead".to_string()
+            ))
         })?;
 
         self.lua.globals().set("virtual_create", create)?;
@@ -347,10 +329,9 @@ impl LuaBindings {
     /// Register virtual_stop API
     pub fn register_virtual_stop(&self) -> Result<()> {
         let stop = self.lua.create_function(move |_, _id: String| {
-            tracing::warn!(
-                "virtual_stop called but virtual pair management not implemented in Lua"
-            );
-            Ok(true)
+            Err::<(), _>(mlua::Error::RuntimeError(
+                "virtual_stop is not supported in Lua scripts — use the GUI or CLI instead".to_string()
+            ))
         })?;
 
         self.lua.globals().set("virtual_stop", stop)?;

@@ -12,22 +12,23 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::State;
 
-/// Execute a Lua script
+/// Execute a Lua script (runs in spawn_blocking to avoid blocking async runtime)
 #[tauri::command]
 pub async fn execute_script(script: String, _state: State<'_, AppState>) -> Result<String, String> {
-    // Create Lua bindings
-    let bindings = LuaBindings::new().map_err(|e| format!("Failed to create Lua engine: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let bindings = LuaBindings::new().map_err(|e| format!("Failed to create Lua engine: {}", e))?;
 
-    // Register all APIs at once
-    bindings
-        .register_all_apis()
-        .map_err(|e| format!("Failed to register APIs: {}", e))?;
+        bindings
+            .register_all_apis()
+            .map_err(|e| format!("Failed to register APIs: {}", e))?;
 
-    // Execute the script
-    bindings
-        .execute_script(&script)
-        .map(|_| "Script executed successfully".to_string())
-        .map_err(|e| format!("Script execution error: {}", e))
+        bindings
+            .execute_script(&script)
+            .map(|_| "Script executed successfully".to_string())
+            .map_err(|e| format!("Script execution error: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Script task failed: {}", e))?
 }
 
 /// Validate a Lua script
