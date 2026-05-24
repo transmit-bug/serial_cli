@@ -59,10 +59,12 @@ impl Default for PortStatsTracker {
 
 /// Data sniffer for monitoring serial port data
 pub struct DataSniffer {
-    /// Join handle for the sniffer task
+    /// Async event loop task (receives data from channel, emits Tauri events)
     pub task_handle: JoinHandle<()>,
-    /// Channel to stop the sniffer
-    pub stop_tx: tokio::sync::oneshot::Sender<()>,
+    /// Blocking read loop task (reads from serial port, sends through channel)
+    pub read_task_handle: JoinHandle<()>,
+    /// Shared stop flag checked by both tasks
+    pub stop_flag: Arc<std::sync::atomic::AtomicBool>,
     /// Statistics for this port
     #[allow(dead_code)]
     pub stats: Arc<PortStatsTracker>,

@@ -88,6 +88,10 @@ pub struct SerialPortHandle {
     port: Box<dyn serialport::SerialPort>,
     config: SerialConfig,
     protocol: Option<Box<dyn Protocol>>,
+    /// Accumulation buffer for protocol framing across reads.
+    /// When a protocol is set, raw bytes are appended here before parsing,
+    /// allowing multi-read frames (e.g., Modbus RTU) to be reassembled.
+    frame_buffer: Vec<u8>,
     script_engine: Option<SerialScriptEngine>,
     dtr_state: bool,
     rts_state: bool,
@@ -321,6 +325,7 @@ impl PortManager {
             port,
             config,
             protocol: None,
+            frame_buffer: Vec::new(),
             script_engine: None,
             dtr_state,
             rts_state,
@@ -937,20 +942,31 @@ impl SerialPortHandle {
             return Ok(0);
         }
 
-        // Step 1: Protocol parsing
+        // Step 1: Protocol parsing with frame accumulation
         let after_protocol = if let Some(ref mut proto) = self.protocol {
-            let raw = &buf[..n];
-            match proto.parse(raw) {
+            // Append new data to the frame buffer
+            self.frame_buffer.extend_from_slice(&buf[..n]);
+
+            // Safety limit: discard stale buffer if it grows beyond 64 KB
+            if self.frame_buffer.len() > 65536 {
+                tracing::warn!("frame buffer overflow ({} bytes), clearing", self.frame_buffer.len());
+                self.frame_buffer.clear();
+            }
+
+            match proto.parse(&self.frame_buffer) {
                 Ok(parsed) => {
                     if parsed.is_empty() {
-                        // Incomplete frame — no data to return yet
+                        // Incomplete frame — buffer retained for next read
                         return Ok(0);
                     }
+                    // Complete frame — clear buffer
+                    self.frame_buffer.clear();
                     parsed
                 }
-                Err(_) => {
-                    // Parse error — return raw data as-is
-                    tracing::debug!("protocol parse error, returning raw data");
+                Err(e) => {
+                    // Parse error — discard buffer, return raw data from this read
+                    tracing::debug!("protocol parse error ({} bytes buffered): {}", self.frame_buffer.len(), e);
+                    self.frame_buffer.clear();
                     buf[..n].to_vec()
                 }
             }

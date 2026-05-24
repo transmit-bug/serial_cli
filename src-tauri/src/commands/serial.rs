@@ -9,6 +9,7 @@
 use crate::state::app_state::{AppState, DataSniffer, PortStatsTracker};
 use log::{debug, error, info};
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 use tauri::{AppHandle, State};
 
@@ -79,7 +80,12 @@ pub async fn read_data(
     Ok(buffer)
 }
 
-/// Start sniffing data on a port
+/// Start sniffing data on a port.
+///
+/// Uses `spawn_blocking` for the serial port read loop (the underlying
+/// `serialport` API is synchronous) and an `mpsc` channel to forward data
+/// to the async event loop that emits Tauri events. This eliminates the
+/// previous 50ms polling — data is now processed immediately on arrival.
 #[tauri::command]
 pub async fn start_sniffing(
     port_id: String,
@@ -89,10 +95,20 @@ pub async fn start_sniffing(
     info!("Starting data sniffing for port: {}", port_id);
 
     // Check if already sniffing
-    let mut sniffers = state.active_sniffers.lock().await;
+    let sniffers = state.active_sniffers.lock().await;
     if sniffers.contains_key(&port_id) {
         return Err(format!("Already sniffing port: {}", port_id));
     }
+
+    // Get the port handle Arc once — no need to re-lock PortManager during reads
+    let port_handle = {
+        let manager = state.port_manager.lock().await;
+        manager
+            .get_port(&port_id)
+            .await
+            .map_err(|e: serial_cli::error::SerialError| e.to_string())?
+    };
+    drop(sniffers); // release early
 
     // Create or get port stats
     let mut port_stats = state.port_stats.lock().await;
@@ -102,108 +118,108 @@ pub async fn start_sniffing(
         .clone();
     drop(port_stats);
 
-    // Create a channel to stop the sniffer
-    let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
+    // Data channel: blocking read → async event loop
+    let (data_tx, mut data_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(256);
 
-    // Clone the necessary data for the task
-    let port_manager = state.port_manager.clone();
-    let port_id_clone = port_id.clone();
-    let app_clone = app.clone();
-    let stats_for_task = stats.clone();
+    // Shared stop flag
+    let stop_flag = Arc::new(AtomicBool::new(false));
 
-    // Spawn the sniffer task
-    let task_handle = tokio::spawn(async move {
-        info!("Sniffer task started for port: {}", port_id_clone);
-
+    // --- Blocking read task ---
+    let read_stop = stop_flag.clone();
+    let read_port_id = port_id.clone();
+    let read_task_handle = tokio::task::spawn_blocking(move || {
+        info!("Sniffer blocking-read task started for port: {}", read_port_id);
         let mut buffer = vec![0u8; 4096];
-        let mut last_activity = std::time::Instant::now();
 
         loop {
-            // Check for stop signal
-            match stop_rx.try_recv() {
-                Ok(_) | Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
-                    info!("Received stop signal for port: {}", port_id_clone);
-                    break;
-                }
-                Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {}
+            // Check stop signal between reads
+            if read_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                info!("Stop signal received for port: {}", read_port_id);
+                break;
             }
 
-            // Try to read data from the port
+            // Lock the port handle, do one read, release lock
+            // Lock is released after each read so writes can interleave
             {
-                let manager = port_manager.lock().await;
-                if let Ok(port_handle) = manager.get_port(&port_id_clone).await {
-                    let mut handle = port_handle.lock().await;
-
-                    match handle.read(&mut buffer) {
-                        Ok(bytes_read) => {
-                            if bytes_read > 0 {
-                                let data = buffer[..bytes_read].to_vec();
-                                debug!("Received {} bytes from port {}", bytes_read, port_id_clone);
-                                last_activity = std::time::Instant::now();
-
-                                // Update stats
-                                stats_for_task.bytes_received.fetch_add(
-                                    bytes_read as u64,
-                                    std::sync::atomic::Ordering::Relaxed,
-                                );
-                                stats_for_task
-                                    .packets_received
-                                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                                stats_for_task.last_activity.store(
-                                    std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_millis() as u64,
-                                    std::sync::atomic::Ordering::Relaxed,
-                                );
-
-                                // Emit data-received event
-                                if let Err(e) = crate::events::emitter::emit_data_received(
-                                    app_clone.clone(),
-                                    port_id_clone.clone(),
-                                    data,
-                                )
-                                .await
-                                {
-                                    error!("Failed to emit data-received event: {}", e);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            // Log error but continue trying
-                            debug!("Read error on port {}: {}", port_id_clone, e);
+                let mut handle = port_handle.blocking_lock();
+                match handle.read(&mut buffer) {
+                    Ok(n) if n > 0 => {
+                        if data_tx.blocking_send(buffer[..n].to_vec()).is_err() {
+                            // Channel closed — async side shut down
+                            break;
                         }
                     }
-                } else {
-                    // Port might be closed, stop sniffing
-                    error!("Port {} not found, stopping sniffer", port_id_clone);
-                    let _ = crate::events::emitter::emit_error(
-                        app_clone.clone(),
-                        format!("Port {} disconnected, sniffer stopped", port_id_clone),
-                    )
-                    .await;
-                    break;
+                    Ok(_) => {} // 0 bytes (serialport timeout)
+                    Err(e) => {
+                        let msg = e.to_string();
+                        if msg.contains("timed out") || msg.contains("timeout") {
+                            continue;
+                        }
+                        if msg.contains("Broken pipe") || msg.contains("disconnected") {
+                            debug!("Port {} disconnected", read_port_id);
+                            break;
+                        }
+                        debug!("Read error on port {}: {}", read_port_id, msg);
+                        // Brief pause before retrying to avoid tight error loop
+                        std::thread::sleep(Duration::from_millis(100));
+                    }
                 }
-            }
-
-            // Small delay to prevent busy-waiting
-            tokio::time::sleep(Duration::from_millis(50)).await;
-
-            // Check for timeout (no activity for 5 seconds)
-            if last_activity.elapsed() > Duration::from_secs(5) {
-                debug!("No activity on port {} for 5 seconds", port_id_clone);
             }
         }
 
-        info!("Sniffer task stopped for port: {}", port_id_clone);
+        info!("Sniffer blocking-read task stopped for port: {}", read_port_id);
+    });
+
+    // --- Async event loop: receive data, update stats, emit Tauri events ---
+    let event_port_id = port_id.clone();
+    let event_app = app.clone();
+    let event_stats = stats.clone();
+    let event_stop = stop_flag.clone();
+    let task_handle = tokio::spawn(async move {
+        while let Some(data) = data_rx.recv().await {
+            if event_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+
+            let len = data.len() as u64;
+            debug!("Received {} bytes from port {}", len, event_port_id);
+
+            // Update stats
+            event_stats
+                .bytes_received
+                .fetch_add(len, std::sync::atomic::Ordering::Relaxed);
+            event_stats
+                .packets_received
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            event_stats.last_activity.store(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
+
+            // Emit data-received event
+            if let Err(e) = crate::events::emitter::emit_data_received(
+                event_app.clone(),
+                event_port_id.clone(),
+                data,
+            )
+            .await
+            {
+                error!("Failed to emit data-received event: {}", e);
+            }
+        }
     });
 
     // Store the sniffer
+    let mut sniffers = state.active_sniffers.lock().await;
     sniffers.insert(
         port_id.clone(),
         DataSniffer {
             task_handle,
-            stop_tx,
+            read_task_handle,
+            stop_flag,
             stats,
         },
     );
@@ -220,22 +236,34 @@ pub async fn stop_sniffing(port_id: String, state: State<'_, AppState>) -> Resul
     let mut sniffers = state.active_sniffers.lock().await;
 
     if let Some(sniffer) = sniffers.remove(&port_id) {
-        // Send stop signal
-        let _ = sniffer.stop_tx.send(());
+        // Signal both tasks to stop
+        sniffer
+            .stop_flag
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
-        // Wait for task to finish (with timeout)
+        // Wait for async event loop
         match tokio::time::timeout(Duration::from_secs(2), sniffer.task_handle).await {
             Ok(Ok(())) => {
-                info!("Sniffer task stopped successfully for port: {}", port_id);
+                info!("Sniffer event task stopped for port: {}", port_id);
             }
             Ok(Err(e)) => {
-                error!("Sniffer task error for port {}: {:?}", port_id, e);
+                error!("Sniffer event task error for port {}: {:?}", port_id, e);
             }
             Err(_) => {
-                error!(
-                    "Timeout waiting for sniffer task to stop for port: {}",
-                    port_id
-                );
+                error!("Timeout waiting for sniffer event task for port: {}", port_id);
+            }
+        }
+
+        // Wait for blocking read task
+        match tokio::time::timeout(Duration::from_secs(3), sniffer.read_task_handle).await {
+            Ok(Ok(())) => {
+                info!("Sniffer read task stopped for port: {}", port_id);
+            }
+            Ok(Err(e)) => {
+                error!("Sniffer read task error for port {}: {:?}", port_id, e);
+            }
+            Err(_) => {
+                error!("Timeout waiting for sniffer read task for port: {}", port_id);
             }
         }
     } else {

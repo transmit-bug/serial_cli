@@ -1,5 +1,5 @@
 import MonacoEditor from "@monaco-editor/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { toast } from "sonner";
@@ -108,6 +108,16 @@ export function EditorPage() {
     },
     [protocols, updateContent],
   );
+
+  // Auto-open first script when list loads and no file is open
+  const hasEditorRef = useRef(false);
+  useEffect(() => {
+    if (!hasEditorRef.current && scripts.length > 0 && !currentScript) {
+      openScript(scripts[0].name);
+      setFileType("script");
+      hasEditorRef.current = true;
+    }
+  }, [scripts, currentScript, openScript]);
 
   // ─── Actions ───
 
@@ -390,7 +400,7 @@ export function EditorPage() {
 
       <Group orientation="horizontal" className="flex-1">
         {/* Left panel: file list + templates */}
-        <Panel defaultSize={25} minSize={18} maxSize={40}>
+        <Panel defaultSize="25%" minSize="15%" maxSize="45%">
           <div className="h-full overflow-y-auto">
             {/* Protocol list */}
             <ProtocolList
@@ -467,7 +477,7 @@ export function EditorPage() {
         <Separator className="w-1.5 bg-border hover:bg-accent cursor-col-resize transition-colors" />
 
         {/* Editor + Bottom panel */}
-        <Panel defaultSize={75}>
+        <Panel defaultSize="75%" minSize="35%">
           <Group orientation="vertical">
             {/* Name input for new file */}
             {fileType === "script" && !currentScript?.name && currentScript && (

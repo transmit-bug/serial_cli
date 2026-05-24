@@ -102,6 +102,7 @@ pub async fn emit_port_status_changed(
 }
 
 /// Emit an error event
+#[allow(dead_code)]
 pub async fn emit_error(app: AppHandle, error: String) -> Result<(), Box<dyn std::error::Error>> {
     let payload = serde_json::json!({
         "error": error,

@@ -1,93 +1,70 @@
 # Serial CLI TODO List
 
-**Version**: v0.7.0 (frontend rewrite)
+**Version**: v0.8.0 (backend hardening)
 **Updated**: 2026-05-24
 
 ---
 
-## Priority Legend
+## P0 - I/O 架构
 
-- **P0** - Critical (must fix before release)
-- **P1** - Important (should fix)
-- **P2** - Nice to have (can defer)
+### 1. 异步 I/O 重构
+**Status**: ⏳ Pending
+**Files**: `src/serial_core/port.rs`, `src/serial_core/io_loop.rs`, `src-tauri/src/commands/serial.rs`
+**Description**: 当前 sniffer 和 IoLoop 均使用 50ms/10ms 轮询读取（`Box<dyn serialport::SerialPort>` 是阻塞 API）。高波特率下可能丢数据，空闲时浪费 CPU。需迁移到 `tokio-serial` 异步读取或 `spawn_blocking` + channel 通知模式。
+
+### 2. 协议帧缓冲与流式解析
+**Status**: ⏳ Pending
+**Files**: `src/protocol/mod.rs`, `src/serial_core/port.rs`
+**Description**: `Protocol::parse()` 接收任意字节切片但无帧累积机制。部分帧在 `SerialPortHandle::read()` 中被静默丢弃。需要引入 framing layer：跨读取累积数据、指示"帧不完整需更多数据"、保留部分帧状态。
 
 ---
 
-## P0 - Frontend Rewrite
+## P1 - 可靠性与健壮性
 
-### 1. 初始化新前端项目
-**Status**: ✅ Done
-**Description**: 初始化 React + Vite + TypeScript 前端项目，配置 Tailwind CSS、shadcn/ui、i18next、Zustand。
+### 3. 端口热插拔检测
+**Status**: ⏳ Pending
+**Description**: 无 USB 串口设备插拔监听。前端需手动刷新端口列表。需实现平台相关热插拔事件（Linux udev / macOS IOKit / Windows RegisterDeviceNotification），断开时自动通知前端并清理资源。
 
-### 2. 主界面 - 串口终端
-**Status**: ✅ Done
-**Description**: 串口连接、数据收发、HEX/ASCII/Mixed 显示、数据导出。承载 80% 日常功能。
+### 4. 优雅关闭与资源清理
+**Status**: ⏳ Pending
+**Files**: `src-tauri/src/main.rs`
+**Description**: 应用退出时无清理逻辑。活跃的 sniffer 任务、虚拟端口对、Lua timer 线程不会主动停止。需在 Tauri 退出回调中依次停止 sniffers → 关闭端口 → 停止虚拟端口对。
 
-### 3. 虚拟串口管理
-**Status**: ✅ Done
-**Description**: 虚拟串口对创建/管理/数据捕获。
-
-### 4. 脚本引擎
-**Status**: ✅ Done
-**Description**: Lua 脚本编辑器（Monaco）、执行、管理、脚本绑定。
-
-### 5. 协议管理
-**Status**: ✅ Done
-**Description**: 协议列表、启停、编解码、自定义协议加载。
-
-### 6. 设置面板
-**Status**: ✅ Done
-**Description**: 应用配置管理。
+### 5. 端口并发与锁优化
+**Status**: ⏳ Pending
+**Files**: `src-tauri/src/state/app_state.rs`, `src/serial_core/port.rs`
+**Description**: `PortManager` 被 `Arc<Mutex<_>>` 全局包裹，所有端口操作串行化。同时 `open_port` 存在 check-then-insert 竞态。需将全局锁拆分为细粒度端口级锁，并修复竞态条件。
 
 ---
 
-## P1 - Backend Fixes (前后端审查)
+## P2 - 协议与脚本引擎
 
-### 7. 修复 `get_all_ports_status` 实现不完整
-**Status**: ✅ Done
-**Files**: `src/serial_core/port.rs`, `src-tauri/src/commands/port.rs`
-**Description**: 新增 `PortManager::list_open_ports()` 方法枚举已打开端口。重写 `get_all_ports_status` 查询实际已打开端口状态，合并 `port_stats` 统计和 config。
+### 6. 协议热重载实现
+**Status**: ⏳ Pending
+**Files**: `src/protocol/manager.rs`, `src/protocol/watcher.rs`
+**Description**: `ProtocolManager::enable_hot_reload` 设置标志后直接返回，从未启动 `ProtocolWatcher`。watcher 模块已实现但为死代码。需将 watcher 接入 manager 的后台任务。
 
-### 8. 修复 `get_config`/`update_config` display 字段硬编码
-**Status**: ✅ Done
-**Files**: `src/config.rs`, `src-tauri/src/commands/config.rs`
-**Description**: 在核心 Config 中新增 `DisplayConfig`（theme/format/max_packets/show_timestamp），`get_config` 从真实字段读取，`update_config` 回写 display 字段。
+### 7. Lua 引擎统一
+**Status**: ⏳ Pending
+**Files**: `src/lua/`, `src/serial_core/serial_script.rs`, `src/protocol/lua_ext.rs`
+**Description**: 存在三个独立的 Lua 引擎实现（SerialScriptEngine / LuaBindings / LuaProtocol），各自创建 Lua state 和注册 API 方式不同。`LuaProtocol` 每次回调重建 Lua state，无持久状态且性能差。需统一为共享 Lua 引擎架构。同时修复 Lua 中 `virtual_create` 立即销毁资源的问题。
 
-### 9. 完善事件发射器
-**Status**: ✅ Done
-**Files**: `src-tauri/src/events/emitter.rs`, `src-tauri/src/commands/port.rs`, `src-tauri/src/commands/serial.rs`, `src-tauri/src/commands/virtual_port.rs`
-**Description**: 已在对应场景中调用：
-  - `emit_port_status_changed`: open_port/close_port 时发射
-  - `emit_error`: sniffer 端口断开时发射
-  - `emit_virtual_port_stats_updated`: get_virtual_port_stats 时发射
+### 8. Lua 脚本 API 扩展
+**Status**: ⏳ Pending
+**Description**: Lua 运行时缺少文件 I/O（受沙箱限制但无安全替代）、多定时器管理、串口控制 API。`sleep_ms` 使用 `std::thread::sleep` 会阻塞 Tauri 异步线程。
 
 ---
 
-## P2 - Integration & Polish
+## P2 - 数据管理与导出
 
-### 10. 接入 `checkVirtualPortHealth`
+### 9. 会话持久化与数据导出
 **Status**: ⏳ Pending
-**Files**: `frontend/src/lib/tauri-api.ts`, `frontend/src/components/virtual/VirtualPortsPage.tsx`
-**Description**: API 已定义但未使用。应在虚拟端口页面的端口列表中展示健康状态。
+**Description**: 无后端会话保存/加载机制。`SerialSniffer::save_to_file` 存在于核心库但未暴露为 Tauri 命令。需增加：会话日志保存、数据导出（CSV/JSON/Hex dump）、端口配置收藏夹持久化。
 
-### 11. 接入 standalone script actions 系统
+### 10. GUI 日志系统
 **Status**: ⏳ Pending
-**Files**: `frontend/src/lib/tauri-api.ts`, `frontend/src/components/editor/EditorPage.tsx`
-**Description**: `listStandaloneScriptActions` / `callStandaloneScriptFunction` 已在后端实现，前端 API 已封装，但没有 UI 入口。可接入编辑器中，让未绑定端口的脚本也能展示和调用 UI 动作。
-
-### 12. 清理未使用的 API 包装
-**Status**: ⏳ Pending
-**Files**: `frontend/src/lib/tauri-api.ts`
-**Description**: `getProtocolInfo`、`hasScript` 已定义但无调用方。要么接入功能，要么移除死代码。
-
-### 13. 连接预设同步到后端配置
-**Status**: ⏳ Pending
-**Files**: `frontend/src/components/terminal/ConnectionBar.tsx`, `src-tauri/src/commands/config.rs`
-**Description**: 连接预设仅存 localStorage，不同步到后端 Config。需扩展 Config 结构，使预设可跨设备共享。
-
-### 14. 系统托盘
-**Status**: ⏳ Pending
-**Description**: 实现系统托盘功能（已移除空壳代码，待重新实现）。
+**Files**: `src-tauri/src/main.rs`
+**Description**: Tauri 模式日志仅输出到 stderr（GUI 中不可见）。需配置日志文件输出、日志轮转、可选的应用内日志查看器。
 
 ---
 
@@ -103,27 +80,16 @@
 - ✅ Server Mode MVP (JSON-RPC 2.0)
 - ✅ Configuration management (TOML-based)
 - ✅ Interactive shell (rustyline)
-- ✅ Tauri backend commands (45 registered)
-- ✅ 229 Rust unit tests + 9 E2E tests passing
+- ✅ Tauri backend commands (47 registered)
+- ✅ 227 Rust unit tests + 9 E2E tests passing
 
-### ✅ v0.7.0 - Frontend Rewrite
+### ✅ v0.7.0 - Frontend + Backend Integration
 - ✅ React 19 + Vite 8 + TypeScript + Tailwind CSS 4 + Zustand 5
 - ✅ 串口终端 (连接/收发/HEX-ASCII-Mixed/导出/命令/监控/解码器)
 - ✅ 虚拟串口管理 (创建/停止/捕获/CSV导出)
 - ✅ 脚本引擎 (Monaco编辑器/模板/执行/验证/绑定端口)
 - ✅ 协议管理 (列表/加载/卸载/编解码测试)
-- ✅ 设置面板 (8标签页/配置读写/重置)
-- ✅ i18n 中英文支持
-- ✅ 可折叠侧边栏 + 多标签工作区
-
-### ✅ Cleanup (2026-05-24)
-- ✅ 删除旧 frontend/ 目录
-- ✅ 移除 PortStateManager 死代码
-- ✅ 移除 tray.rs 空壳
-- ✅ 清理 config.rs dead_code stubs (get_config_raw, save_config_raw, get_config_file_path)
-- ✅ 清理 script.rs dead_code stub (load_script)
-- ✅ 移除 emitter.rs dead_code 标记
-- ✅ 移除 virtual_port.rs dead_code 标记
-- ✅ 移除 tauri tray-icon feature
-- ✅ 删除过时文档 (UI-DESIGN-DECISIONS.md, FINAL_REPORT.md, TEST_REPORT.md)
-- ✅ 重写 TODO.md
+- ✅ 设置面板 (8标签页/配置读写/重置) + DisplayConfig 持久化
+- ✅ i18n 中英文支持 + 可折叠侧边栏 + 多标签工作区
+- ✅ get_all_ports_status 修复：查询实际已打开端口状态
+- ✅ 事件发射器接入：port-status-changed / error-occurred / virtual-port-stats-updated
