@@ -120,7 +120,7 @@ export function TxSender({ portId }: { portId?: string }) {
         </button>
       </div>
 
-      {tab === "free" ? (
+      {tab === "free" && (
         <>
           <textarea
             value={input}
@@ -165,9 +165,8 @@ export function TxSender({ portId }: { portId?: string }) {
             </button>
           </div>
         </>
-      ) : (
-        <QuickSendPanel onSent={handleQuickSend} />
       )}
+      {tab === "quick" && <QuickSendPanel onSent={handleQuickSend} />}
       {tab === "sequences" && <SequenceList />}
     </div>
   );

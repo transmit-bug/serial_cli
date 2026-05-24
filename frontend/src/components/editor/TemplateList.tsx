@@ -186,7 +186,7 @@ local function crc16(data)
   return crc
 end
 
-function encode(data)
+function on_encode(data)
   -- data: { addr=1, func=3, start=0, count=1 }
   local frame = string.char(
     data.addr or 1,
@@ -200,7 +200,7 @@ function encode(data)
   return frame .. string.char(crc & 0xFF, crc >> 8)
 end
 
-function parse(data)
+function on_frame(data)
   if #data < 4 then
     return { error = "Frame too short" }
   end
@@ -244,7 +244,7 @@ local function checksum(data)
   return sum ~ 0xFF
 end
 
-function encode(data)
+function on_encode(data)
   local cmd = data.cmd or 0x01
   local payload = data.payload or {}
   local payload_bytes = string.char(table.unpack(payload))
@@ -256,7 +256,7 @@ function encode(data)
   return string.char(STX, len) .. body .. string.char(cksum, ETX)
 end
 
-function parse(data)
+function on_frame(data)
   if #data < 4 then
     return { error = "Frame too short" }
   end
@@ -296,13 +296,13 @@ end
     content: `-- Simple AT Protocol
 -- Line-based command/response protocol
 
-function encode(data)
+function on_encode(data)
   local cmd = data.cmd or ""
   local suffix = data.suffix or "\\r\\n"
   return cmd .. suffix
 end
 
-function parse(data)
+function on_frame(data)
   local str = tostring(data)
   -- Remove trailing CRLF/LF
   str = str:gsub("\\r\\n$", ""):gsub("\\n$", ""):gsub("\\r$", "")

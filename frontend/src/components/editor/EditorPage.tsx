@@ -17,7 +17,11 @@ export type FileType = "script" | "protocol";
 
 export function EditorPage() {
   const { t } = useTranslation();
-  const { status, availablePorts } = useConnectionStore();
+  const activeEntry = useConnectionStore((s) =>
+    s.connections.find((c) => c.portId === s.activePortId),
+  );
+  const { availablePorts } = useConnectionStore();
+  const isConnected = activeEntry?.status === "connected";
   const {
     scripts,
     currentScript,
@@ -74,7 +78,7 @@ export function EditorPage() {
       } else {
         setProtocolNameInput("my_protocol");
         updateContent(
-          "-- Lua protocol definition\nfunction encode(data)\n  return data\nend\n\nfunction parse(data)\n  return data\nend\n",
+          "-- Lua protocol definition\nfunction on_frame(data)\n  return data\nend\n\nfunction on_encode(data)\n  return data\nend\n",
         );
       }
       setFileType(type);
@@ -104,7 +108,9 @@ export function EditorPage() {
       if (!proto) return;
       setProtocolNameInput(name);
       setFileType("protocol");
-      updateContent("-- Protocol content (edit and save to update)");
+      updateContent(
+        "function on_frame(data)\n  return data\nend\n\nfunction on_encode(data)\n  return data\nend\n",
+      );
     },
     [protocols, updateContent],
   );
@@ -323,7 +329,7 @@ export function EditorPage() {
             ) : (
               <button
                 onClick={() => setAttachDropdown(!attachDropdown)}
-                disabled={!currentScript || status !== "connected"}
+                disabled={!currentScript || !isConnected}
                 className="px-2 py-1 rounded text-xs text-text-muted hover:text-text disabled:opacity-50"
               >
                 {t("scripts.attachToPort")}

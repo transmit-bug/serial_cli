@@ -6,7 +6,12 @@ import { useProtocolStore } from "@/stores/protocol";
 
 export function StatusBar() {
   const { t } = useTranslation();
-  const { status, portName, config } = useConnectionStore();
+  const activeEntry = useConnectionStore((s) =>
+    s.connections.find((c) => c.portId === s.activePortId),
+  );
+  const status = activeEntry?.status ?? "disconnected";
+  const portName = activeEntry?.portName;
+  const config = activeEntry?.config;
   const packets = useDataStore((s) => s.packets);
   const activeProtocol = useProtocolStore((s) => s.activeProtocol);
 
