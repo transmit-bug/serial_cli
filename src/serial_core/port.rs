@@ -224,14 +224,23 @@ impl PortManager {
     /// [`PortBusy`](SerialPortError::PortBusyWithHelp), or
     /// [`IoError`](SerialPortError::IoError) depending on the underlying OS error.
     pub async fn open_port(&self, name: &str, config: SerialConfig) -> Result<String> {
-        let ports_guard = self.ports.lock().await;
-        if ports_guard.contains_key(name) {
-            return Err(SerialError::Serial(SerialPortError::port_busy(
-                name,
-                Some("Port is already opened by this application"),
-            )));
+        // Check for duplicate opens — scan values to see if this device name is already open.
+        {
+            let ports_guard = self.ports.lock().await;
+            let handles: Vec<Arc<Mutex<SerialPortHandle>>> =
+                ports_guard.values().cloned().collect();
+            drop(ports_guard);
+
+            for h in &handles {
+                let handle = h.lock().await;
+                if handle.name() == name {
+                    return Err(SerialError::Serial(SerialPortError::port_busy(
+                        name,
+                        Some("Port is already opened by this application"),
+                    )));
+                }
+            }
         }
-        drop(ports_guard);
 
         // Open via serialport::TTYPort on Unix to get raw fd for DTR/RTS
         #[cfg(unix)]

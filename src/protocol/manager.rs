@@ -171,17 +171,103 @@ impl ProtocolManager {
         Ok(())
     }
 
-    /// Enable hot-reload for protocol scripts
+    /// Enable hot-reload for protocol scripts.
     ///
-    /// Monitors loaded custom protocol scripts for changes and automatically reloads them.
+    /// Spawns a background task that watches the directories of all currently
+    /// loaded (and future) custom protocol scripts via [`ProtocolWatcher`],
+    /// automatically reloading them when the file changes on disk.
     pub async fn enable_hot_reload(&mut self) -> Result<()> {
         if *self.hot_reload_enabled.lock().await {
             tracing::warn!("Hot-reload is already enabled");
             return Ok(());
         }
 
+        // Create the file watcher
+        let mut watcher = crate::protocol::ProtocolWatcher::new()?;
+
+        // Watch directories of all currently loaded custom protocols
+        for custom in self.custom_protocols.values() {
+            if let Err(e) = watcher.watch(&custom.script_path) {
+                tracing::warn!(
+                    "Failed to watch protocol script {}: {}",
+                    custom.script_path.display(),
+                    e
+                );
+            }
+        }
+
+        // Take the reload event receiver
+        let mut reload_rx = watcher
+            .reload_events()
+            .ok_or_else(|| SerialError::Protocol(ProtocolError::InvalidState(
+                "Failed to get reload event receiver".to_string(),
+            )))?;
+
+        // Clone data the background task needs
+        let registry = self.registry.clone();
+        let custom_protocols: Arc<Mutex<HashMap<String, CustomProtocol>>> =
+            Arc::new(Mutex::new(self.custom_protocols.clone()));
+
+        // Spawn the background reload task
+        let task = tokio::spawn(async move {
+            while let Some(path) = reload_rx.recv().await {
+                let _file_name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("unknown");
+
+                tracing::info!("Protocol script changed: {}", path.display());
+
+                // Look up the protocol name from the path
+                let name = {
+                    let customs = custom_protocols.lock().await;
+                    customs
+                        .iter()
+                        .find(|(_, v)| v.script_path == path)
+                        .map(|(k, _)| k.clone())
+                };
+
+                let Some(name) = name else {
+                    tracing::debug!("Changed file is not a tracked protocol: {}", path.display());
+                    continue;
+                };
+
+                // Reload the protocol
+                let loader_result = ProtocolLoader::load_from_file(&path);
+                match loader_result {
+                    Ok(loaded) => match ProtocolLoader::create_factory(&loaded) {
+                        Ok(factory) => {
+                            let mut reg = registry.lock().await;
+                            if let Err(e) = reg.unregister(&name).await {
+                                tracing::debug!("Unregister old version: {}", e);
+                            }
+                            reg.register(factory).await;
+                            drop(reg);
+
+                            // Update version
+                            let mut customs = custom_protocols.lock().await;
+                            if let Some(custom) = customs.get_mut(&name) {
+                                custom.version += 1;
+                                custom.loaded_at = std::time::SystemTime::now();
+                            }
+
+                            tracing::info!("Hot-reloaded protocol: {}", name);
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to create factory for {}: {}", name, e);
+                        }
+                    },
+                    Err(e) => {
+                        tracing::error!("Failed to reload protocol from {}: {}", path.display(), e);
+                    }
+                }
+            }
+        });
+
+        self.watcher_task = Some(task);
         *self.hot_reload_enabled.lock().await = true;
-        tracing::info!("Protocol hot-reload enabled");
+
+        tracing::info!("Protocol hot-reload enabled (watching {} protocols)", self.custom_protocols.len());
         Ok(())
     }
 

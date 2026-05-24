@@ -8,41 +8,41 @@
 ## P0 - I/O 架构
 
 ### 1. 异步 I/O 重构
-**Status**: ⏳ Pending
-**Files**: `src/serial_core/port.rs`, `src/serial_core/io_loop.rs`, `src-tauri/src/commands/serial.rs`
-**Description**: 当前 sniffer 和 IoLoop 均使用 50ms/10ms 轮询读取（`Box<dyn serialport::SerialPort>` 是阻塞 API）。高波特率下可能丢数据，空闲时浪费 CPU。需迁移到 `tokio-serial` 异步读取或 `spawn_blocking` + channel 通知模式。
+**Status**: ✅ Done
+**Files**: `src-tauri/src/commands/serial.rs`, `src-tauri/src/state/app_state.rs`
+**Description**: sniffer 改为 `spawn_blocking` 阻塞读取 + `mpsc` channel 异步事件分发。数据到达即处理，消除 50ms 轮询。使用 `AtomicBool` 停止信号替代 oneshot channel。
 
 ### 2. 协议帧缓冲与流式解析
-**Status**: ⏳ Pending
-**Files**: `src/protocol/mod.rs`, `src/serial_core/port.rs`
-**Description**: `Protocol::parse()` 接收任意字节切片但无帧累积机制。部分帧在 `SerialPortHandle::read()` 中被静默丢弃。需要引入 framing layer：跨读取累积数据、指示"帧不完整需更多数据"、保留部分帧状态。
+**Status**: ✅ Done
+**Files**: `src/serial_core/port.rs`
+**Description**: `SerialPortHandle` 新增 `frame_buffer` 字段，跨读取累积数据后再调用 `parse()`。解决部分协议帧被静默丢弃的问题。64KB 安全上限防止缓冲区无限增长。
 
 ---
 
 ## P1 - 可靠性与健壮性
 
 ### 3. 端口热插拔检测
-**Status**: ⏳ Pending
-**Description**: 无 USB 串口设备插拔监听。前端需手动刷新端口列表。需实现平台相关热插拔事件（Linux udev / macOS IOKit / Windows RegisterDeviceNotification），断开时自动通知前端并清理资源。
+**Status**: ✅ Done
+**Description**: 后台任务每 2s 轮询硬件端口列表变化，自动发射 `ports-changed` 事件（added/removed 端口名列表）到前端。
 
 ### 4. 优雅关闭与资源清理
-**Status**: ⏳ Pending
+**Status**: ✅ Done
 **Files**: `src-tauri/src/main.rs`
-**Description**: 应用退出时无清理逻辑。活跃的 sniffer 任务、虚拟端口对、Lua timer 线程不会主动停止。需在 Tauri 退出回调中依次停止 sniffers → 关闭端口 → 停止虚拟端口对。
+**Description**: Tauri `on_window_event(CloseRequested)` 拦截关闭，依次停止 sniffers → 关闭端口（含脚本 detach）→ 停止虚拟端口对，完成后 `app.exit(0)`。
 
 ### 5. 端口并发与锁优化
-**Status**: ⏳ Pending
-**Files**: `src-tauri/src/state/app_state.rs`, `src/serial_core/port.rs`
-**Description**: `PortManager` 被 `Arc<Mutex<_>>` 全局包裹，所有端口操作串行化。同时 `open_port` 存在 check-then-insert 竞态。需将全局锁拆分为细粒度端口级锁，并修复竞态条件。
+**Status**: ✅ Done
+**Files**: `src/serial_core/port.rs`, `src-tauri/src/commands/serial.rs`
+**Description**: 修复 `open_port` 的重复打开检查（原先 `contains_key` 对 uuid key 无效，改为遍历 values 匹配 port name）。sniffer 不再每次读取都锁 PortManager。
 
 ---
 
 ## P2 - 协议与脚本引擎
 
 ### 6. 协议热重载实现
-**Status**: ⏳ Pending
+**Status**: ✅ Done
 **Files**: `src/protocol/manager.rs`, `src/protocol/watcher.rs`
-**Description**: `ProtocolManager::enable_hot_reload` 设置标志后直接返回，从未启动 `ProtocolWatcher`。watcher 模块已实现但为死代码。需将 watcher 接入 manager 的后台任务。
+**Description**: `enable_hot_reload` 现在真正创建 `ProtocolWatcher`，监视已加载协议的目录，文件变化时自动重新加载并更新注册表。
 
 ### 7. Lua 引擎统一
 **Status**: ⏳ Pending

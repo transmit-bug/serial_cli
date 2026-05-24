@@ -158,3 +158,19 @@ pub async fn emit_virtual_port_stats_updated(
     app.emit("virtual-port-stats-updated", payload)?;
     Ok(())
 }
+
+/// Emit a ports-changed event when the hardware port list changes.
+pub async fn emit_ports_changed(
+    app: AppHandle,
+    added: Vec<String>,
+    removed: Vec<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let payload = serde_json::json!({
+        "added": added,
+        "removed": removed,
+        "timestamp": chrono::Utc::now().timestamp_millis(),
+    });
+
+    app.emit("ports-changed", payload)?;
+    Ok(())
+}

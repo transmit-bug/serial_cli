@@ -13,6 +13,7 @@ mod events;
 mod state;
 
 use state::app_state::AppState;
+use tauri::Manager;
 
 #[tokio::main]
 async fn main() {
@@ -95,8 +96,139 @@ async fn main() {
             // Setup event system
             events::emitter::setup_event_system(app.handle().clone())?;
 
+            // Start port hot-plug monitor
+            spawn_port_monitor(app.handle().clone());
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            use tauri::WindowEvent;
+
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                // Prevent default close — we need to clean up first
+                api.prevent_close();
+
+                let app_handle = window.app_handle().clone();
+                let state = app_handle.clone().state::<AppState>().inner().clone();
+
+                // Spawn cleanup then exit
+                tokio::spawn(async move {
+                    shutdown(state, &app_handle).await;
+                    app_handle.exit(0);
+                });
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Spawn a background task that polls hardware ports every 2s and emits
+/// `ports-changed` events when ports are added or removed.
+fn spawn_port_monitor(app: tauri::AppHandle) {
+    use std::collections::HashSet;
+
+    tokio::spawn(async move {
+        let mut known: HashSet<String> = HashSet::new();
+
+        // Seed with initial port list
+        let manager = serial_cli::serial_core::PortManager::new();
+        if let Ok(ports) = manager.list_ports() {
+            for p in &ports {
+                known.insert(p.port_name.clone());
+            }
+        }
+
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+            let manager = serial_cli::serial_core::PortManager::new();
+            let current = match manager.list_ports() {
+                Ok(ports) => ports
+                    .into_iter()
+                    .map(|p| p.port_name)
+                    .collect::<HashSet<_>>(),
+                Err(_) => continue,
+            };
+
+            let added: Vec<String> = current.difference(&known).cloned().collect();
+            let removed: Vec<String> = known.difference(&current).cloned().collect();
+
+            if !added.is_empty() || !removed.is_empty() {
+                tracing::debug!(
+                    "Ports changed: +{} -{}",
+                    added.len(),
+                    removed.len()
+                );
+                if let Err(e) =
+                    events::emitter::emit_ports_changed(app.clone(), added, removed).await
+                {
+                    tracing::warn!("Failed to emit ports-changed event: {}", e);
+                }
+                known = current;
+            }
+        }
+    });
+}
+
+/// Graceful shutdown: stop sniffers → close ports → stop virtual ports.
+async fn shutdown(state: AppState, _app: &tauri::AppHandle) {
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    tracing::info!("Shutting down...");
+
+    // 1. Stop all sniffers
+    {
+        let mut sniffers = state.active_sniffers.lock().await;
+        let port_ids: Vec<String> = sniffers.keys().cloned().collect();
+        for port_id in port_ids {
+            if let Some(sniffer) = sniffers.remove(&port_id) {
+                sniffer.stop_flag.store(true, Ordering::Relaxed);
+                // Best-effort wait
+                let _ = tokio::time::timeout(Duration::from_secs(1), sniffer.task_handle).await;
+                let _ =
+                    tokio::time::timeout(Duration::from_secs(1), sniffer.read_task_handle).await;
+                tracing::info!("Stopped sniffer for port: {}", port_id);
+            }
+        }
+    }
+
+    // 2. Close all open serial ports
+    {
+        let manager = state.port_manager.lock().await;
+        let open_ports = manager.list_open_ports().await;
+        drop(manager);
+
+        for (port_id, port_name) in open_ports {
+            let manager = state.port_manager.lock().await;
+            if let Ok(handle) = manager.get_port(&port_id).await {
+                // Detach script if present
+                let mut h = handle.lock().await;
+                if h.has_script() {
+                    h.detach_script();
+                }
+                drop(h);
+            }
+            if manager.close_port(&port_id).await.is_ok() {
+                tracing::info!("Closed port: {} ({})", port_id, port_name);
+            }
+        }
+    }
+
+    // 3. Stop all virtual port pairs
+    {
+        let mut registry = state.virtual_port_registry.write().await;
+        let ids: Vec<String> = registry.keys().cloned().collect();
+        for id in ids {
+            if let Some(pair) = registry.remove(&id) {
+                if let Err(e) = pair.stop().await {
+                    tracing::warn!("Error stopping virtual port {}: {}", id, e);
+                } else {
+                    tracing::info!("Stopped virtual port pair: {}", id);
+                }
+            }
+        }
+    }
+
+    tracing::info!("Shutdown complete");
 }
