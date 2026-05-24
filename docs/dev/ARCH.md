@@ -130,15 +130,10 @@ User input → Cli::parse() → match Commands
 src-tauri/          # Rust backend (workspace member)
   src/
     main.rs         # Tauri app entry
-    commands/       # Tauri command handlers
-    config.rs       # GUI-specific config
-    ...
-frontend/           # React + TypeScript
-  src/
-    components/     # UI components (port panel, data view, etc.)
-    contexts/       # React contexts (SerialPort, VirtualPort, Settings)
-    hooks/          # Custom hooks
-    ...
+    commands/       # Tauri command handlers (36 commands)
+    events/         # Event emitter system
+    state/          # AppState, port state types
+frontend/           # React + TypeScript (待重写)
 ```
 
 See `docs/reference/protocols.md` for protocol documentation.

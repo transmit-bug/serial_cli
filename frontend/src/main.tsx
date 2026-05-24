@@ -1,11 +1,14 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import './index.css'
-import './i18n' // Initialize i18n
+import React from "react";
+import ReactDOM from "react-dom/client";
+import "@/i18n";
+import "@/index.css";
+import { App } from "./App";
 
-ReactDOM.createRoot(document.getElementById('app')!).render(
+const root = document.getElementById("root");
+if (!root) throw new Error("Root element not found");
+
+ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
-)
+);

@@ -77,13 +77,19 @@ For complete documentation structure, see [`docs/README.md`](docs/README.md).
 
 ## GUI Subproject
 
-Tauri-based GUI in `src-tauri/` (workspace member) with React frontend in `frontend/`:
+Tauri 2.0 GUI in `src-tauri/` (workspace member) with React 19 + TypeScript frontend in `frontend/`:
 
 ```bash
-just gui-deps           # Install frontend dependencies
-just gui-dev            # Start Tauri dev server
-just gui-build          # Build GUI application
-just gui-check          # cargo check --workspace
+just gui-deps           # Install frontend dependencies (pnpm)
+just gui-dev            # Start Tauri dev server (frontend + backend)
+just gui-build          # Build GUI application for production
+just gui-check          # Check all (Rust workspace + frontend biome)
+just gui-check-frontend # Check frontend with biome only
 just gui-type-check     # TypeScript type check
-just gui-fmt            # Format all code
+just gui-fmt            # Format all code (cargo fmt + biome)
+just gui-lint           # Lint frontend with biome
+just gui-test           # Run frontend tests (vitest)
+just gui-test-watch     # Run frontend tests in watch mode
 ```
+
+**Frontend stack:** pnpm, React 19, Vite 8, Tailwind CSS 4, Zustand 5, biome, vitest

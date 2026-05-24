@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.json",
   "productName": "Serial CLI",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "identifier": "com.serial-cli.gui",
   "build": {
-    "beforeDevCommand": "cd ../frontend && npm run dev",
-    "beforeBuildCommand": "cd ../frontend && npm run build",
+    "beforeDevCommand": "cd ../frontend && pnpm dev",
+    "beforeBuildCommand": "cd ../frontend && pnpm build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../frontend/dist"
   },

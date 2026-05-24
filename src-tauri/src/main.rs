@@ -11,7 +11,6 @@
 mod commands;
 mod events;
 mod state;
-mod tray;
 
 use state::app_state::AppState;
 
@@ -72,8 +71,6 @@ async fn main() {
             commands::script::save_script,
             commands::script::delete_script,
             // Script UI actions commands
-            commands::script_ui_actions::list_script_actions,
-            commands::script_ui_actions::call_script_function,
             commands::script_ui_actions::list_standalone_script_actions,
             commands::script_ui_actions::call_standalone_script_function,
             // Config commands
@@ -95,9 +92,6 @@ async fn main() {
         .setup(|app| {
             // Setup event system
             events::emitter::setup_event_system(app.handle().clone())?;
-
-            // Setup system tray
-            tray::create_system_tray(app.handle())?;
 
             Ok(())
         })

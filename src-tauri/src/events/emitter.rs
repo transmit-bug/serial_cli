@@ -86,7 +86,6 @@ pub async fn emit_data_sent(
 }
 
 /// Emit a port status change event
-#[allow(dead_code)] // GUI event stub — awaiting frontend integration
 pub async fn emit_port_status_changed(
     app: AppHandle,
     port_id: String,
@@ -103,7 +102,6 @@ pub async fn emit_port_status_changed(
 }
 
 /// Emit an error event
-#[allow(dead_code)] // GUI event stub — awaiting frontend integration
 pub async fn emit_error(app: AppHandle, error: String) -> Result<(), Box<dyn std::error::Error>> {
     let payload = serde_json::json!({
         "error": error,
@@ -145,7 +143,6 @@ pub async fn emit_virtual_port_stopped(
 }
 
 /// Emit a virtual port stats updated event
-#[allow(dead_code)] // GUI event stub — awaiting frontend integration
 pub async fn emit_virtual_port_stats_updated(
     app: AppHandle,
     port_id: String,

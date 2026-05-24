@@ -59,22 +59,6 @@ pub async fn get_config(_state: State<'_, AppState>) -> Result<ConfigData, Strin
     })
 }
 
-/// Get configuration file content as TOML string
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
-#[tauri::command]
-pub async fn get_config_raw() -> Result<String, String> {
-    let config_path = get_config_path()?;
-    if !config_path.exists() {
-        // Return default config as TOML
-        let default_config = Config::default();
-        let toml_string = toml::to_string_pretty(&default_config)
-            .map_err(|e| format!("Failed to serialize config: {}", e))?;
-        return Ok(toml_string);
-    }
-
-    fs::read_to_string(&config_path).map_err(|e| format!("Failed to read config file: {}", e))
-}
-
 /// Update configuration
 #[tauri::command]
 pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> Result<(), String> {
@@ -129,27 +113,6 @@ pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> R
     fs::write(&config_path, toml_string).map_err(|e| format!("Failed to write config file: {}", e))
 }
 
-/// Save configuration from raw TOML string
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
-#[tauri::command]
-pub async fn save_config_raw(content: String) -> Result<(), String> {
-    let config_path = get_config_path()?;
-
-    // Validate TOML syntax
-    toml::from_str::<Config>(&content).map_err(|e| format!("Invalid TOML syntax: {}", e))?;
-
-    // Create config directory if it doesn't exist
-    if let Some(parent) = config_path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create config directory: {}", e))?;
-        }
-    }
-
-    // Write to file
-    fs::write(&config_path, content).map_err(|e| e.to_string())
-}
-
 /// Reset configuration to defaults
 #[tauri::command]
 pub async fn reset_config() -> Result<(), String> {
@@ -160,14 +123,6 @@ pub async fn reset_config() -> Result<(), String> {
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
     fs::write(&config_path, toml_string).map_err(|e| format!("Failed to write config file: {}", e))
-}
-
-/// Get configuration file path
-#[allow(dead_code)] // GUI API stub — awaiting frontend integration
-#[tauri::command]
-pub async fn get_config_file_path() -> Result<String, String> {
-    let path = get_config_path()?;
-    Ok(path.to_string_lossy().to_string())
 }
 
 /// Get configuration path helper

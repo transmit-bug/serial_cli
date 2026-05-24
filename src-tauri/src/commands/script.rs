@@ -96,20 +96,6 @@ pub async fn list_scripts(_state: State<'_, AppState>) -> Result<Vec<ScriptInfo>
     Ok(scripts)
 }
 
-/// Load a script
-#[allow(dead_code)] // Registered but not yet called from frontend — planned for v0.6.0
-#[tauri::command]
-pub async fn load_script(name: String, _state: State<'_, AppState>) -> Result<String, String> {
-    let scripts_dir = get_scripts_dir()?;
-    let script_path = scripts_dir.join(format!("{}.lua", name));
-
-    if !script_path.exists() {
-        return Err(format!("Script not found: {}", name));
-    }
-
-    fs::read_to_string(&script_path).map_err(|e| format!("Failed to read script: {}", e))
-}
-
 /// Save a script
 #[tauri::command]
 pub async fn save_script(

@@ -137,20 +137,10 @@ release: clean-all build-all
     @echo "✓ Release builds complete"
 
 # =============================================================================
-# GUI Commands
+# GUI Commands (Tauri + React Frontend)
 # =============================================================================
 
-# Check if Tauri CLI is installed
-_check-tauri-cli:
-    #!/usr/bin/env bash
-    if ! cargo tauri --help &> /dev/null 2>&1; then
-        echo "❌ Error: Tauri CLI not installed"
-        echo "Install with: cargo install tauri-cli --version '^2.0.0'"
-        echo "Or run: just install-deps"
-        exit 1
-    fi
-
-# Install all development dependencies
+# Install all development dependencies (Rust + frontend)
 install-deps:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -175,58 +165,84 @@ install-deps:
     # Install frontend dependencies
     if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
         echo "Installing frontend dependencies..."
-        cd frontend && npm install
+        cd frontend && pnpm install
         echo "✓ Frontend dependencies installed"
     else
-        echo "⚠️  Frontend directory not found, skipping npm install"
+        echo "⚠  Frontend directory not found, skipping pnpm install"
     fi
 
     echo ""
     echo "✓ All development dependencies installed"
 
-# Install GUI dependencies
+# Check Tauri CLI availability
+_check-tauri-cli:
+    #!/usr/bin/env bash
+    if ! cargo tauri --help &> /dev/null 2>&1; then
+        echo "❌ Error: Tauri CLI not installed"
+        echo "Install with: cargo install tauri-cli --version '^2.0.0'"
+        echo "Or run: just install-deps"
+        exit 1
+    fi
+
+# Install frontend dependencies only
 gui-deps:
-    cd frontend && npm install
+    cd frontend && pnpm install
 
-# Start frontend development server
-gui-dev-frontend:
-    cd frontend && npm run dev
-
-# Start Tauri GUI development
+# Start Tauri GUI development (launches both frontend dev server and Rust backend)
 gui-dev: _check-tauri-cli
     cargo tauri dev
 
-# Build GUI application
+# Build GUI application for production
 gui-build: _check-tauri-cli
-    cd frontend && npm run build
     cargo tauri build
+
+# Start frontend dev server only (without Tauri backend)
+gui-dev-frontend:
+    cd frontend && pnpm dev
 
 # Build frontend only
 gui-build-frontend:
-    cd frontend && npm run build
+    cd frontend && pnpm build
 
-# Type check frontend
+# Preview production frontend build
+gui-preview:
+    cd frontend && pnpm preview
+
+# Type check frontend TypeScript
 gui-type-check:
-    cd frontend && npm run type-check
+    cd frontend && pnpm type-check
 
 # Run frontend tests
 gui-test:
-    cd frontend && npm test
+    cd frontend && pnpm test
+
+# Run frontend tests in watch mode
+gui-test-watch:
+    cd frontend && pnpm test:watch
+
+# Check frontend with biome (lint + format check)
+gui-check-frontend:
+    cd frontend && pnpm check
+
+# Lint frontend with biome
+gui-lint:
+    cd frontend && pnpm lint
+
+# Check all (Rust + frontend)
+gui-check:
+    cargo check --workspace
+    cd frontend && pnpm check
+
+# Format all code (Rust + frontend)
+gui-fmt:
+    cargo fmt
+    cd frontend && pnpm fmt
 
 # Clean GUI artifacts
 gui-clean:
     rm -rf frontend/dist
     rm -rf frontend/node_modules
     rm -rf src-tauri/target
-
-# Check GUI Rust code
-gui-check:
-    cargo check --workspace
-
-# Format GUI code
-gui-fmt:
-    cargo fmt
-    cd frontend && npx prettier --write "src/**/*.{ts,tsx,css}"
 
 # =============================================================================
 # Installation

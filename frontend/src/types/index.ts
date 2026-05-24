@@ -1,0 +1,184 @@
+export interface PortInfo {
+  port_name: string;
+  port_type: string;
+  is_virtual: boolean;
+  virtual_id: string | null;
+}
+
+export interface SerialConfig {
+  baudrate: number;
+  databits: number;
+  stopbits: number;
+  parity: string;
+  timeout_ms: number;
+  flow_control: string;
+}
+
+export interface PortStatus {
+  id: string;
+  port_name: string;
+  is_open: boolean;
+  config: SerialConfig | null;
+  stats: PortStats;
+}
+
+export interface PortStats {
+  bytes_sent: number;
+  bytes_received: number;
+  packets_sent: number;
+  packets_received: number;
+  last_activity: number | null;
+}
+
+export interface ProtocolInfo {
+  name: string;
+  description: string;
+}
+
+export interface ScriptInfo {
+  name: string;
+  path: string;
+  size: number;
+  modified: number;
+}
+
+export interface ValidationError {
+  line: number;
+  column: number;
+  message: string;
+}
+
+export interface UiAction {
+  function_name: string;
+  label: string;
+  icon: string | null;
+  group: string | null;
+  confirm: boolean;
+}
+
+export interface VirtualPortInfo {
+  id: string;
+  port_a: string;
+  port_b: string;
+  backend: string;
+  created_at: string;
+  uptime_secs: number;
+  running: boolean;
+}
+
+export interface VirtualPortStats {
+  id: string;
+  port_a: string;
+  port_b: string;
+  backend: string;
+  running: boolean;
+  uptime_secs: number;
+  bytes_bridged: number;
+  packets_bridged: number;
+  bridge_errors: number;
+  last_error: string | null;
+  capture_packets: number;
+  capture_bytes: number;
+  monitoring: boolean;
+}
+
+export interface CapturedPacket {
+  direction: string;
+  data: number[];
+  timestamp_millis: number;
+}
+
+export interface CreateVirtualPortConfig {
+  name?: string;
+  backend: string;
+  buffer_size?: number;
+  monitor?: boolean;
+}
+
+export interface ScriptStatus {
+  has_script: boolean;
+  timer_interval_ms: number;
+}
+
+export interface ConfigData {
+  serial: SerialConfigData;
+  logging: LoggingConfigData;
+  lua: LuaConfigData;
+  task: TaskConfigData;
+  output: OutputConfigData;
+  protocols: ProtocolsConfigData;
+  virtual_ports: VirtualPortsConfigData;
+  display: DisplayConfigData;
+}
+
+export interface SerialConfigData {
+  defaultBaudrate: number;
+  databits: number;
+  stopbits: number;
+  parity: string;
+  timeoutMs: number;
+}
+
+export interface LoggingConfigData {
+  level: string;
+  format: string;
+  file: string;
+}
+
+export interface LuaConfigData {
+  memory_limit_mb: number;
+  timeout_seconds: number;
+  enable_sandbox: boolean;
+}
+
+export interface TaskConfigData {
+  max_concurrent: number;
+  default_timeout_seconds: number;
+}
+
+export interface OutputConfigData {
+  json_pretty: boolean;
+  show_timestamp: boolean;
+}
+
+export interface ProtocolsConfigData {
+  hotReload: boolean;
+  customDir: string;
+}
+
+export interface VirtualPortsConfigData {
+  backend: string;
+  monitor: boolean;
+}
+
+export interface DisplayConfigData {
+  theme: string;
+  maxPackets: number;
+  format: string;
+  showTimestamp: boolean;
+}
+
+export interface DataPacket {
+  id: number;
+  direction: "rx" | "tx";
+  timestamp: number;
+  data: number[];
+  decoded?: string;
+}
+
+export type DisplayFormat = "hex" | "ascii" | "mixed";
+
+export type PageName =
+  | "terminal"
+  | "virtual"
+  | "scripts"
+  | "protocols"
+  | "settings";
+
+export type ConnectionStatus =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "error";
+
+export type Locale = "en" | "zh";

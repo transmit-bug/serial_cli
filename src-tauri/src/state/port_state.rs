@@ -7,10 +7,8 @@
 // except according to those terms.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Port-specific state
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortStatus {
     /// Port UUID
@@ -26,7 +24,6 @@ pub struct PortStatus {
 }
 
 /// Serial port configuration
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerialConfig {
     pub baudrate: u32,
@@ -38,7 +35,6 @@ pub struct SerialConfig {
 }
 
 /// Port statistics
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PortStats {
     /// Bytes sent
@@ -51,52 +47,4 @@ pub struct PortStats {
     pub packets_received: u64,
     /// Last activity timestamp
     pub last_activity: Option<u64>,
-}
-
-/// Port state manager
-/// GUI API stub — awaiting frontend integration
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct PortStateManager {
-    ports: HashMap<String, PortStatus>,
-}
-
-impl PortStateManager {
-    /// Create a new port state manager
-    #[allow(dead_code)]
-    pub fn new() -> Self {
-        Self {
-            ports: HashMap::new(),
-        }
-    }
-
-    /// Add or update a port
-    #[allow(dead_code)]
-    pub fn upsert_port(&mut self, port: PortStatus) {
-        self.ports.insert(port.id.clone(), port);
-    }
-
-    /// Remove a port
-    #[allow(dead_code)]
-    pub fn remove_port(&mut self, id: &str) {
-        self.ports.remove(id);
-    }
-
-    /// Get a port by ID
-    #[allow(dead_code)]
-    pub fn get_port(&self, id: &str) -> Option<&PortStatus> {
-        self.ports.get(id)
-    }
-
-    /// Get all ports
-    #[allow(dead_code)]
-    pub fn get_all_ports(&self) -> Vec<&PortStatus> {
-        self.ports.values().collect()
-    }
-}
-
-impl Default for PortStateManager {
-    fn default() -> Self {
-        Self::new()
-    }
 }

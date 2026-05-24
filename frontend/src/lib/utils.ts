@@ -1,41 +1,49 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
-/**
- * Check if running in Tauri (desktop app)
- */
-export function isTauri(): boolean {
-  return '__TAURI__' in window
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const val = bytes / 1024 ** i;
+  return `${val < 10 ? val.toFixed(1) : Math.round(val)}${units[i]}`;
 }
 
-/**
- * Format bytes to human-readable size
- */
-export function formatBytes(bytes: number, decimals = 2): string {
-  if (bytes === 0) return '0 Bytes'
-
-  const k = 1024
-  const dm = decimals < 0 ? 0 : decimals
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
-}
-
-/**
- * Format timestamp to local time
- */
-export function formatTimestamp(timestamp: number): string {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString('en-US', {
+export function formatTimestamp(ms: number): string {
+  const d = new Date(ms);
+  return d.toLocaleTimeString("en-US", {
     hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    fractionalSecondDigits: 3,
+  });
+}
+
+export function bytesToHex(data: number[]): string {
+  return data
+    .map((b) => b.toString(16).padStart(2, " ").toUpperCase())
+    .join("");
+}
+
+export function bytesToAscii(data: number[]): string {
+  return data
+    .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : "."))
+    .join("");
+}
+
+export function hexToBytes(hex: string): number[] {
+  const cleaned = hex.replace(/\s+/g, "");
+  if (cleaned.length % 2 !== 0) throw new Error("Invalid hex string");
+  const bytes: number[] = [];
+  for (let i = 0; i < cleaned.length; i += 2) {
+    const byte = Number.parseInt(cleaned.slice(i, i + 2), 16);
+    if (Number.isNaN(byte)) throw new Error(`Invalid hex at position ${i}`);
+    bytes.push(byte);
+  }
+  return bytes;
 }

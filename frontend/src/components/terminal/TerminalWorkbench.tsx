@@ -1,38 +1,83 @@
-import { useConnectionStore } from '@/stores'
-import { DisconnectedState } from './DisconnectedState'
-import { ConnectedState } from './ConnectedState'
-import { ErrorState } from './ErrorState'
+import { PanelRight, PanelRightClose } from "lucide-react";
+import { useCallback } from "react";
+import { Group, Panel, Separator } from "react-resizable-panels";
+import { useTauriEvent } from "@/hooks/useTauriEvent";
+import { useDataStore } from "@/stores/data";
+import { useUIStore } from "@/stores/ui";
+import { ConnectionBar } from "./ConnectionBar";
+import { RightPanel } from "./RightPanel";
+import { RxViewer } from "./RxViewer";
+import { TxSender } from "./TxSender";
 
-/**
- * TerminalWorkbench - 主终端工作台
- *
- * 状态驱动的布局：
- * - 未连接：显示端口选择和快速连接向导
- * - 已连接：显示完整的工作台（RX/TX/辅助面板）
- * - 错误：显示错误信息和恢复选项
- */
-export function TerminalWorkbench() {
-  const { status } = useConnectionStore()
-
-  return (
-    <div className="terminal-workbench h-full flex flex-col">
-      {status === 'disconnected' && <DisconnectedState />}
-      {status === 'connected' && <ConnectedState />}
-      {status === 'connecting' && <ConnectingState />}
-      {status === 'error' && <ErrorState />}
-    </div>
-  )
+interface DataEventPayload {
+  port_id: string;
+  data: number[];
+  timestamp: number;
+  direction: "rx" | "tx";
 }
 
-function ConnectingState() {
+export function TerminalWorkbench() {
+  const rightPanelCollapsed = useUIStore((s) => s.rightPanelCollapsed);
+  const toggleRightPanel = useUIStore((s) => s.toggleRightPanel);
+  const addPacket = useDataStore((s) => s.addPacket);
+
+  // Listen for data events from Tauri backend
+  const handleDataReceived = useCallback(
+    (payload: DataEventPayload) => {
+      addPacket("rx", payload.data, payload.timestamp);
+    },
+    [addPacket],
+  );
+
+  const handleDataSent = useCallback(
+    (payload: DataEventPayload) => {
+      addPacket("tx", payload.data, payload.timestamp);
+    },
+    [addPacket],
+  );
+
+  useTauriEvent<DataEventPayload>("data-received", handleDataReceived);
+  useTauriEvent<DataEventPayload>("data-sent", handleDataSent);
+
   return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="text-center">
-        <div className="inline-flex items-center gap-3 px-6 py-4 rounded-lg bg-bg-elevated border border-amber/30">
-          <div className="w-5 h-5 border-2 border-amber border-t-transparent rounded-full animate-spin" />
-          <div className="text-amber font-medium">正在连接串口...</div>
-        </div>
-      </div>
+    <div className="flex flex-col h-full">
+      <ConnectionBar />
+
+      <Group orientation="horizontal" className="flex-1">
+        <Panel defaultSize={75} minSize={50}>
+          <Group orientation="vertical">
+            <Panel defaultSize={65} minSize={30}>
+              <RxViewer />
+            </Panel>
+            <Separator className="h-px bg-border hover:bg-accent transition-colors" />
+            <Panel defaultSize={35} minSize={15}>
+              <TxSender />
+            </Panel>
+          </Group>
+        </Panel>
+
+        {!rightPanelCollapsed && (
+          <>
+            <Separator className="w-px bg-border hover:bg-accent transition-colors" />
+            <Panel defaultSize={25} minSize={15} maxSize={35}>
+              <RightPanel />
+            </Panel>
+          </>
+        )}
+      </Group>
+
+      {/* Toggle right panel button */}
+      <button
+        onClick={toggleRightPanel}
+        className="fixed top-2 right-2 z-50 p-1 rounded bg-surface/80 text-text-muted hover:text-text"
+        title="Toggle right panel (Cmd+\)"
+      >
+        {rightPanelCollapsed ? (
+          <PanelRight size={14} />
+        ) : (
+          <PanelRightClose size={14} />
+        )}
+      </button>
     </div>
-  )
+  );
 }
