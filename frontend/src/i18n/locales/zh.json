@@ -228,7 +228,8 @@
   "editor": {
     "title": "编辑器",
     "emptyState": "创建脚本或协议开始使用",
-    "templateTip": "或从下方模板开始"
+    "templateTip": "或从下方模板开始",
+    "selectOrCreateFile": "从左侧选择文件或创建新的"
   },
   "protocolTemplates": {
     "title": "协议模板",

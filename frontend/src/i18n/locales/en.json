@@ -228,7 +228,8 @@
   "editor": {
     "title": "Editor",
     "emptyState": "Create a script or protocol to get started",
-    "templateTip": "Or start from a template below"
+    "templateTip": "Or start from a template below",
+    "selectOrCreateFile": "Select a file from the left or create a new one"
   },
   "protocolTemplates": {
     "title": "Protocol Templates",

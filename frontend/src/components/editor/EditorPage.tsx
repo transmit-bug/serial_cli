@@ -110,13 +110,13 @@ export function EditorPage() {
   );
 
   // Auto-open first script when list loads and no file is open
-  const hasEditorRef = useRef(false);
+  const autoOpenedRef = useRef(false);
   useEffect(() => {
-    if (!hasEditorRef.current && scripts.length > 0 && !currentScript) {
-      openScript(scripts[0].name);
-      setFileType("script");
-      hasEditorRef.current = true;
-    }
+    if (autoOpenedRef.current) return;
+    if (scripts.length === 0 || currentScript) return;
+    autoOpenedRef.current = true;
+    openScript(scripts[0].name);
+    setFileType("script");
   }, [scripts, currentScript, openScript]);
 
   // ─── Actions ───
@@ -262,40 +262,11 @@ export function EditorPage() {
     }
   }, [testerProtocol, testerMode, testerInput, t]);
 
-  const hasEditor = currentScript !== null || fileType === "protocol";
   const canDelete =
     (fileType === "script" && currentScript?.name) ||
     (fileType === "protocol" && protocolNameInput);
 
-  // ─── Empty state ───
-
-  if (!hasEditor) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
-          <h1 className="text-sm font-semibold mr-4">{t("editor.title")}</h1>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="text-text-muted text-sm">
-              {t("editor.emptyState")}
-            </div>
-            <button
-              onClick={() => handleNew("script")}
-              className="px-4 py-2 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30"
-            >
-              + {t("common.new")}
-            </button>
-            <div className="text-xs text-text-muted">
-              {t("editor.templateTip")}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Main layout ───
+  // ─── Main layout (always visible — editor area shows empty state when no file) ───
 
   return (
     <div className="flex flex-col h-full">
@@ -507,35 +478,56 @@ export function EditorPage() {
               </div>
             )}
 
-            {/* Monaco Editor */}
+            {/* Monaco Editor / Welcome placeholder */}
             <Panel defaultSize={65} minSize={30}>
-              <MonacoEditor
-                height="100%"
-                language="lua"
-                theme="vs-dark"
-                value={currentScript?.content ?? ""}
-                onChange={(value) =>
-                  value !== undefined && updateContent(value)
-                }
-                options={{
-                  fontSize: 13,
-                  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  lineNumbers: "on",
-                  renderWhitespace: "selection",
-                  tabSize: 2,
-                  wordWrap: "on",
-                  padding: { top: 8 },
-                }}
-              />
+              {!fileType ? (
+                <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+                  <div className="text-text-muted text-sm">
+                    {t("editor.emptyState")}
+                  </div>
+                  <button
+                    onClick={() => handleNew("script")}
+                    className="px-4 py-2 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30"
+                  >
+                    + {t("common.new")}
+                  </button>
+                  <div className="text-xs text-text-muted">
+                    {t("editor.templateTip")}
+                  </div>
+                </div>
+              ) : (
+                <MonacoEditor
+                  height="100%"
+                  language="lua"
+                  theme="vs-dark"
+                  value={currentScript?.content ?? ""}
+                  onChange={(value) =>
+                    value !== undefined && updateContent(value)
+                  }
+                  options={{
+                    fontSize: 13,
+                    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    lineNumbers: "on",
+                    renderWhitespace: "selection",
+                    tabSize: 2,
+                    wordWrap: "on",
+                    padding: { top: 8 },
+                  }}
+                />
+              )}
             </Panel>
 
             <Separator className="h-1 bg-border hover:bg-accent cursor-row-resize transition-colors" />
 
             {/* Bottom panel: output console or protocol tester */}
             <Panel defaultSize={35} minSize={10}>
-              {fileType === "script" ? (
+              {!fileType ? (
+                <div className="flex items-center justify-center h-full text-xs text-text-muted">
+                  {t("editor.selectOrCreateFile")}
+                </div>
+              ) : fileType === "script" ? (
                 <div className="flex flex-col h-full">
                   <div className="flex items-center justify-between px-3 py-1 border-b border-border">
                     <span className="text-xs text-text-secondary">

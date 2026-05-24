@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatBytes, formatDuration } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
@@ -25,8 +25,11 @@ export function RightPanelStats() {
   );
   const isConnected = activeEntry?.status === "connected";
   const portStatus = activeEntry?.portStatus;
-  const packets = useDataStore((s) =>
-    activePortId ? s.packets.filter((p) => p.portId === activePortId) : [],
+  const allPackets = useDataStore((s) => s.packets);
+  const packets = useMemo(
+    () =>
+      activePortId ? allPackets.filter((p) => p.portId === activePortId) : [],
+    [activePortId, allPackets],
   );
 
   const duration = useConnectionDuration();
