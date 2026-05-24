@@ -1,57 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { tauriApi } from "@/lib/tauri-api";
+import { useCommandStore } from "@/stores/commands";
 import { useConnectionStore } from "@/stores/connection";
+import { useDataStore } from "@/stores/data";
 import type { QuickCommand } from "@/types";
-
-const STORAGE_KEY = "serial-cli-quick-commands";
-
-const DEFAULT_COMMANDS: QuickCommand[] = [
-  { label: "AT", data: "AT\r\n", format: "ascii", hotkey: "F1" },
-  { label: "ATE0", data: "ATE0\r\n", format: "ascii", hotkey: "F2" },
-  { label: "AT+GMR", data: "AT+GMR\r\n", format: "ascii", hotkey: "F3" },
-  { label: "AT+CSQ", data: "AT+CSQ\r\n", format: "ascii", hotkey: "F4" },
-  {
-    label: "7E 03 01 02 03 7F",
-    data: "7E 03 01 02 03 7F",
-    format: "hex",
-    hotkey: "F5",
-  },
-  {
-    label: "01 03 00 00 00 01 84 0A",
-    data: "01 03 00 00 00 01 84 0A",
-    format: "hex",
-    hotkey: "F6",
-  },
-  { label: "Hello", data: "Hello\r\n", format: "ascii", hotkey: "F7" },
-  { label: "RESET", data: "AT+RST\r\n", format: "ascii", hotkey: "F8" },
-];
 
 interface QuickSendPanelProps {
   onSent?: (data: string, format: "hex" | "ascii") => void;
 }
 
-function loadCommands(): QuickCommand[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as QuickCommand[];
-      return parsed.length > 0 ? parsed : DEFAULT_COMMANDS;
-    }
-  } catch {
-    // ignore
-  }
-  return DEFAULT_COMMANDS;
-}
-
-function saveCommands(cmds: QuickCommand[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cmds));
-}
-
 export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
   const { t } = useTranslation();
   const { portId, status } = useConnectionStore();
-  const [commands, setCommands] = useState<QuickCommand[]>(loadCommands);
+  const addPacket = useDataStore((s) => s.addPacket);
+  const commands = useCommandStore((s) => s.commands);
+  const updateCommand = useCommandStore((s) => s.updateCommand);
+  const addCommand = useCommandStore((s) => s.addCommand);
+  const deleteCommand = useCommandStore((s) => s.deleteCommand);
+  const sendCommand = useCommandStore((s) => s.sendCommand);
+
+  const isConnected = status === "connected";
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<QuickCommand>({
     label: "",
@@ -59,23 +27,19 @@ export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
     format: "ascii",
   });
 
-  const isConnected = status === "connected";
-
   const handleSend = useCallback(
-    async (cmd: QuickCommand) => {
+    async (index: number) => {
       if (!portId || !isConnected) return;
+      const cmd = commands[index];
+      if (!cmd) return;
       try {
-        const data =
-          cmd.format === "hex"
-            ? cmd.data.split(/\s+/).map((b) => Number.parseInt(b, 16))
-            : Array.from(new TextEncoder().encode(cmd.data));
-        await tauriApi.sendData(portId, data);
+        await sendCommand(index, portId, addPacket);
         onSent?.(cmd.data, cmd.format);
       } catch {
         // error handled by caller
       }
     },
-    [portId, isConnected, onSent],
+    [portId, isConnected, commands, sendCommand, addPacket, onSent],
   );
 
   const startEdit = (index: number) => {
@@ -85,26 +49,14 @@ export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
 
   const saveEdit = () => {
     if (editingIndex === null) return;
-    const updated = [...commands];
-    updated[editingIndex] = editForm;
-    setCommands(updated);
-    saveCommands(updated);
+    updateCommand(editingIndex, editForm);
     setEditingIndex(null);
   };
 
-  const addCommand = () => {
+  const handleAddCommand = () => {
     const newCmd: QuickCommand = { label: "New", data: "", format: "ascii" };
-    const updated = [...commands, newCmd];
-    setCommands(updated);
-    saveCommands(updated);
+    addCommand(newCmd);
     startEdit(commands.length);
-  };
-
-  const deleteCommand = (index: number) => {
-    const updated = commands.filter((_, i) => i !== index);
-    setCommands(updated);
-    saveCommands(updated);
-    if (editingIndex === index) setEditingIndex(null);
   };
 
   // Hotkey listener
@@ -120,10 +72,10 @@ export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
 
       const key = e.key.toUpperCase();
       if (key.startsWith("F") && key.length <= 3) {
-        const cmd = commands.find((c) => c.hotkey?.toUpperCase() === key);
-        if (cmd) {
+        const idx = commands.findIndex((c) => c.hotkey?.toUpperCase() === key);
+        if (idx >= 0) {
           e.preventDefault();
-          handleSend(cmd);
+          handleSend(idx);
         }
       }
     };
@@ -198,10 +150,10 @@ export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
             <button
               className="flex items-center justify-between rounded-md bg-zinc-100 px-2 py-1.5 text-xs font-mono transition hover:bg-zinc-200 disabled:opacity-40 dark:bg-zinc-800 dark:hover:bg-zinc-700"
               disabled={!isConnected}
-              onClick={() => handleSend(cmd)}
-              title={cmd.data}
+              onClick={() => handleSend(index)}
+              title={cmd.data ?? ""}
             >
-              <span className="truncate">{cmd.label}</span>
+              <span className="truncate">{cmd.label ?? ""}</span>
               <span className="ml-1 shrink-0 rounded bg-zinc-200 px-1 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-700">
                 {cmd.format}
               </span>
@@ -230,7 +182,7 @@ export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
       </div>
       <button
         className="mt-1 w-full rounded px-2 py-1 text-xs text-text-muted hover:bg-zinc-100 hover:text-text dark:hover:bg-zinc-800"
-        onClick={addCommand}
+        onClick={handleAddCommand}
       >
         + {t("quickSend.addCommand")}
       </button>

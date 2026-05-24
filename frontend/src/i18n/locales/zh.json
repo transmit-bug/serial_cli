@@ -34,7 +34,8 @@
     "flowControl": "流控",
     "timeout": "超时",
     "protocol": "协议",
-    "script": "脚本"
+    "script": "脚本",
+    "copy": "复制"
   },
   "nav": {
     "terminal": "终端",
@@ -42,6 +43,47 @@
     "scripts": "脚本",
     "protocols": "协议",
     "settings": "设置"
+  },
+  "rightPanel": {
+    "stats": "统计",
+    "commands": "命令",
+    "monitor": "监控",
+    "history": "历史",
+    "decoder": "解码器",
+    "actions": "动作"
+  },
+  "monitor": {
+    "duration": "时长",
+    "totalRx": "接收总量",
+    "totalTx": "发送总量",
+    "rxRate": "接收速率",
+    "txRate": "发送速率",
+    "throughput": "吞吐量",
+    "recentPackets": "最近数据包"
+  },
+  "history": {
+    "search": "搜索数据包...",
+    "all": "全部",
+    "emptyState": "暂无数据包",
+    "noMatch": "无匹配结果",
+    "export": "导出筛选"
+  },
+  "decoder": {
+    "inputPlaceholder": "输入要解码的数据...",
+    "copied": "已复制到剪贴板"
+  },
+  "commands": {
+    "search": "搜索命令...",
+    "noMatch": "无匹配命令",
+    "emptyState": "暂无命令",
+    "newCommand": "新建命令"
+  },
+  "quickSend": {
+    "editCommand": "编辑命令",
+    "label": "标签",
+    "data": "数据",
+    "addCommand": "添加命令",
+    "newCommand": "新建命令"
   },
   "terminal": {
     "rxViewer": "接收数据",

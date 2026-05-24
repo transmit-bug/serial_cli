@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <!-- Connector fill gradient -->
+    <linearGradient id="conn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <!-- Pin glow -->
+    <radialGradient id="pinGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0.6"/>
+    </radialGradient>
+    <!-- Arrow gradient -->
+    <linearGradient id="arrowGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <!-- Shadow -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <filter id="innerGlow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect x="32" y="32" width="960" height="960" rx="180" ry="180" fill="url(#bg)" stroke="#334155" stroke-width="8"/>
+
+  <!-- Inner border highlight -->
+  <rect x="44" y="44" width="936" height="936" rx="168" ry="168" fill="none" stroke="#475569" stroke-width="2" opacity="0.3"/>
+
+  <!-- DB9 Connector body -->
+  <g filter="url(#shadow)" transform="translate(0, -20)">
+    <!-- Outer shell -->
+    <rect x="280" y="220" width="464" height="440" rx="48" ry="48" fill="url(#conn)" stroke="#475569" stroke-width="8"/>
+
+    <!-- Inner recess -->
+    <rect x="310" y="250" width="404" height="380" rx="32" ry="32" fill="#0f172a" stroke="#334155" stroke-width="4"/>
+
+    <!-- Pin holes (3x3 grid) -->
+    <!-- Row 1 -->
+    <circle cx="390" cy="320" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+    <circle cx="512" cy="320" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+    <circle cx="634" cy="320" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+    <!-- Row 2 -->
+    <circle cx="390" cy="430" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+    <circle cx="512" cy="430" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+    <circle cx="634" cy="430" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+    <!-- Row 3 -->
+    <circle cx="390" cy="540" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+    <circle cx="512" cy="540" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+    <circle cx="634" cy="540" r="22" fill="url(#pinGlow)" stroke="#475569" stroke-width="3"/>
+
+    <!-- Mounting holes -->
+    <circle cx="330" cy="270" r="10" fill="none" stroke="#475569" stroke-width="3" opacity="0.5"/>
+    <circle cx="694" cy="270" r="10" fill="none" stroke="#475569" stroke-width="3" opacity="0.5"/>
+    <circle cx="330" cy="590" r="10" fill="none" stroke="#475569" stroke-width="3" opacity="0.5"/>
+    <circle cx="694" cy="590" r="10" fill="none" stroke="#475569" stroke-width="3" opacity="0.5"/>
+  </g>
+
+  <!-- Data flow arrows below connector -->
+  <g filter="url(#shadow)" transform="translate(0, 20)">
+    <!-- Bottom data flow bar -->
+    <rect x="340" y="700" width="344" height="24" rx="12" ry="12" fill="url(#arrowGrad)" opacity="0.9"/>
+
+    <!-- Right-pointing arrow -->
+    <polygon points="720,676 720,750 780,713" fill="url(#arrowGrad)" opacity="0.9"/>
+
+    <!-- Small TX/RX indicators -->
+    <circle cx="400" cy="770" r="8" fill="#38bdf8" opacity="0.7"/>
+    <circle cx="440" cy="770" r="8" fill="#818cf8" opacity="0.7"/>
+    <circle cx="480" cy="770" r="8" fill="#38bdf8" opacity="0.4"/>
+    <circle cx="520" cy="770" r="8" fill="#818cf8" opacity="0.4"/>
+  </g>
+
+  <!-- Subtle accent lines -->
+  <line x1="200" y1="860" x2="824" y2="860" stroke="#334155" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
+  <line x1="280" y1="890" x2="744" y2="890" stroke="#334155" stroke-width="2" opacity="0.3" stroke-linecap="round"/>
+</svg>

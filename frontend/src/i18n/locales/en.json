@@ -34,7 +34,8 @@
     "flowControl": "Flow Control",
     "timeout": "Timeout",
     "protocol": "Protocol",
-    "script": "Script"
+    "script": "Script",
+    "copy": "Copy"
   },
   "nav": {
     "terminal": "Terminal",
@@ -42,6 +43,47 @@
     "scripts": "Scripts",
     "protocols": "Protocols",
     "settings": "Settings"
+  },
+  "rightPanel": {
+    "stats": "Stats",
+    "commands": "Commands",
+    "monitor": "Monitor",
+    "history": "History",
+    "decoder": "Decoder",
+    "actions": "Actions"
+  },
+  "monitor": {
+    "duration": "Duration",
+    "totalRx": "Total RX",
+    "totalTx": "Total TX",
+    "rxRate": "RX Rate",
+    "txRate": "TX Rate",
+    "throughput": "Throughput",
+    "recentPackets": "Recent Packets"
+  },
+  "history": {
+    "search": "Search packets...",
+    "all": "All",
+    "emptyState": "No packets captured",
+    "noMatch": "No matching packets",
+    "export": "Export filtered"
+  },
+  "decoder": {
+    "inputPlaceholder": "Enter data to decode...",
+    "copied": "Copied to clipboard"
+  },
+  "commands": {
+    "search": "Search commands...",
+    "noMatch": "No matching commands",
+    "emptyState": "No commands yet",
+    "newCommand": "New Command"
+  },
+  "quickSend": {
+    "editCommand": "Edit Command",
+    "label": "Label",
+    "data": "Data",
+    "addCommand": "Add Command",
+    "newCommand": "New Command"
   },
   "terminal": {
     "rxViewer": "RX Data",

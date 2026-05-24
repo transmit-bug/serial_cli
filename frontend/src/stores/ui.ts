@@ -15,7 +15,7 @@ interface UIStore {
 
 export const useUIStore = create<UIStore>()((set) => ({
   currentPage: "terminal",
-  sidebarCollapsed: false,
+  sidebarCollapsed: true,
   rightPanelCollapsed: false,
   locale: (localStorage.getItem("serial-cli-locale") as Locale) || "zh",
 

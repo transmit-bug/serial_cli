@@ -1,4 +1,12 @@
-import { Code, Layers, Settings, Split, Terminal } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Code,
+  Layers,
+  Settings,
+  Split,
+  Terminal,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui";
@@ -17,24 +25,58 @@ export function Sidebar() {
   const { t } = useTranslation();
   const currentPage = useUIStore((s) => s.currentPage);
   const navigateTo = useUIStore((s) => s.navigateTo);
+  const collapsed = useUIStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
   return (
-    <nav className="flex flex-col items-center w-12 bg-base-deep border-r border-border py-2">
-      {NAV_ITEMS.map(({ page, icon: Icon, labelKey }) => (
+    <aside
+      className={cn(
+        "flex flex-col bg-base-deep border-r border-border transition-all duration-200",
+        collapsed ? "w-12" : "w-48",
+      )}
+    >
+      {/* Nav items */}
+      <nav className="flex flex-col gap-0.5 p-1.5 overflow-y-auto flex-1">
+        {NAV_ITEMS.map(({ page, icon: Icon, labelKey }) => (
+          <button
+            key={page}
+            onClick={() => navigateTo(page)}
+            title={t(labelKey)}
+            className={cn(
+              "flex items-center rounded-md transition-colors shrink-0",
+              collapsed
+                ? "justify-center w-9 h-9 mx-auto"
+                : "gap-2.5 px-2.5 h-9",
+              currentPage === page
+                ? "bg-accent/20 text-accent"
+                : "text-text-muted hover:bg-surface hover:text-text",
+            )}
+          >
+            <Icon size={18} className="shrink-0" />
+            {!collapsed && (
+              <span className="text-xs truncate">{t(labelKey)}</span>
+            )}
+          </button>
+        ))}
+      </nav>
+
+      {/* Toggle button */}
+      <div className="border-t border-border p-1.5">
         <button
-          key={page}
-          onClick={() => navigateTo(page)}
-          title={t(labelKey)}
+          onClick={toggleSidebar}
+          title={collapsed ? "展开侧边栏" : "收起侧边栏"}
           className={cn(
-            "flex items-center justify-center w-9 h-9 rounded-md mb-1 transition-colors",
-            currentPage === page
-              ? "bg-accent/20 text-accent"
-              : "text-text-muted hover:bg-surface hover:text-text",
+            "flex items-center rounded-md transition-colors shrink-0",
+            collapsed
+              ? "justify-center w-9 h-9 mx-auto"
+              : "gap-2.5 px-2.5 h-9 w-full",
+            "text-text-muted hover:bg-surface hover:text-text",
           )}
         >
-          <Icon size={18} />
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {!collapsed && <span className="text-xs truncate">收起</span>}
         </button>
-      ))}
-    </nav>
+      </div>
+    </aside>
   );
 }
