@@ -58,7 +58,7 @@ src/
 ├── lua/                    # LuaJIT integration
 │   ├── bindings.rs         # LuaBindings — Autonomous mode (CLI scripts)
 │   ├── runtime.rs          # ScriptRuntime — unified tool function registration
-│   ├── engine.rs           # LuaEngine — lightweight wrapper (benchmarks only)
+│   ├── engine.rs           # LuaEngine — lightweight wrapper
 │   └── executor.rs         # ScriptEngine — script execution engine
 │
 ├── task/                   # Task scheduling
@@ -81,7 +81,6 @@ src/
 - Removed `lua/pool.rs`, `lua/cache.rs`, and `lua/stdlib.rs` (dead code / superseded by ScriptRuntime)
 - Created `lua/runtime.rs` as unified ScriptRuntime for tool registration
 - SerialScriptEngine (Hook mode), LuaBindings (Autonomous mode), and LuaProtocol (Protocol mode) all use ScriptRuntime
-- LuaEngine retained for benchmark compatibility (marked `#[allow(dead_code)]`)
 
 ---
 

@@ -10,7 +10,7 @@ The Lua integration is organized under `src/lua/` with the following modules:
 |---|---|
 | `bindings.rs` | LuaBindings — Autonomous mode for CLI scripts (serial_open/close/send/recv) |
 | `runtime.rs` | ScriptRuntime — unified tool function registration (log/json/hex/string-bytes/time) |
-| `engine.rs` | LuaEngine — lightweight wrapper (used by benchmarks only) |
+| `engine.rs` | LuaEngine — lightweight wrapper (internal utility) |
 | `executor.rs` | ScriptEngine — script execution engine with argument passing |
 
 **Note**: `pool.rs`, `cache.rs`, and `stdlib.rs` were removed during ScriptCore unification. All consumers now use the unified `ScriptRuntime` for tool function registration. |

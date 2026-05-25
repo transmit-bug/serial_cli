@@ -112,7 +112,6 @@ For detailed usage of each command, see the dedicated documentation:
 | `batch` | Batch execution | [Batch](../commands/batch.md) |
 | `config` | Configuration management | [Config](../commands/config.md) |
 | `virtual` | Virtual serial ports | [Virtual](../commands/virtual.md) |
-| `benchmark` | Performance benchmarks | [Benchmark](../commands/benchmark.md) |
 | `server` | JSON-RPC server mode | [Server](../commands/server.md) |
 
 ## Development

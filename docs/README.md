@@ -21,7 +21,6 @@ docs/
 │   └── troubleshooting.md
 ├── commands/       # Per-command documentation
 │   ├── batch.md
-│   ├── benchmark.md
 │   ├── config.md
 │   └── ...
 ├── features/       # Feature-specific documentation

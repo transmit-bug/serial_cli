@@ -286,8 +286,7 @@ serial_send(port_id, "test data")
 ### Benchmarking
 
 ```lua
--- Not directly available in Lua, use CLI
--- serial-cli benchmark run serial --iterations=100
+-- Use CLI: serial-cli batch run script.lua
 ```
 
 ## Troubleshooting

@@ -3,7 +3,6 @@
 //! This library provides the core functionality for the serial-cli tool,
 //! including serial port management, protocol handling, and Lua scripting.
 
-pub mod benchmark;
 pub mod cli;
 pub mod config;
 pub mod error;

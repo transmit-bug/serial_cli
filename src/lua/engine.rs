@@ -4,7 +4,7 @@ use crate::error::Result;
 use mlua::Lua;
 
 /// Lua engine wrapper.
-/// NOTE: This is a minimal wrapper kept for benchmark compatibility.
+/// 
 /// For production use, prefer `SerialScriptEngine` (serial_script.rs) or `LuaBindings` (bindings.rs).
 #[allow(dead_code)]
 pub struct LuaEngine {

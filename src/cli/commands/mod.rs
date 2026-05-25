@@ -3,7 +3,6 @@
 //! This module contains all command handler functions organized by category.
 
 pub mod batch;
-pub mod benchmark;
 pub mod config;
 pub mod parsers;
 pub mod port;

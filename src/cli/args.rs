@@ -6,7 +6,7 @@
 use clap::{Parser, Subcommand};
 
 use super::types::{
-    BatchCommand, BenchmarkCommand, ConfigCommand, PortCommand, ProtocolCommand, ServerCommand,
+    BatchCommand, ConfigCommand, PortCommand, ProtocolCommand, ServerCommand,
     SniffCommand, VirtualCommand,
 };
 
@@ -87,12 +87,6 @@ pub enum Commands {
     Virtual {
         #[command(subcommand)]
         virtual_command: VirtualCommand,
-    },
-
-    /// Performance benchmarking and comparison.
-    Benchmark {
-        #[command(subcommand)]
-        benchmark_command: BenchmarkCommand,
     },
 
     /// Server mode (daemon for AI/automation workflows).
