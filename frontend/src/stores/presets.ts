@@ -69,8 +69,8 @@ export const usePresetsStore = create<PresetsStore>()((set, get) => ({
   },
 
   applyPreset: (preset) => {
-    const { setConfig } = useConnectionStore.getState();
-    setConfig({
+    const { setDefaultConfig } = useConnectionStore.getState();
+    setDefaultConfig({
       baudrate: preset.baudrate,
       databits: preset.databits,
       stopbits: preset.stopbits,

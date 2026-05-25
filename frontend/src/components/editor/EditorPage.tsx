@@ -8,8 +8,10 @@ import { hexToBytes } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
 import { useProtocolStore } from "@/stores/protocol";
 import { useScriptStore } from "@/stores/script";
+import { useStandaloneScriptStore } from "@/stores/serialScript";
 import { ProtocolList } from "./ProtocolList";
 import { TemplateList } from "./TemplateList";
+import { StandaloneActions } from "./StandaloneActions";
 
 const BUILT_IN_PROTOCOLS = ["ModbusRTU", "Modbus ASCII", "AT Commands", "Line"];
 
@@ -37,6 +39,11 @@ export function EditorPage() {
     updateContent,
     clearOutput,
   } = useScriptStore();
+  const {
+    actions: standaloneActions,
+    loadActions: loadStandaloneActions,
+    callAction: callStandaloneAction,
+  } = useStandaloneScriptStore();
   const {
     protocols,
     loading: protocolsLoading,
@@ -198,10 +205,12 @@ export function EditorPage() {
     try {
       await executeScript(currentScript.content);
       toast.success(t("scripts.executeSuccess"));
+      // Load standalone UI actions for this script
+      await loadStandaloneActions(currentScript.content);
     } catch (e) {
       toast.error(String(e));
     }
-  }, [currentScript, executeScript, t]);
+  }, [currentScript, executeScript, loadStandaloneActions, t]);
 
   const handleDelete = useCallback(
     async (name: string) => {
@@ -562,6 +571,19 @@ export function EditorPage() {
                       </div>
                     ))}
                   </div>
+                  {standaloneActions.length > 0 && (
+                    <StandaloneActions
+                      actions={standaloneActions}
+                      onCall={async (fn) => {
+                        try {
+                          const result = await callStandaloneAction(fn);
+                          toast.success(result);
+                        } catch (e) {
+                          toast.error(String(e));
+                        }
+                      }}
+                    />
+                  )}
                 </div>
               ) : (
                 <ProtocolTesterPanel

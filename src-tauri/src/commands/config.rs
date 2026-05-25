@@ -9,8 +9,61 @@
 use crate::state::app_state::AppState;
 use serial_cli::config::{Config, ConnectionPreset};
 use std::fs;
+use std::io::BufRead;
 use std::path::PathBuf;
 use tauri::State;
+
+/// Get log file path (platform-specific)
+fn get_log_path() -> PathBuf {
+    dirs::data_local_dir()
+        .map(|mut p| {
+            p.push("serial-cli");
+            p.push("logs");
+            p.push("serial-cli.log");
+            p
+        })
+        .unwrap_or_else(|| PathBuf::from("serial-cli.log"))
+}
+
+/// Read application log file, returning the last N lines
+#[tauri::command]
+pub async fn read_logs(max_lines: Option<usize>) -> Result<Vec<String>, String> {
+    let log_path = get_log_path();
+    if !log_path.exists() {
+        return Ok(vec![]);
+    }
+
+    let file = fs::File::open(&log_path).map_err(|e| format!("Failed to open log file: {e}"))?;
+    let reader = std::io::BufReader::new(file);
+    let limit = max_lines.unwrap_or(1000);
+    let mut lines: Vec<String> = Vec::with_capacity(limit);
+
+    for line in reader.lines() {
+        match line {
+            Ok(l) => {
+                if !l.is_empty() {
+                    lines.push(l);
+                }
+                if lines.len() >= limit {
+                    lines.remove(0);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+
+    Ok(lines)
+}
+
+/// Clear the application log file
+#[tauri::command]
+pub async fn clear_logs() -> Result<(), String> {
+    let log_path = get_log_path();
+    if log_path.exists() {
+        fs::write(&log_path, "").map_err(|e| format!("Failed to clear log file: {e}"))?;
+    }
+    Ok(())
+}
 
 /// Get current configuration
 #[tauri::command]

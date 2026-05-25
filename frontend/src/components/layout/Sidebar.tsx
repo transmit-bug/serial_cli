@@ -34,7 +34,7 @@ export function Sidebar() {
       )}
     >
       {/* Nav items */}
-      <nav className="flex flex-col gap-0.5 p-1.5 overflow-y-auto flex-1">
+      <nav className={cn("flex flex-col gap-0.5 p-1.5 flex-1", collapsed ? "overflow-hidden" : "overflow-y-auto")}>
         {NAV_ITEMS.map(({ page, icon: Icon, labelKey }) => (
           <button
             key={page}

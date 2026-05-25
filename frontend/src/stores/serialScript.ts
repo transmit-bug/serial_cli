@@ -15,6 +15,16 @@ interface SerialScriptStore {
   callAction: (portId: string, functionName: string) => Promise<string>;
 }
 
+interface StandaloneScriptStore {
+  actions: UiAction[];
+  currentScriptSource: string;
+  loading: boolean;
+  output: string | null;
+
+  loadActions: (scriptSource: string) => Promise<void>;
+  callAction: (functionName: string) => Promise<string>;
+}
+
 export const useSerialScriptStore = create<SerialScriptStore>()((set) => ({
   attachedScript: null,
   scriptStatus: null,
@@ -68,3 +78,34 @@ export const useSerialScriptStore = create<SerialScriptStore>()((set) => ({
     return await tauriApi.callScriptFunction(portId, functionName);
   },
 }));
+
+export const useStandaloneScriptStore = create<StandaloneScriptStore>()(
+  (set, get) => ({
+    actions: [],
+    currentScriptSource: "",
+    loading: false,
+    output: null,
+
+    loadActions: async (scriptSource) => {
+      set({ loading: true, currentScriptSource: scriptSource });
+      try {
+        const actions = await tauriApi.listStandaloneScriptActions(
+          scriptSource,
+        );
+        set({ actions, loading: false });
+      } catch {
+        set({ actions: [], loading: false });
+      }
+    },
+
+    callAction: async (functionName) => {
+      const { currentScriptSource } = get();
+      const result = await tauriApi.callStandaloneScriptFunction(
+        currentScriptSource,
+        functionName,
+      );
+      set({ output: result });
+      return result;
+    },
+  }),
+);

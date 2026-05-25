@@ -81,6 +81,7 @@ async fn main() {
     // Build Tauri application
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             // Port commands
@@ -129,6 +130,8 @@ async fn main() {
             commands::config::get_connection_presets,
             commands::config::save_connection_presets,
             commands::config::delete_connection_preset,
+            commands::config::read_logs,
+            commands::config::clear_logs,
             // Data export command
             commands::export::export_data,
             // Window commands

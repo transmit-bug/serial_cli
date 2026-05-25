@@ -49,8 +49,6 @@ export const tauriApi = {
     invoke<void>("set_port_protocol", { portId, protocolName }),
   saveProtocolFile: (name: string, content: string) =>
     invoke<string>("save_protocol_file", { name, content }),
-  getProtocolInfo: (name: string) =>
-    invoke<ProtocolInfo>("get_protocol_info", { name }),
 
   // Script commands
   executeScript: (script: string) =>
@@ -66,7 +64,6 @@ export const tauriApi = {
   attachScript: (portId: string, scriptSource: string) =>
     invoke<void>("attach_script", { portId, scriptSource }),
   detachScript: (portId: string) => invoke<void>("detach_script", { portId }),
-  hasScript: (portId: string) => invoke<boolean>("has_script", { portId }),
   getScriptStatus: (portId: string) =>
     invoke<ScriptStatus>("get_script_status", { portId }),
   listScriptActions: (portId: string) =>
@@ -101,6 +98,10 @@ export const tauriApi = {
     invoke<void>("update_config", { config }),
   resetConfig: () => invoke<void>("reset_config"),
 
+  // Data export
+  exportData: (path: string, format: string, data: unknown[]) =>
+    invoke<void>("export_data", { path, format, data }),
+
   // Preset commands
   getConnectionPresets: () =>
     invoke<ConnectionPreset[]>("get_connection_presets"),
@@ -108,4 +109,9 @@ export const tauriApi = {
     invoke<void>("save_connection_presets", { presets }),
   deleteConnectionPreset: (name: string) =>
     invoke<void>("delete_connection_preset", { name }),
+
+  // Log commands
+  readLogs: (maxLines?: number) =>
+    invoke<string[]>("read_logs", { maxLines }),
+  clearLogs: () => invoke<void>("clear_logs"),
 };

@@ -25,7 +25,7 @@ export function StatusBar() {
   );
 
   return (
-    <footer className="flex items-center h-7 px-3 bg-base-deep border-t border-border text-text-muted text-xs shrink-0">
+    <footer className="flex items-center h-8 px-3 bg-base-deep border-t border-border text-text-muted text-xs shrink-0">
       <div className="flex items-center gap-1.5 flex-1">
         <span
           className={`w-2 h-2 rounded-full ${

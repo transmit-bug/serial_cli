@@ -50,7 +50,8 @@
     "monitor": "监控",
     "history": "历史",
     "decoder": "解码器",
-    "actions": "动作"
+    "actions": "动作",
+    "log": "日志"
   },
   "monitor": {
     "duration": "时长",
@@ -77,6 +78,17 @@
     "noMatch": "无匹配命令",
     "emptyState": "暂无命令",
     "newCommand": "新建命令"
+  },
+  "log": {
+    "search": "搜索日志...",
+    "autoRefresh": "自动刷新",
+    "refresh": "刷新",
+    "clear": "清空日志",
+    "loading": "加载日志...",
+    "empty": "暂无日志。运行应用后可在此查看。",
+    "noMatch": "无匹配日志",
+    "lines": "行",
+    "autoScrollOn": "自动滚动"
   },
   "quickSend": {
     "editCommand": "编辑命令",
@@ -147,7 +159,9 @@
     "editCommand": "编辑命令",
     "label": "标签",
     "data": "数据",
-    "addCommand": "添加命令"
+    "addCommand": "添加命令",
+    "edit": "编辑",
+    "delete": "删除"
   },
   "virtual": {
     "title": "虚拟串口",
@@ -180,7 +194,8 @@
     "templateTip": "从模板开始创建",
     "attachToPort": "附加到端口",
     "attached": "已附加",
-    "detached": "脚本已分离"
+    "detached": "脚本已分离",
+    "actions": "操作"
   },
   "scriptTemplates": {
     "title": "脚本模板",

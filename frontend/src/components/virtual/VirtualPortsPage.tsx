@@ -13,10 +13,12 @@ export function VirtualPortsPage() {
     ports,
     selectedPort,
     capturedPackets,
+    healthMap,
     refreshPorts,
     createPort,
     stopPort,
     getStats,
+    checkHealth,
     loadCapturedPackets,
     setSelectedPort,
   } = useVirtualPortStore();
@@ -35,6 +37,23 @@ export function VirtualPortsPage() {
     const interval = setInterval(refreshPorts, 3000);
     return () => clearInterval(interval);
   }, [refreshPorts]);
+
+  // Periodic health checks for running virtual ports
+  useEffect(() => {
+    ports.forEach(async (p) => {
+      if (p.running) {
+        await checkHealth(p.id);
+      }
+    });
+    const interval = setInterval(() => {
+      ports.forEach(async (p) => {
+        if (p.running) {
+          await checkHealth(p.id);
+        }
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [ports, checkHealth]);
 
   // Load stats and compute throughput
   useEffect(() => {
@@ -159,6 +178,9 @@ export function VirtualPortsPage() {
                     <span
                       className={`w-2 h-2 rounded-full ${port.running ? "bg-success" : "bg-text-muted"}`}
                     />
+                    {port.running && healthMap[port.id] === false && (
+                      <span className="w-2 h-2 rounded-full bg-danger" title="Health check failed" />
+                    )}
                     <span className="font-medium text-sm">{port.id}</span>
                     <span className="text-text-muted text-xs">
                       {t("virtual.backend")}: {port.backend}

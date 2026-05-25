@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { tauriApi } from "@/lib/tauri-api";
 import type { DataPacket, DisplayFormat } from "@/types";
 
 const MAX_PACKETS = 10000;
@@ -153,131 +154,46 @@ export const useDataStore = create<DataStore>()((set, get) => ({
     });
   },
 
-  exportData: (_searchQuery, _searchOpts) => {
+  exportData: async (_searchQuery, _searchOpts) => {
     const { exportOptions, setExportProgress: setProgress } = get();
     const packets = get().getFilteredPackets();
     if (packets.length === 0) return;
 
-    const { format, fields } = exportOptions;
-    const CHUNK = 500;
-    let progress = 0;
+    setProgress(0);
 
-    const buildContent = (): {
-      content: string;
-      mimeType: string;
-      ext: string;
-    } => {
-      if (format === "json") {
-        const items = packets.map((p) => {
-          const item: Record<string, unknown> = {};
-          if (fields.id) item.id = p.id;
-          if (fields.timestamp)
-            item.timestamp = new Date(p.timestamp).toISOString();
-          if (fields.direction) item.direction = p.direction;
-          if (fields.hex)
-            item.hex = p.data
-              .map((b) => b.toString(16).padStart(2, "0"))
-              .join(" ");
-          if (fields.ascii)
-            item.ascii = p.data
-              .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : "."))
-              .join("");
-          if (fields.decoded && p.decoded) item.decoded = p.decoded;
-          return item;
-        });
-        return {
-          content: JSON.stringify(items, null, 2),
-          mimeType: "application/json",
-          ext: "json",
-        };
-      }
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const ext = exportOptions.format === "txt" ? "txt" : exportOptions.format;
+      const defaultPath = `serial-data-${Date.now()}.${ext}`;
 
-      if (format === "csv") {
-        const colNames: string[] = [];
-        if (fields.id) colNames.push("id");
-        if (fields.timestamp) colNames.push("timestamp");
-        if (fields.direction) colNames.push("direction");
-        if (fields.hex) colNames.push("hex");
-        if (fields.ascii) colNames.push("ascii");
-        if (fields.decoded) colNames.push("decoded");
-        const header = `${colNames.join(",")}\n`;
-        const rows = packets.map((p) => {
-          const vals: string[] = [];
-          if (fields.id) vals.push(String(p.id));
-          if (fields.timestamp) vals.push(new Date(p.timestamp).toISOString());
-          if (fields.direction) vals.push(p.direction);
-          if (fields.hex)
-            vals.push(
-              `"${p.data.map((b) => b.toString(16).padStart(2, "0")).join(" ")}"`,
-            );
-          if (fields.ascii)
-            vals.push(
-              `"${p.data.map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : ".")).join("")}"`,
-            );
-          if (fields.decoded)
-            vals.push(`"${(p.decoded ?? "").replace(/"/g, '""')}"`);
-          return vals.join(",");
-        });
-        return {
-          content: header + rows.join("\n"),
-          mimeType: "text/csv",
-          ext: "csv",
-        };
-      }
-
-      // TXT
-      const lines = packets.map((p) => {
-        const parts: string[] = [];
-        if (fields.timestamp)
-          parts.push(`[${new Date(p.timestamp).toISOString()}]`);
-        if (fields.id) parts.push(`#${p.id}`);
-        if (fields.direction) parts.push(p.direction.toUpperCase());
-        if (fields.hex)
-          parts.push(
-            p.data.map((b) => b.toString(16).padStart(2, "0")).join(" "),
-          );
-        if (fields.ascii)
-          parts.push(
-            p.data
-              .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : "."))
-              .join(""),
-          );
-        if (fields.decoded && p.decoded) parts.push(`(decoded: ${p.decoded})`);
-        return parts.join(" ");
+      const path = await save({
+        filters: [
+          {
+            name: `${ext.toUpperCase()} File`,
+            extensions: [ext],
+          },
+        ],
+        defaultPath,
       });
-      return { content: lines.join("\n"), mimeType: "text/plain", ext: "txt" };
-    };
 
-    if (packets.length > 10000) {
-      const chunks = Math.ceil(packets.length / CHUNK);
+      if (!path) {
+        setProgress(null);
+        return;
+      }
 
-      let i = 0;
-      const processChunk = () => {
-        if (i >= chunks) {
-          const { content, mimeType, ext } = buildContent();
-          downloadFile(content, mimeType, ext);
-          setProgress(null);
-          return;
-        }
-        i++;
-        progress = Math.round((i / chunks) * 100);
-        setProgress(progress);
-        setTimeout(processChunk, 0);
-      };
-      processChunk();
-    } else {
-      const { content, mimeType, ext } = buildContent();
-      downloadFile(content, mimeType, ext);
+      // Convert packets to backend-expected format
+      const exportData = packets.map((p) => ({
+        direction: p.direction,
+        data: p.data,
+        timestamp_millis: p.timestamp,
+      }));
+
+      await tauriApi.exportData(path, exportOptions.format, exportData);
+      setProgress(100);
+      setTimeout(() => setProgress(null), 500);
+    } catch (e) {
+      setProgress(null);
+      throw e;
     }
   },
 }));
-
-function downloadFile(content: string, mimeType: string, ext: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `serial-data-${Date.now()}.${ext}`;
-  a.click();
-  URL.revokeObjectURL(url);
-}

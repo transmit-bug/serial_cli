@@ -157,6 +157,7 @@ pub async fn start_sniffing(
                         }
                         if msg.contains("Broken pipe") || msg.contains("disconnected") {
                             debug!("Port {} disconnected", read_port_id);
+                            let _ = data_tx.blocking_send(vec![]); // sentinel to signal disconnect
                             break;
                         }
                         debug!("Read error on port {}: {}", read_port_id, msg);
@@ -178,6 +179,15 @@ pub async fn start_sniffing(
     let task_handle = tokio::spawn(async move {
         while let Some(data) = data_rx.recv().await {
             if event_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+
+            // Empty data = disconnect sentinel from read task
+            if data.is_empty() {
+                let disconnect_msg = format!("Port {} disconnected", event_port_id);
+                tracing::warn!("{}", disconnect_msg);
+                let _ =
+                    crate::events::emitter::emit_error(event_app.clone(), disconnect_msg).await;
                 break;
             }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Pencil, Trash2 } from "lucide-react";
 import { useCommandStore } from "@/stores/commands";
 import { useConnectionStore } from "@/stores/connection";
 import { useDataStore } from "@/stores/data";
@@ -165,16 +166,18 @@ export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
             )}
             <div className="absolute -right-1 -top-1 hidden gap-0.5 group-hover:flex">
               <button
-                className="rounded bg-zinc-300 px-1 text-[9px] dark:bg-zinc-600"
+                className="flex items-center justify-center w-4 h-4 rounded bg-zinc-300 dark:bg-zinc-600 hover:bg-zinc-400 dark:hover:bg-zinc-500"
                 onClick={() => startEdit(index)}
+                title={t("quickSend.edit")}
               >
-                ✎
+                <Pencil size={10} />
               </button>
               <button
-                className="rounded bg-zinc-300 px-1 text-[9px] dark:bg-zinc-600"
+                className="flex items-center justify-center w-4 h-4 rounded bg-zinc-300 dark:bg-zinc-600 hover:bg-danger/30 dark:hover:bg-danger/30"
                 onClick={() => deleteCommand(index)}
+                title={t("quickSend.delete")}
               >
-                ×
+                <Trash2 size={10} />
               </button>
             </div>
           </div>

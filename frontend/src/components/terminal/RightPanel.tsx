@@ -4,6 +4,7 @@ import {
   FileClock,
   ListTodo,
   Puzzle,
+  ScrollText,
   Zap,
 } from "lucide-react";
 import { useState } from "react";
@@ -13,6 +14,7 @@ import { RightPanelActions } from "./RightPanelActions";
 import { RightPanelCommands } from "./RightPanelCommands";
 import { RightPanelDecoder } from "./RightPanelDecoder";
 import { RightPanelHistory } from "./RightPanelHistory";
+import { RightPanelLog } from "./RightPanelLog";
 import { RightPanelMonitor } from "./RightPanelMonitor";
 import { RightPanelStats } from "./RightPanelStats";
 
@@ -22,7 +24,8 @@ type RightPanelTab =
   | "monitor"
   | "history"
   | "decoder"
-  | "actions";
+  | "actions"
+  | "log";
 
 interface TabDef {
   id: RightPanelTab;
@@ -68,6 +71,12 @@ const TABS: TabDef[] = [
     labelKey: "rightPanel.actions",
     compactKey: "Act",
   },
+  {
+    id: "log",
+    icon: ScrollText,
+    labelKey: "rightPanel.log",
+    compactKey: "Log",
+  },
 ];
 
 const TAB_COMPONENTS: Record<RightPanelTab, () => React.ReactNode> = {
@@ -77,6 +86,7 @@ const TAB_COMPONENTS: Record<RightPanelTab, () => React.ReactNode> = {
   history: () => <RightPanelHistory />,
   decoder: () => <RightPanelDecoder />,
   actions: () => <RightPanelActions />,
+  log: () => <RightPanelLog />,
 };
 
 export function RightPanel() {

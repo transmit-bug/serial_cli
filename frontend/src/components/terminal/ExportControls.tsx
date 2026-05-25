@@ -1,6 +1,7 @@
 import { Download } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import type { ExportFields, ExportFormat } from "@/stores/data";
 import { useDataStore } from "@/stores/data";
 
@@ -78,7 +79,17 @@ export function ExportControls() {
   const toggleFiltered = () =>
     setExportOptions({ filteredOnly: !exportOptions.filteredOnly });
 
-  const handleExport = () => exportData(searchQuery, searchOptions);
+  const handleExport = async () => {
+    try {
+      await exportData(searchQuery, searchOptions);
+      toast.success("Data exported successfully");
+    } catch (e) {
+      // User cancelled save dialog — not an error
+      if (e && typeof e === "object" && "message" in e) {
+        toast.error(String(e));
+      }
+    }
+  };
 
   const formats: { key: ExportFormat; label: string }[] = [
     { key: "txt", label: "TXT" },

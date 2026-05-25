@@ -258,20 +258,6 @@ export function ConnectionBar() {
         ))}
       </select>
 
-      {/* Status */}
-      {isConnected && activeEntry && (
-        <span className="text-success text-xs ml-auto">
-          {t("statusbar.connectedInfo", {
-            port: activeEntry.portName,
-            baud: activeEntry.config.baudrate,
-          })}
-        </span>
-      )}
-      {!isConnected && !hasAnyConnected && (
-        <span className="text-text-muted text-xs ml-auto">
-          {t("statusbar.noConnection")}
-        </span>
-      )}
     </div>
   );
 }

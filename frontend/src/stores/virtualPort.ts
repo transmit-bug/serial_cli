@@ -11,12 +11,14 @@ interface VirtualPortStore {
   ports: VirtualPortInfo[];
   selectedPort: string | null;
   capturedPackets: CapturedPacket[];
+  healthMap: Record<string, boolean>;
   loading: boolean;
 
   refreshPorts: () => Promise<void>;
   createPort: (config: CreateVirtualPortConfig) => Promise<void>;
   stopPort: (id: string) => Promise<void>;
   getStats: (id: string) => Promise<VirtualPortStats | null>;
+  checkHealth: (id: string) => Promise<boolean>;
   loadCapturedPackets: (id: string) => Promise<void>;
   setSelectedPort: (id: string | null) => void;
 }
@@ -25,6 +27,7 @@ export const useVirtualPortStore = create<VirtualPortStore>()((set) => ({
   ports: [],
   selectedPort: null,
   capturedPackets: [],
+  healthMap: {},
   loading: false,
 
   refreshPorts: async () => {
@@ -56,6 +59,17 @@ export const useVirtualPortStore = create<VirtualPortStore>()((set) => ({
       return await tauriApi.getVirtualPortStats(id);
     } catch {
       return null;
+    }
+  },
+
+  checkHealth: async (id) => {
+    try {
+      const healthy = await tauriApi.checkVirtualPortHealth(id);
+      set((s) => ({ healthMap: { ...s.healthMap, [id]: healthy } }));
+      return healthy;
+    } catch {
+      set((s) => ({ healthMap: { ...s.healthMap, [id]: false } }));
+      return false;
     }
   },
 
