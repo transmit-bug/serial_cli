@@ -2,7 +2,7 @@
 
 **Version**: 0.7.0
 **Date**: 2026-05-24
-**Status**: Draft
+**Status**: Active
 
 ---
 

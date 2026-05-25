@@ -100,112 +100,20 @@ serial-cli --verbose --json send --port /dev/ttyUSB0 "AT"
 
 ## Command Reference
 
-### Core Commands
+For detailed usage of each command, see the dedicated documentation:
 
-| Command | Description |
-|---------|-------------|
-| `list-ports` | List available serial ports on the system |
-| `send` | Send raw data to a serial port and optionally read the response |
-| `interactive` | Start an interactive REPL shell for serial communication |
-| `run` | Execute a Lua script with optional arguments |
-
-### Protocol Management
-
-Manage built-in and custom protocols implemented in Lua.
-
-```bash
-serial-cli protocol list                    # List available protocols
-serial-cli protocol list --detailed         # Show descriptions
-serial-cli protocol info modbus_rtu         # Show protocol information
-serial-cli protocol validate my_proto.lua   # Validate a script without loading
-serial-cli protocol load my_proto.lua       # Load a custom protocol
-serial-cli protocol load my_proto.lua --name myproto
-serial-cli protocol unload myproto          # Unload a custom protocol
-serial-cli protocol reload myproto          # Reload from disk
-serial-cli protocol hot-reload enable       # Enable automatic reload on file changes
-serial-cli protocol hot-reload disable
-serial-cli protocol hot-reload status
-```
-
-Built-in protocols: `modbus_rtu`, `modbus_ascii`, `at_command`, `line`.
-
-### Traffic Sniffing
-
-Monitor and capture serial port traffic.
-
-```bash
-serial-cli sniff start --port /dev/ttyUSB0                  # Start sniffing
-serial-cli sniff start --port /dev/ttyUSB0 --output cap.txt  # Save to file
-serial-cli sniff start --port /dev/ttyUSB0 --max-packets 100 # Limit captures
-serial-cli sniff start --port /dev/ttyUSB0 --format hex      # Hex display
-serial-cli sniff stop                                       # Stop sniffing
-serial-cli sniff stats                                      # Show statistics
-serial-cli sniff save --path capture.log                    # Save to file
-```
-
-### Batch Execution
-
-Run multiple Lua scripts with concurrency control.
-
-```bash
-serial-cli batch run scripts.batch                          # Run batch file
-serial-cli batch run script.lua                             # Run single script
-serial-cli batch run scripts.batch --concurrent 10          # Max 10 concurrent
-serial-cli batch run scripts.batch --continue-on-error      # Continue on failure
-serial-cli batch run scripts.batch --timeout 120            # 120s timeout per task
-serial-cli batch list                                       # List available scripts
-```
-
-Batch files use a simple DSL:
-
-```
-# Comments start with #
-set PORT /dev/ttyUSB0
-loop 3
-  script1.lua
-  sleep 500
-end
-```
-
-### Configuration Management
-
-```bash
-serial-cli config show               # Show current configuration
-serial-cli config show --json        # Show as JSON
-serial-cli config set serial.baudrate 115200
-serial-cli config set logging.level debug
-serial-cli config save               # Save to default location
-serial-cli config save --path /etc/serial-cli.toml
-serial-cli config reset              # Reset to defaults
-```
-
-### Virtual Serial Ports
-
-Create and manage virtual serial port pairs for testing.
-
-```bash
-serial-cli virtual create                           # Auto-detect backend
-serial-cli virtual create --backend pty             # PTY (Unix/macOS)
-serial-cli virtual create --backend socat           # Socat-based
-serial-cli virtual create --backend namedpipe       # Windows named pipes
-serial-cli virtual create --monitor                 # Enable traffic monitoring
-serial-cli virtual list                             # List active pairs
-serial-cli virtual stop <id>                        # Stop a pair
-serial-cli virtual stats <id>                       # Show statistics
-```
-
-### Performance Benchmarks
-
-```bash
-serial-cli benchmark run                            # Run all benchmarks
-serial-cli benchmark run protocol                   # Run protocol benchmarks only
-serial-cli benchmark run serial-io --iterations 500 # Custom iterations
-serial-cli benchmark run all --output results.json  # Save results
-serial-cli benchmark compare baseline.json current.json  # Compare results
-serial-cli benchmark list                           # List available benchmarks
-```
-
-Benchmark categories: `serial-io`, `virtual-port`, `protocol`, `startup`, `memory`, `concurrency`, `all`.
+| Command | Description | Docs |
+|---------|-------------|------|
+| `interactive` | Interactive REPL shell | [Interactive Shell Guide](interactive-shell.md) |
+| `run` | Execute a Lua script | [Run Script](../commands/run-script.md) |
+| `list-ports` | List available serial ports | [List Ports](../commands/list-ports.md) |
+| `protocol` | Protocol management | [Protocol](../commands/protocol.md) |
+| `sniff` | Traffic sniffing | [Sniff](../commands/sniff.md) |
+| `batch` | Batch execution | [Batch](../commands/batch.md) |
+| `config` | Configuration management | [Config](../commands/config.md) |
+| `virtual` | Virtual serial ports | [Virtual](../commands/virtual.md) |
+| `benchmark` | Performance benchmarks | [Benchmark](../commands/benchmark.md) |
+| `server` | JSON-RPC server mode | [Server](../commands/server.md) |
 
 ## Development
 

@@ -50,69 +50,34 @@ serial-cli protocol list --json
 
 ## Lua API for AI
 
-### Serial Operations
+Serial CLI provides a full Lua API for serial I/O, protocol handling, JSON, hex utilities, and more.
+
+> For the complete API reference, see [Lua Scripting Reference](../reference/lua-scripting.md).
+
+### Quick Reference
 
 ```lua
--- Open port with configuration
-local port_id = serial_open("/dev/ttyUSB0", {
-  baudrate = 115200,
-  databits = 8,
-  stopbits = 1,
-  parity = "none",
-  timeout = 1000,
-  flow_control = "none"
-})
-
--- Send data
+-- Serial I/O
+local port_id = serial_open("/dev/ttyUSB0", {baudrate=115200})
 serial_send(port_id, "AT\r\n")
-
--- Receive with timeout
 local data = serial_recv(port_id, 1000)
-
--- Close port
 serial_close(port_id)
-```
 
-### JSON Utilities
-
-```lua
--- Encode Lua table to JSON
-local output = json_encode({
-  status = "ok",
-  data = response,
-  timestamp = time_now()
-})
-print(output)
-
--- Decode JSON to Lua table
+-- JSON
+local output = json_encode({status="ok", data=response})
 local config = json_decode('{"baudrate": 115200}')
 
--- Pretty print
-local pretty = json_encode_pretty(large_table)
-```
+-- Protocols
+local encoded = protocol_encode("at_command", "ATZ")
+local decoded = protocol_decode("at_command", response)
 
-### Error Handling
+-- Hex utilities
+local hex_str = string_to_hex("Hello")
+local original = string_from_hex(hex_str)
 
-```lua
--- Pattern: Wrap operations in pcall
-local ok, port_id = pcall(serial_open, "/dev/ttyUSB0", {baudrate=115200})
-if not ok then
-  -- port_id contains error message
-  print(json_encode({
-    status = "error",
-    operation = "open_port",
-    error = port_id
-  }))
-  os.exit(1)
-end
-
--- Continue with port_id
-local ok, sent = pcall(serial_send, port_id, "data")
-if not ok then
-  print(json_encode({status="error", error=sent}))
-  serial_close(port_id)
-  os.exit(1)
-end
+-- Time
+local now = time_now()
+sleep_ms(100)
 ```
 
 ## Common Automation Patterns
@@ -178,45 +143,19 @@ print(json_encode({status="ok", results=results}))
 
 ## Protocol Handling
 
-### Built-in Protocols
+Built-in protocols (`modbus_rtu`, `modbus_ascii`, `at_command`, `line`) and custom Lua protocols are supported. See [Protocol Reference](../reference/protocols.md) for encoding/parsing details.
 
 ```lua
--- Encode/decode with protocols
 local encoded = protocol_encode("at_command", "ATZ")
 local decoded = protocol_decode("at_command", response)
-
--- List available protocols
 local protocols = protocol_list()
-for i, proto in ipairs(protocols) do
-  print(proto.name .. ": " .. proto.description)
-end
-```
 
-### Custom Protocols
-
-```lua
--- Load custom protocol
 local ok, result = pcall(protocol_load, "/path/to/custom.lua")
 if ok then
   print(json_encode({status="ok", message=result}))
 else
   print(json_encode({status="error", error=result}))
 end
-```
-
-## Data Conversion Utilities
-
-```lua
--- Hex operations
-local hex_str = string_to_hex("Hello")  -- "48656c6c6f"
-local original = string_from_hex(hex_str)  -- "Hello"
-
-local bytes = hex_to_bytes("48656c6c6f")
-local str = bytes_to_string(bytes)
-
--- Time utilities
-local now = time_now()  -- Unix timestamp
-sleep_ms(100)  -- Sleep 100ms
 ```
 
 ## Best Practices for AI

@@ -9,25 +9,24 @@ docs/
 ├── guides/         # End-user documentation
 │   ├── getting-started.md
 │   └── interactive-shell.md
-├── ui/             # UI design specs and guides
-│   ├── UI-Design-Spec.md
-│   └── User-Flow-Diagrams.md
 ├── dev/            # Internal development docs
-│   ├── ARCH.md                    # Architecture overview
-│   ├── SERVER_MODE.md             # Server Mode design doc (Chinese)
-│   ├── SERVER_MODE_DECISION.md    # Design decision record
-│   └── UI-DESIGN-DECISIONS.md     # UI/UX design decisions
+│   ├── ARCH.md                      # Architecture overview
+│   └── FRONTEND-REWRITE-DESIGN.md   # Frontend rewrite design spec
 ├── reference/      # Reference material
 │   ├── configuration.md
+│   ├── events.md
 │   ├── lua-scripting.md
 │   ├── protocols.md
+│   ├── terminology.md               # English-Chinese glossary
 │   └── troubleshooting.md
 ├── commands/       # Per-command documentation
 │   ├── batch.md
 │   ├── benchmark.md
 │   ├── config.md
 │   └── ...
-└── ai/             # AI/automation workflow specific docs
+├── features/       # Feature-specific documentation
+│   └── ui-actions.md
+└── ai/             # AI/automation workflow docs
     ├── USAGE.md
     └── SERVER_MODE.md
 ```
@@ -44,10 +43,10 @@ docs/
 ### Directory Purposes
 
 - **guides/** - Tutorials, guides, and feature explanations for end users
-- **ui/** - UI design specifications, user flow diagrams, and UX decisions
 - **dev/** - Architecture, design decisions, technical specifications (internal)
 - **reference/** - Configuration reference, API docs, troubleshooting guides
 - **commands/** - Command-specific documentation (one file per command)
+- **features/** - Feature-specific documentation
 - **ai/** - Specialized documentation for AI/automation workflows
 
 ### File Naming Conventions
@@ -66,7 +65,7 @@ docs/
 
 ## Prohibited Actions
 
-- ❌ Creating root-level `docs/*.md` files (except this README.md)
-- ❌ Duplicating content across multiple files
-- ❌ Mixing user-facing and internal content in the same file
-- ❌ Creating docs for transient issues (use issue tracker instead)
+- Creating root-level `docs/*.md` files (except this README.md)
+- Duplicating content across multiple files
+- Mixing user-facing and internal content in the same file
+- Creating docs for transient issues (use issue tracker instead)
