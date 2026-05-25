@@ -38,6 +38,19 @@
     "copy": "Copy",
     "apply": "Apply"
   },
+  "shortcuts": {
+    "title": "Keyboard Shortcuts",
+    "navTerminal": "Go to Terminal",
+    "navVirtual": "Go to Virtual Ports",
+    "navEditor": "Go to Editor",
+    "navSettings": "Go to Settings",
+    "toggleSidebar": "Toggle Sidebar",
+    "toggleRightPanel": "Toggle Right Panel",
+    "clearBuffer": "Clear Buffer",
+    "showHelp": "Show Shortcuts",
+    "quickSend": "Quick Send Command",
+    "sendData": "Send Data"
+  },
   "nav": {
     "terminal": "Terminal",
     "virtual": "Virtual Ports",

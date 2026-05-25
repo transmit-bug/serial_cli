@@ -1,9 +1,10 @@
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
+import { ShortcutsHelp } from "@/components/shared/ShortcutsHelp";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 export function App() {
-  useKeyboardShortcuts();
+  const { showHelp, setShowHelp } = useKeyboardShortcuts();
 
   return (
     <>
@@ -19,6 +20,7 @@ export function App() {
           },
         }}
       />
+      {showHelp && <ShortcutsHelp onClose={() => setShowHelp(false)} />}
     </>
   );
 }

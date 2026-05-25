@@ -142,15 +142,15 @@ serial> quit
   - Standard JSON-RPC 2.0 API with 10 methods
   - Unix socket IPC (Unix) and named pipes (Windows)
   - Perfect for AI agent integration and automation
-- **🖥️ GUI Application** - **NEW!** Modern Tauri-based GUI with:
-  - Cyber-industrial aesthetic design
-  - Real-time data monitoring
+- **🖥️ GUI Application** - Modern Tauri-based GUI with:
+  - Professional tool aesthetic (VS Code / Postman style)
+  - Real-time data monitoring with virtual scrolling
   - Monaco script editor
-  - Protocol management
+  - Protocol management with hot-reload
   - Multi-format data export (TXT/CSV/JSON)
   - System notifications
   - Complete keyboard shortcuts
-  - Data persistence
+  - Internationalization (en/zh)
 - **🔌 Virtual Serial Ports** - **NEW!** Pluggable backend architecture:
   - **PTY Backend** (Unix/macOS) - POSIX pseudo-terminals
   - **NamedPipe Backend** (Windows) - Windows named pipes
@@ -393,43 +393,29 @@ serial_close(port)
 
 Serial CLI includes an embedded **LuaJIT** runtime for powerful automation:
 
+> For the complete API reference, see [Lua Scripting Reference](docs/reference/lua-scripting.md).
+
 ### Serial Port Functions
 
 ```lua
 -- Open serial port
-local port = serial.open(path, {
-    baudrate = 115200,      -- Baud rate (default: 9600)
+local port = serial_open("/dev/ttyUSB0", {
+    baudrate = 115200,      -- Baud rate (default: 115200)
     timeout = 1000,         -- Read timeout in ms (default: 1000)
-    data_bits = 8,          -- Data bits: 7 or 8 (default: 8)
+    data_bits = 8,          -- Data bits: 5-8 (default: 8)
     parity = "none",        -- Parity: "none", "odd", "even" (default: "none")
     stop_bits = 1,          -- Stop bits: 1 or 2 (default: 1)
     flow_control = "none"   -- Flow control: "none", "hardware", "software"
 })
 
--- Write data
-port:write("Hello, World!\r\n")
+-- Send data
+serial_send(port, "Hello, World!\r\n")
 
--- Read data
-local data = port:read(256)
-local line = port:read_until("\n")
+-- Receive data
+local data = serial_recv(port, 1000)
 
 -- Close port
-port:close()
-```
-
-### Protocol Tools
-
-```lua
--- Modbus RTU/ASCII
-local modbus = serial.protocols.modbus.new(port, {
-    device_id = 1,
-    timeout = 1000
-})
-
-modbus:read_holding_registers(addr, count)
-modbus:read_input_registers(addr, count)
-modbus:write_single_register(addr, value)
-modbus:write_multiple_registers(addr, values)
+serial_close(port)
 ```
 
 ### Utility Functions
@@ -440,15 +426,22 @@ log_info("Information message")
 log_warn("Warning message")
 log_error("Error message")
 
--- Utilities
+-- JSON
+local json = json_encode({key = "value"})
+local obj = json_decode('{"key": "value"}')
+
+-- Hex
+local hex = hex_encode({0x48, 0x65, 0x6C, 0x6C, 0x6F})
+local bytes = hex_decode("48656c6c6f")
+
+-- Time
 sleep_ms(1000)
-local hex = bytes_to_hex(data)
-local bytes = hex_to_bytes("48656c6c6f")
+local now = time_now()
 ```
 
 ### Custom Protocol Extension
 
-Serial CLI supports loading custom protocols from Lua scripts:
+Load custom protocols from Lua scripts:
 
 ```lua
 -- Load custom protocol
@@ -458,11 +451,6 @@ if ok then
     local decoded = protocol_decode("my_custom_protocol", encoded)
 end
 ```
-
-**Protocol Requirements:**
-- `on_frame(data)` - Parse incoming data
-- `on_encode(data)` - Encode outgoing data
-- `on_reset()` - Reset protocol state (optional)
 
 See `examples/` directory for complete protocol examples.
 
@@ -558,28 +546,23 @@ just gui-fmt
 just gui-check
 ```
 
-**GUI Features (v0.2.1)**:
-- ✅ **Modern Tech Stack** - React 18 + Zustand + shadcn/ui + Tailwind CSS
-- ✅ **State-Driven UI** - Terminal Workbench with disconnected/connected/error states
-- ✅ **Serial Port Management** - Full port configuration, open/close, status monitoring
-- ✅ **Real-time Data Monitoring** - Live data display with virtual scrolling (10000+ packets)
-- ✅ **Lua Script Editor** - Monaco Editor integration with syntax highlighting
-- ✅ **Protocol Management** - Built-in and custom protocol loading with validation
-- ✅ **Settings Management** - Comprehensive configuration with persistence
-- ✅ **Data Export** - TXT/CSV/JSON formats with filtering options
-- ✅ **System Notifications** - Sonner toast notifications + OS desktop notifications
-- ✅ **Command Palette** - Global search (⌘K) with fuzzy matching
-- ✅ **Keyboard Shortcuts** - Full keyboard navigation and quick actions
-- ✅ **Data Persistence** - Auto-save for settings, scripts, protocols
-- ✅ **Virtual Scrolling** - react-virtuoso for large datasets
-- ✅ **Multi-format TX** - HEX/ASCII input with quick shortcuts (AT, CRLF)
+**GUI Features**:
+- Modern Tech Stack — React 19 + Zustand 5 + shadcn/ui + Tailwind CSS 4
+- Real-time Data Monitoring — Live display with virtual scrolling (10000+ packets)
+- Lua Script Editor — Monaco Editor with syntax highlighting
+- Protocol Management — Built-in and custom protocol loading with hot-reload
+- Settings Management — Comprehensive configuration with persistence
+- Data Export — TXT/CSV/JSON formats with filtering
+- System Notifications — Sonner toast + OS desktop notifications
+- Command Palette — Global search (⌘K) with fuzzy matching
+- Keyboard Shortcuts — Full keyboard navigation and quick actions
+- Internationalization — English and Chinese
 
-**GUI Architecture (v0.2.1)**:
-- **State Management**: Zustand (8 stores) - 25% less nesting than React Context
-- **Component Library**: shadcn/ui + Radix UI - consistent styling, better accessibility
-- **Performance**: Virtual scrolling for 10000+ data packets, selective re-renders
-- **View Structure**: 5 views (Terminal, Virtual Ports, Scripts, Protocols, Settings)
-- **TypeScript**: 100% strict mode compliance
+**GUI Architecture**:
+- State Management: Zustand stores (pure, no React Context)
+- Component Library: shadcn/ui + Radix UI
+- Performance: Virtual scrolling via @tanstack/react-virtual
+- View Structure: 5 views (Terminal, Virtual Ports, Scripts, Protocols, Settings)
 
 ### Project Structure
 
@@ -611,7 +594,8 @@ serial_cli/
 ├── docs/                   # Documentation
 │   ├── ai/                 # AI/automation guides
 │   ├── dev/                # Development docs
-│   └── GUIDE.md            # GUI application guide
+│   ├── reference/          # Reference material
+│   └── commands/           # Per-command docs
 ├── justfile                # Build commands
 ├── Cargo.toml              # Package config
 └── README.md               # This file
@@ -621,106 +605,19 @@ serial_cli/
 
 ## 🔍 Troubleshooting
 
-### Common Issues
+For common issues and solutions, see the [Troubleshooting Guide](docs/reference/troubleshooting.md).
 
-#### 1. Permission Denied
+**Quick fixes:**
 
-**Error:** `Permission denied for port '/dev/ttyUSB0'`
+| Issue | Solution |
+|-------|----------|
+| Permission denied (Linux) | `sudo usermod -a -G dialout $USER` then re-login |
+| Port not found | Run `serial-cli list-ports` to verify available ports |
+| Timeout error | Check baudrate matches device, increase timeout |
+| Port in use | Close other applications using the port (PuTTY, Arduino IDE, etc.) |
+| Lua script error | Run with `--verbose` for detailed error output |
 
-**Solution (Linux):**
-```bash
-# Add user to dialout group
-sudo usermod -a -G dialout $USER
-# Re-login or execute
-newgrp dialout
-```
-
-**Solution (Windows):**
-- Run as Administrator
-- Close other applications using the port
-
-#### 2. Port Not Found
-
-**Error:** `Port '/dev/ttyUSB0' not found`
-
-**Solution:**
-- Use `serial-cli list-ports` to verify available ports
-- Check USB connection and cables
-- Windows: Check COM port in Device Manager
-
-#### 3. Timeout Error
-
-**Error:** `Operation timeout`
-
-**Solution:**
-- Increase timeout: `timeout = 5000`
-- Verify baudrate matches device
-- Check device is responding
-
-#### 4. Port In Use
-
-**Error:** `Port 'COM1' is already in use`
-
-**Solution:**
-- Close PuTTY, Tera Term, Arduino IDE, etc.
-- Disable/enable port in Device Manager
-
-#### 5. Lua Script Error
-
-**Error:** `Runtime error in script.lua`
-
-**Solution:**
-- Use `--verbose` for detailed error
-- Verify Lua syntax
-- Check API calls
-
-### Debug Mode
-
-```bash
-# Enable verbose logging
-serial-cli --verbose list-ports
-serial-cli --verbose run script.lua
-
-# Set log level
-RUST_LOG=debug serial-cli list-ports
-RUST_LOG=trace serial-cli list-ports
-```
-
-### Platform-Specific
-
-**Linux:**
-```bash
-# Install dependencies
-sudo apt-get install build-essential libudev-dev libluajit-5.1-dev
-```
-
-**macOS:**
-```bash
-# Install Xcode tools
-xcode-select --install
-```
-
-**Windows:**
-- Install drivers for FTDI, CP210x, CH340 USB-to-serial adapters
-- Arduino IDE includes common drivers
-- Install Visual Studio Build Tools for development
-
-### Virtual Port Backend Dependencies
-
-**Socat Backend** (Cross-platform):
-```bash
-# Linux (Debian/Ubuntu)
-sudo apt-get install socat
-
-# macOS
-brew install socat
-
-# Windows
-# Download from: http://www.dest-unreach.org/socat/
-# Or use WSL on Windows
-```
-
-**Note:** The PTY and NamedPipe backends have no external dependencies and work out of the box on their respective platforms.
+**Debug mode:** `serial-cli --verbose <command>` or `RUST_LOG=debug serial-cli <command>`
 
 ---
 
@@ -732,7 +629,7 @@ brew install socat
 | **[docs/guides/getting-started.md](docs/guides/getting-started.md)** | Getting started guide |
 | **[docs/ai/SERVER_MODE.md](docs/ai/SERVER_MODE.md)** | Server Mode user guide (AI/automation workflows) |
 | **[docs/ai/USAGE.md](docs/ai/USAGE.md)** | AI integration guide |
-| **[docs/dev/SERVER_MODE.md](docs/dev/SERVER_MODE.md)** | Server Mode technical design |
+| **[docs/reference/troubleshooting.md](docs/reference/troubleshooting.md)** | Troubleshooting guide |
 | **[docs/README.md](docs/README.md)** | Complete documentation index |
 
 ---

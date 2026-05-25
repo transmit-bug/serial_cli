@@ -38,6 +38,19 @@
     "copy": "复制",
     "apply": "应用"
   },
+  "shortcuts": {
+    "title": "键盘快捷键",
+    "navTerminal": "切换到终端",
+    "navVirtual": "切换到虚拟端口",
+    "navEditor": "切换到编辑器",
+    "navSettings": "切换到设置",
+    "toggleSidebar": "切换侧边栏",
+    "toggleRightPanel": "切换右侧面板",
+    "clearBuffer": "清空缓冲区",
+    "showHelp": "显示快捷键",
+    "quickSend": "快捷发送命令",
+    "sendData": "发送数据"
+  },
   "nav": {
     "terminal": "终端",
     "virtual": "虚拟端口",

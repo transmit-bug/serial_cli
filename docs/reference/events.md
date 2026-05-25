@@ -2,224 +2,77 @@
 
 ## Overview
 
-The Serial CLI event system provides real-time updates for various application events using Tauri's event emitter. This allows components to react to changes without constant polling.
+The Serial CLI event system provides real-time updates using Tauri's event emitter. The Rust backend emits events; the React frontend listens via the `useTauriEvent` hook.
 
 ## Available Events
 
-### Serial Data Events
+| Event | Direction | Payload |
+|-------|-----------|---------|
+| `data-received` | Backend → Frontend | `{ port_id, data: number[], timestamp, direction: "rx" }` |
+| `data-sent` | Backend → Frontend | `{ port_id, data: number[], timestamp, direction: "tx" }` |
+| `ports-changed` | Backend → Frontend | `{ added?: PortInfo[], removed?: string[] }` |
+| `error-occurred` | Backend → Frontend | `{ error: string, timestamp: number }` |
 
-#### `data-received`
-Emitted when data is received from a serial port.
+### Payload Types
 
-**Payload:**
 ```typescript
-{
+interface DataEventPayload {
   port_id: string
   data: number[]      // Raw bytes
   timestamp: number   // Unix timestamp in milliseconds
-  direction: 'rx'
+  direction: 'rx' | 'tx'
 }
-```
 
-#### `data-sent`
-Emitted when data is sent to a serial port.
-
-**Payload:**
-```typescript
-{
-  port_id: string
-  data: number[]      // Raw bytes
-  timestamp: number   // Unix timestamp in milliseconds
-  direction: 'tx'
+interface PortsChangedPayload {
+  added?: PortInfo[]
+  removed?: string[]  // port IDs
 }
-```
 
-### Port Status Events
-
-#### `port-status-changed`
-Emitted when a port's status changes (opened, closed, error, etc.).
-
-**Payload:**
-```typescript
-{
-  port_id: string
-  status: PortStatus  // Port status object
-  timestamp: number
-}
-```
-
-### Virtual Port Events
-
-#### `virtual-port-created`
-Emitted when a virtual port is created.
-
-**Payload:**
-```typescript
-{
-  port_id: string
-  port_info: VirtualPortInfo
-  timestamp: number
-}
-```
-
-#### `virtual-port-stopped`
-Emitted when a virtual port is stopped.
-
-**Payload:**
-```typescript
-{
-  port_id: string
-  timestamp: number
-}
-```
-
-#### `virtual-port-stats-updated`
-Emitted when virtual port statistics are updated.
-
-**Payload:**
-```typescript
-{
-  port_id: string
-  stats: PortStats
-  timestamp: number
-}
-```
-
-### Error Events
-
-#### `error-occurred`
-Emitted when an application error occurs.
-
-**Payload:**
-```typescript
-{
-  error: string      // Error message
+interface ErrorPayload {
+  error: string
   timestamp: number
 }
 ```
 
 ## Frontend Usage
 
-### Basic Event Listening
+### useTauriEvent Hook
 
-Using the `useEvents` hook:
-
-```typescript
-import { useEvents } from '@/hooks/useEvents'
-
-function MyComponent() {
-  const { onDataReceived, onError } = useEvents()
-
-  useEffect(() => {
-    const cleanup = onDataReceived((event) => {
-      console.log('Data received:', event.data)
-      console.log('From port:', event.port_id)
-    })
-
-    return cleanup
-  }, [onDataReceived])
-
-  return <div>...</div>
-}
-```
-
-### Event Filtering
-
-Filter events by specific criteria:
+All event listening uses the generic `useTauriEvent<T>` hook with automatic cleanup:
 
 ```typescript
-useEffect(() => {
-  const cleanup = onDataReceived(
-    (event) => {
-      // Only process events from specific port
-      console.log('Data from COM1:', event.data)
-    },
-    (event) => event.port_id === 'COM1' // Filter function
-  )
-
-  return cleanup
-}, [onDataReceived])
-```
-
-### Port-Specific Events
-
-Using the specialized `useSerialDataEvents` hook:
-
-```typescript
-import { useSerialDataEvents } from '@/hooks/useEvents'
-import { useConnectionStore } from '@/stores'
+import { useTauriEvent } from '@/hooks/useTauriEvent'
 
 function DataViewer() {
-  const { portId } = useConnectionStore()
-  const { onDataReceived } = useSerialDataEvents(portId)
+  const addPacket = useDataStore((s) => s.addPacket)
 
-  useEffect(() => {
-    const cleanup = onDataReceived((event) => {
-      // Only receives data for the current port
-      console.log('Port data:', event.data)
-    })
-
-    return cleanup
-  }, [onDataReceived])
-
-  return <div>...</div>
-}
-```
-
-### Custom Events
-
-Listen to custom events not predefined in the system:
-
-```typescript
-const { onCustomEvent } = useEvents()
-
-useEffect(() => {
-  const cleanup = onCustomEvent('my-custom-event', (data) => {
-    console.log('Custom event data:', data)
+  useTauriEvent<DataEventPayload>('data-received', (payload) => {
+    addPacket(payload)
   })
 
-  return cleanup
-}, [onCustomEvent])
+  useTauriEvent<DataEventPayload>('data-sent', (payload) => {
+    addPacket(payload)
+  })
+}
 ```
 
-### Error Tracking
+### Error Handling
 
-Track errors throughout the application:
+Global error events are handled in `AppShell`:
 
 ```typescript
-import { ErrorEventToast, useErrorCount } from '@/components/error/ErrorEventToast'
+import { listen } from '@tauri-apps/api/event'
+import { toast } from 'sonner'
 
-function App() {
-  return (
-    <>
-      <ErrorEventToast /> {/* Global error handler */}
-      {/* Your app content */}
-    </>
-  )
-}
-
-function ErrorStats() {
-  const { errorCount, recentErrors, resetErrorCount } = useErrorCount()
-
-  return (
-    <div>
-      <p>Total errors: {errorCount}</p>
-      <button onClick={resetErrorCount}>Reset</button>
-      <ul>
-        {recentErrors.map((error, i) => (
-          <li key={i}>{error.error}</li>
-        ))}
-      </ul>
-    </div>
-  )
-}
+// In AppShell useEffect:
+listen<ErrorPayload>('error-occurred', (e) => {
+  toast.error(e.payload.error)
+})
 ```
 
 ## Backend Usage
 
-### Emitting Events
-
-From Rust backend code:
+Emit events from Rust backend code:
 
 ```rust
 use crate::events::emitter;
@@ -231,13 +84,6 @@ emitter::emit_data_received(
     vec![0x01, 0x02, 0x03],
 ).await?;
 
-// Emit port status change
-emitter::emit_port_status_changed(
-    app_handle,
-    "port_id".to_string(),
-    serde_json::json!({"status": "open"}),
-).await?;
-
 // Emit error
 emitter::emit_error(
     app_handle,
@@ -245,91 +91,26 @@ emitter::emit_error(
 ).await?;
 ```
 
-## Event Filtering Best Practices
+## Event Flow
 
-1. **Filter early**: Use the filter parameter in event hooks to avoid unnecessary re-renders
-2. **Port-specific filtering**: Use `useSerialDataEvents` for port-specific data
-3. **Cleanup**: Always return the cleanup function from useEffect
-4. **Performance**: Avoid expensive operations in event callbacks
+```
+Rust Backend                    React Frontend
+────────────                    ──────────────
+serial_core (read task)
+  → emitter::emit_data_received
+  → Tauri event bus ──────────→ useTauriEvent('data-received')
+                                  → dataStore.addPacket()
+                                  → Virtual list re-render
 
-## Example: Real-time Port Monitor
-
-```typescript
-import { useEvents } from '@/hooks/useEvents'
-import { useState } from 'react'
-
-function PortMonitor({ portId }: { portId: string }) {
-  const { onDataReceived, onDataSent } = useEvents()
-  const [rxBytes, setRxBytes] = useState(0)
-  const [txBytes, setTxBytes] = useState(0)
-
-  useEffect(() => {
-    const cleanupRx = onDataReceived(
-      (event) => {
-        setRxBytes((prev) => prev + event.data.length)
-      },
-      (event) => event.port_id === portId // Filter for specific port
-    )
-
-    const cleanupTx = onDataSent(
-      (event) => {
-        setTxBytes((prev) => prev + event.data.length)
-      },
-      (event) => event.port_id === portId
-    )
-
-    return () => {
-      cleanupRx()
-      cleanupTx()
-    }
-  }, [onDataReceived, onDataSent, portId])
-
-  return (
-    <div>
-      <h3>Port: {portId}</h3>
-      <p>RX: {rxBytes} bytes</p>
-      <p>TX: {txBytes} bytes</p>
-    </div>
-  )
-}
+commands (error paths)
+  → emitter::emit_error
+  → Tauri event bus ──────────→ AppShell listen('error-occurred')
+                                  → toast.error()
 ```
 
-## Available Components
+## Best Practices
 
-### `PortStatusIndicator`
-Real-time port status indicator with activity pulses.
-
-### `VirtualPortEventLog`
-Live event log for virtual port activities.
-
-### `ErrorEventToast`
-Global error handler that displays toasts for error events.
-
-## Type Definitions
-
-```typescript
-interface SerialEventData {
-  port_id: string
-  data: number[]
-  timestamp: number
-  direction: 'rx' | 'tx'
-}
-
-interface PortStatusEventData {
-  port_id: string
-  status: any
-  timestamp: number
-}
-
-interface VirtualPortEventData {
-  port_id: string
-  port_info?: any
-  stats?: any
-  timestamp: number
-}
-
-interface ErrorEventData {
-  error: string
-  timestamp: number
-}
-```
+1. **Use `useTauriEvent` hook** — handles listener setup and cleanup automatically
+2. **Type payloads** — always pass a generic type parameter (`useTauriEvent<T>`)
+3. **Keep handlers lightweight** — delegate to store actions, avoid expensive work in callbacks
+4. **No polling** — use events instead of polling for real-time data; use polling only for periodic stats
