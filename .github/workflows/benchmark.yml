@@ -51,7 +51,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run benchmarks
-        run: cargo bench -- --output-format bencher
+        run: cargo bench -- --save-baseline default
 
       - name: Download previous benchmark baseline
         uses: actions/cache@v4

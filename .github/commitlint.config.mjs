@@ -7,12 +7,13 @@ export default {
     ]],
     'scope-enum': [2, 'always', [
       'cli', 'gui', 'serial', 'protocol', 'lua',
-      'task', 'config', 'build', 'ci', 'deps'
+      'task', 'config', 'build', 'ci', 'deps', 'backend'
     ]],
     'type-case': [2, 'always', 'lower-case'],
     'subject-case': [0],
     'subject-empty': [2, 'never'],
     'subject-full-stop': [2, 'never', '.'],
-    'header-max-length': [2, 'always', 100]
+    'header-max-length': [2, 'always', 100],
+    'body-max-line-length': [2, 'always', 150]
   }
 };
