@@ -10,8 +10,8 @@ import { useProtocolStore } from "@/stores/protocol";
 import { useScriptStore } from "@/stores/script";
 import { useStandaloneScriptStore } from "@/stores/serialScript";
 import { ProtocolList } from "./ProtocolList";
-import { TemplateList } from "./TemplateList";
 import { StandaloneActions } from "./StandaloneActions";
+import { TemplateList } from "./TemplateList";
 
 const BUILT_IN_PROTOCOLS = ["ModbusRTU", "Modbus ASCII", "AT Commands", "Line"];
 
@@ -65,6 +65,59 @@ export function EditorPage() {
   const [testerInput, setTesterInput] = useState("");
   const [testerResult, setTesterResult] = useState<string | null>(null);
   const [testerError, setTesterError] = useState<string | null>(null);
+
+  const [isDragging, setIsDragging] = useState(false);
+
+  // ─── Drag & Drop ───
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+
+      const name = file.name;
+      const content = await file.text();
+      const baseName = name.replace(/\.(lua|json)$/, "");
+
+      if (name.endsWith(".lua")) {
+        newScript();
+        setScriptNameInput(baseName);
+        updateContent(content);
+        setFileType("script");
+        toast.success(t("editor.imported"));
+      } else if (name.endsWith(".json")) {
+        setProtocolNameInput(baseName);
+        updateContent(content);
+        setFileType("protocol");
+        toast.success(t("editor.imported"));
+      } else {
+        toast.error(t("editor.dropUnsupported"));
+      }
+    },
+    [newScript, updateContent, t],
+  );
 
   useEffect(() => {
     loadScriptList();
@@ -495,43 +548,63 @@ export function EditorPage() {
 
             {/* Monaco Editor / Welcome placeholder */}
             <Panel defaultSize={65} minSize={30}>
-              {!fileType ? (
-                <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-                  <div className="text-text-muted text-sm">
-                    {t("editor.emptyState")}
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: drop zone for file drag-and-drop */}
+              <section
+                className="relative h-full"
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {isDragging && (
+                  <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-base/80 border-2 border-dashed border-accent rounded-lg gap-2">
+                    <span className="text-2xl">📄</span>
+                    <div className="text-accent text-sm">
+                      {t("editor.dropZone")}
+                    </div>
                   </div>
-                  <button
-                    onClick={() => handleNew("script")}
-                    className="px-4 py-2 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30"
-                  >
-                    + {t("common.new")}
-                  </button>
-                  <div className="text-xs text-text-muted">
-                    {t("editor.templateTip")}
+                )}
+                {!fileType ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+                    <div className="text-text-muted text-sm">
+                      {t("editor.emptyState")}
+                    </div>
+                    <button
+                      onClick={() => handleNew("script")}
+                      className="px-4 py-2 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30"
+                    >
+                      + {t("common.new")}
+                    </button>
+                    <div className="text-xs text-text-muted">
+                      {t("editor.templateTip")}
+                    </div>
+                    <div className="text-[10px] text-text-muted/60">
+                      {t("editor.dropZone")}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <MonacoEditor
-                  height="100%"
-                  language="lua"
-                  theme="vs-dark"
-                  value={currentScript?.content ?? ""}
-                  onChange={(value) =>
-                    value !== undefined && updateContent(value)
-                  }
-                  options={{
-                    fontSize: 13,
-                    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    lineNumbers: "on",
-                    renderWhitespace: "selection",
-                    tabSize: 2,
-                    wordWrap: "on",
-                    padding: { top: 8 },
-                  }}
-                />
-              )}
+                ) : (
+                  <MonacoEditor
+                    height="100%"
+                    language="lua"
+                    theme="vs-dark"
+                    value={currentScript?.content ?? ""}
+                    onChange={(value) =>
+                      value !== undefined && updateContent(value)
+                    }
+                    options={{
+                      fontSize: 13,
+                      fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      lineNumbers: "on",
+                      renderWhitespace: "selection",
+                      tabSize: 2,
+                      wordWrap: "on",
+                      padding: { top: 8 },
+                    }}
+                  />
+                )}
+              </section>
             </Panel>
 
             <Separator className="h-1 bg-border hover:bg-accent cursor-row-resize transition-colors" />

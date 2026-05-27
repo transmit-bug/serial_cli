@@ -257,7 +257,10 @@
     "title": "编辑器",
     "emptyState": "创建脚本或协议开始使用",
     "templateTip": "或从下方模板开始",
-    "selectOrCreateFile": "从左侧选择文件或创建新的"
+    "selectOrCreateFile": "从左侧选择文件或创建新的",
+    "dropZone": "拖放 .lua 或 .json 文件到此处",
+    "dropUnsupported": "不支持的文件类型",
+    "imported": "文件导入成功"
   },
   "protocolTemplates": {
     "title": "协议模板",

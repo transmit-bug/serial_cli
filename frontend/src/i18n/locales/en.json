@@ -257,7 +257,10 @@
     "title": "Editor",
     "emptyState": "Create a script or protocol to get started",
     "templateTip": "Or start from a template below",
-    "selectOrCreateFile": "Select a file from the left or create a new one"
+    "selectOrCreateFile": "Select a file from the left or create a new one",
+    "dropZone": "Drop .lua or .json files here",
+    "dropUnsupported": "Unsupported file type",
+    "imported": "File imported successfully"
   },
   "protocolTemplates": {
     "title": "Protocol Templates",

@@ -14,5 +14,11 @@
 
 ## 待办
 
-- 拖拽导入 .lua 脚本 / .json 协议文件到 Editor 页面
+- ✅ 拖拽导入 .lua 脚本 / .json 协议文件到 Editor 页面
 - Batch / Benchmark CLI 功能接入 GUI
+
+---
+
+## 跨平台改进
+
+- ✅ monitoring 模块 macOS 支持（libc proc_pidinfo 获取内存/FD，windows crate 按平台条件编译）
