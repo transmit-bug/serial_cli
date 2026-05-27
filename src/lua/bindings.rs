@@ -15,6 +15,28 @@ use mlua::{Function, Lua, Value};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+/// Convert a hex-encoded string to bytes (used for binary protocol data in Lua).
+fn hex_str_to_bytes(hex: &str) -> std::result::Result<Vec<u8>, mlua::Error> {
+    let hex = hex.strip_prefix("0x").unwrap_or(hex);
+    if hex.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !hex.len().is_multiple_of(2) || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(mlua::Error::RuntimeError(
+            "Invalid hex string: must be even-length and contain only hex digits".to_string(),
+        ));
+    }
+    Ok((0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+        .collect())
+}
+
+/// Convert bytes to a hex-encoded string (used for binary protocol data in Lua).
+fn bytes_to_hex_str(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
 /// Lua API bindings
 pub struct LuaBindings {
     lua: Lua,
@@ -392,35 +414,42 @@ impl LuaBindings {
     // (unchanged from before — they are synchronous, no async issues)
 
     /// Register protocol_encode API
+    ///
+    /// Uses the real protocol implementations from `protocol::built_in`.
+    /// Text protocols (line, at_command) accept/return plain strings.
+    /// Binary protocols (modbus_rtu, modbus_ascii) accept/return hex-encoded strings.
     pub fn register_protocol_encode(&self) -> Result<()> {
         let encode =
             self.lua
                 .create_function(move |_, (protocol_name, data): (String, String)| {
-                    match protocol_name.as_str() {
-                        "line" | "lines" => {
-                            if data.ends_with('\n') {
-                                Ok(data)
-                            } else {
-                                Ok(data + "\n")
-                            }
-                        }
-                        "at_command" => {
-                            if data.ends_with("\r\n") {
-                                Ok(data)
-                            } else {
-                                Ok(data + "\r\n")
-                            }
-                        }
-                        "modbus_rtu" => {
-                            let data_bytes = data.as_bytes();
-                            let crc = Self::calculate_modbus_crc(data_bytes);
-                            let mut result = data.clone();
-                            result.push((crc & 0xFF) as u8 as char);
-                            result.push(((crc >> 8) & 0xFF) as u8 as char);
-                            Ok(result)
-                        }
-                        "modbus_ascii" => Ok(data.clone()),
-                        _ => Ok(data),
+                    let mut proto =
+                        crate::protocol::built_in::create_builtin_protocol(protocol_name.as_str())
+                            .ok_or_else(|| {
+                                mlua::Error::RuntimeError(format!(
+                                    "Unknown protocol: {}",
+                                    protocol_name
+                                ))
+                            })?;
+
+                    let is_binary = matches!(protocol_name.as_str(), "modbus_rtu" | "modbus_ascii");
+
+                    let input_bytes = if is_binary {
+                        hex_str_to_bytes(&data)?
+                    } else {
+                        data.into_bytes()
+                    };
+
+                    let encoded = proto.encode(&input_bytes).map_err(|e| {
+                        mlua::Error::RuntimeError(format!(
+                            "Encode error ({}): {}",
+                            protocol_name, e
+                        ))
+                    })?;
+
+                    if is_binary {
+                        Ok(bytes_to_hex_str(&encoded))
+                    } else {
+                        Ok(String::from_utf8_lossy(&encoded).to_string())
                     }
                 })?;
 
@@ -428,33 +457,43 @@ impl LuaBindings {
         Ok(())
     }
 
-    /// Calculate Modbus CRC (helper function)
-    #[allow(dead_code)]
-    fn calculate_modbus_crc(data: &[u8]) -> u16 {
-        let mut crc: u16 = 0xFFFF;
-        for &byte in data {
-            crc ^= byte as u16;
-            for _ in 0..8 {
-                if crc & 0x0001 != 0 {
-                    crc = (crc >> 1) ^ 0xA001;
-                } else {
-                    crc >>= 1;
-                }
-            }
-        }
-        crc
-    }
-
     /// Register protocol_decode API
+    ///
+    /// Uses the real protocol implementations from `protocol::built_in`.
+    /// Text protocols (line, at_command) accept/return plain strings.
+    /// Binary protocols (modbus_rtu, modbus_ascii) accept/return hex-encoded strings.
     pub fn register_protocol_decode(&self) -> Result<()> {
         let decode =
             self.lua
                 .create_function(move |_, (protocol_name, data): (String, String)| {
-                    match protocol_name.as_str() {
-                        "line" | "lines" => Ok(data),
-                        "at_command" => Ok(data),
-                        "modbus_rtu" | "modbus_ascii" => Ok(data.clone()),
-                        _ => Ok(data),
+                    let mut proto =
+                        crate::protocol::built_in::create_builtin_protocol(protocol_name.as_str())
+                            .ok_or_else(|| {
+                                mlua::Error::RuntimeError(format!(
+                                    "Unknown protocol: {}",
+                                    protocol_name
+                                ))
+                            })?;
+
+                    let is_binary = matches!(protocol_name.as_str(), "modbus_rtu" | "modbus_ascii");
+
+                    let input_bytes = if is_binary {
+                        hex_str_to_bytes(&data)?
+                    } else {
+                        data.as_bytes().to_vec()
+                    };
+
+                    let decoded = proto.parse(&input_bytes).map_err(|e| {
+                        mlua::Error::RuntimeError(format!(
+                            "Decode error ({}): {}",
+                            protocol_name, e
+                        ))
+                    })?;
+
+                    if is_binary {
+                        Ok(bytes_to_hex_str(&decoded))
+                    } else {
+                        Ok(String::from_utf8_lossy(&decoded).to_string())
                     }
                 })?;
 
@@ -923,7 +962,7 @@ mod tests {
         bindings.register_protocol_encode().unwrap();
 
         let script = r#"
-            local encoded = protocol_encode("lines", "Hello")
+            local encoded = protocol_encode("line", "Hello")
             assert(type(encoded) == "string", "Expected string output")
             assert(string.sub(encoded, -1) == "\n", "Expected newline at end")
 
@@ -931,8 +970,11 @@ mod tests {
             assert(type(encoded_at) == "string", "Expected string output for AT command")
             assert(string.sub(encoded_at, -2) == "\r\n", "Expected CRLF at end")
 
-            local encoded_modbus = protocol_encode("modbus_rtu", "\x01\x03\x00\x00\x00\x01")
+            -- Modbus RTU uses hex-encoded binary I/O
+            local encoded_modbus = protocol_encode("modbus_rtu", "010300000001")
             assert(type(encoded_modbus) == "string", "Expected string output for Modbus")
+            -- Result should be hex-encoded with 2-byte CRC appended (total 8 hex chars)
+            assert(string.len(encoded_modbus) == 16, "Expected 8 bytes (16 hex chars)")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
@@ -944,9 +986,8 @@ mod tests {
         bindings.register_protocol_encode().unwrap();
 
         let script = r#"
-            local result = protocol_encode("invalid_protocol", "test")
-            assert(type(result) == "string", "Expected string output even for invalid protocol")
-            assert(result == "test", "Expected pass-through for unknown protocol")
+            local ok, err = pcall(protocol_encode, "invalid_protocol", "test")
+            assert(not ok, "Expected error for unknown protocol")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
@@ -962,13 +1003,24 @@ mod tests {
             assert(type(decoded) == "string")
             assert(decoded == "Hello\n", "Expected data to be returned as-is")
 
-            local decoded_lines = protocol_decode("lines", "World\n")
-            assert(type(decoded_lines) == "string")
-            assert(decoded_lines == "World\n", "Expected data to be returned as-is")
-
-            local decoded_at = protocol_decode("at_command", "ATZ\r\n")
+            local decoded_at = protocol_decode("at_command", "OK\r\n")
             assert(type(decoded_at) == "string")
-            assert(decoded_at == "ATZ\r\n", "Expected data to be returned as-is")
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_protocol_decode_modbus_rtu() {
+        let bindings = LuaBindings::new().unwrap();
+        bindings.register_protocol_decode().unwrap();
+        bindings.register_protocol_encode().unwrap();
+
+        let script = r#"
+            -- Round-trip: encode then decode should yield original data
+            local encoded = protocol_encode("modbus_rtu", "010300000001")
+            local decoded = protocol_decode("modbus_rtu", encoded)
+            assert(decoded == "010300000001", "Expected round-trip to recover original data")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
@@ -980,9 +1032,8 @@ mod tests {
         bindings.register_protocol_decode().unwrap();
 
         let script = r#"
-            local result = protocol_decode("invalid_protocol", "test\n")
-            assert(type(result) == "string", "Expected string output even for invalid protocol")
-            assert(result == "test\n", "Expected pass-through for unknown protocol")
+            local ok, err = pcall(protocol_decode, "invalid_protocol", "test\n")
+            assert(not ok, "Expected error for unknown protocol")
         "#;
 
         assert!(bindings.execute_script(script).is_ok());

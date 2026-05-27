@@ -312,6 +312,7 @@
     "hotReload": "热重载",
     "customDir": "自定义协议目录",
     "theme": "主题",
+    "themeDesc": "选择应用颜色主题",
     "maxPackets": "最大数据包数",
     "defaultFormat": "默认格式",
     "general": "通用",

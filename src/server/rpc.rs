@@ -288,7 +288,8 @@ impl RpcDispatcher {
         };
 
         let data = if let Some(hex_str) = data_str.strip_prefix("hex:") {
-            hex_decode(hex_str)
+            crate::cli::commands::parsers::parse_hex_string(hex_str)
+                .map_err(|e| (-32602, e.to_string(), None))?
         } else {
             data_str.as_bytes().to_vec()
         };
@@ -502,18 +503,6 @@ fn hex_encode(data: &[u8]) -> String {
         .join("")
 }
 
-/// Decode hex string to bytes
-fn hex_decode(hex: &str) -> Vec<u8> {
-    if !hex.len().is_multiple_of(2) {
-        return Vec::new();
-    }
-
-    (0..hex.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap_or(0))
-        .collect()
-}
-
 /// Format SystemTime as ISO 8601 string
 fn format_timestamp(time: SystemTime) -> String {
     use std::time::UNIX_EPOCH;
@@ -537,8 +526,14 @@ mod tests {
 
     #[test]
     fn test_hex_decode() {
-        assert_eq!(hex_decode("414243"), b"ABC");
-        assert_eq!(hex_decode("00ff"), b"\x00\xff");
+        assert_eq!(
+            crate::cli::commands::parsers::parse_hex_string("414243").unwrap(),
+            b"ABC"
+        );
+        assert_eq!(
+            crate::cli::commands::parsers::parse_hex_string("00ff").unwrap(),
+            b"\x00\xff"
+        );
     }
 
     #[tokio::test]

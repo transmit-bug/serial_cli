@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Dark theme (Catppuccin Mocha) — default */
 @theme {
   --color-base: #1e1e2e;
   --color-base-deep: #181825;
@@ -18,6 +19,27 @@
   --color-success: #a6e3a1;
   --color-danger: #f38ba8;
   --color-warning: #f9e2af;
+}
+
+/* Light theme (Catppuccin Latte) */
+[data-theme="light"] {
+  --color-base: #eff1f5;
+  --color-base-deep: #e6e9ef;
+  --color-surface: #ccd0da;
+  --color-surface-hover: #bcc0cc;
+  --color-overlay: #9ca0b0;
+  --color-border: #9ca0b0;
+  --color-border-subtle: #8c8fa1;
+
+  --color-text: #4c4f69;
+  --color-text-secondary: #5c5f77;
+  --color-text-muted: #7c7f93;
+
+  --color-accent: #1e66f5;
+  --color-accent-hover: #2a6ef5;
+  --color-success: #40a02b;
+  --color-danger: #d20f39;
+  --color-warning: #df8e1d;
 }
 
 @layer base {

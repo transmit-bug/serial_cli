@@ -95,11 +95,15 @@ fn test_end_to_end_modbus_workflow() {
         local decoded2 = protocol_decode('line', encoded2)
         assert(decoded2 == with_newline, "Line protocol with existing newline failed")
 
-        -- Test Modbus encoding (encode only - binary data roundtrip has issues)
-        local pdu = string.char(0x01, 0x03, 0x00, 0x00, 0x00, 0x0A)
-        local modbus_encoded = protocol_encode('modbus_rtu', pdu)
+        -- Test Modbus encoding (binary protocols use hex-encoded strings)
+        local pdu_hex = "0103000000" .. string.format("%02x", 10)
+        local modbus_encoded = protocol_encode('modbus_rtu', pdu_hex)
         assert(type(modbus_encoded) == "string")
-        assert(#modbus_encoded > #pdu, "Encoded data should include CRC")
+        assert(string.len(modbus_encoded) > string.len(pdu_hex), "Encoded data should include CRC")
+
+        -- Modbus round-trip: encode then decode should recover original PDU
+        local modbus_decoded = protocol_decode('modbus_rtu', modbus_encoded)
+        assert(modbus_decoded == pdu_hex, "Modbus round-trip failed")
 
         -- Test AT command protocol
         local at_cmd = "ATZ"

@@ -2,6 +2,7 @@
 //!
 //! Handlers for `serial-cli port list` and `serial-cli port send`.
 
+use crate::cli::commands::parsers;
 use crate::cli::types::PortCommand;
 use crate::error::Result;
 use crate::serial_core::{PortManager, SerialConfig};
@@ -16,8 +17,13 @@ pub async fn handle_port_command(cmd: PortCommand, json_output: bool) -> Result<
         PortCommand::List => {
             list_ports(json_output)?;
         }
-        PortCommand::Send { port, data } => {
-            send_data(&port, &data, json_output).await?;
+        PortCommand::Send {
+            port,
+            data,
+            hex,
+            base64,
+        } => {
+            send_data(&port, &data, json_output, hex, base64).await?;
         }
     }
     Ok(())
@@ -73,8 +79,10 @@ pub fn list_ports(json_output: bool) -> Result<()> {
 /// # Arguments
 ///
 /// * `port` - Port name (e.g., `/dev/ttyUSB0`, `COM1`)
-/// * `data` - Plain text data to send
+/// * `data` - Data to send (plain text, hex, or base64 depending on flags)
 /// * `json_output` - Whether to output results as JSON
+/// * `hex` - Interpret data as hex-encoded bytes
+/// * `base64` - Interpret data as base64-encoded bytes
 ///
 /// # Errors
 ///
@@ -83,7 +91,14 @@ pub fn list_ports(json_output: bool) -> Result<()> {
 /// - Permission is denied
 /// - The port is busy
 /// - Write or read fails at the OS level
-pub async fn send_data(port: &str, data: &str, json_output: bool) -> Result<()> {
+/// - Hex or base64 decoding fails
+pub async fn send_data(
+    port: &str,
+    data: &str,
+    json_output: bool,
+    hex: bool,
+    base64: bool,
+) -> Result<()> {
     use std::thread;
     use std::time::Duration;
 
@@ -107,10 +122,16 @@ pub async fn send_data(port: &str, data: &str, json_output: bool) -> Result<()> 
     let mut handle = port_handle.lock().await;
 
     // Convert data to bytes
-    let bytes = data.as_bytes();
+    let bytes: Vec<u8> = if hex {
+        parsers::parse_hex_string(data)?
+    } else if base64 {
+        parsers::base64_decode(data)?
+    } else {
+        data.as_bytes().to_vec()
+    };
 
     // Send data
-    let bytes_written = handle.write(bytes)?;
+    let bytes_written = handle.write(&bytes)?;
 
     // Wait a bit for response
     thread::sleep(Duration::from_millis(100));

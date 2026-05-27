@@ -17,7 +17,15 @@ pub enum PortCommand {
         #[arg(short, long)]
         port: String,
 
-        /// Data to send (plain text)
+        /// Interpret data as hex-encoded bytes (e.g., `AABBCC` or `0xAABBCC`)
+        #[arg(long)]
+        hex: bool,
+
+        /// Interpret data as base64-encoded bytes
+        #[arg(long)]
+        base64: bool,
+
+        /// Data to send (plain text by default; use --hex or --base64 for binary)
         data: String,
     },
 }

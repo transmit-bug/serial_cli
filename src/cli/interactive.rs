@@ -1,34 +1,178 @@
 //! Interactive shell
 //!
-//! This module provides an interactive REPL shell for serial communication.
+//! This module provides an interactive REPL shell for serial communication
+//! with line editing, command history, and tab completion via rustyline.
 
-use crate::error::{Result, SerialError};
+use crate::error::Result;
 use crate::serial_core::{PortManager, SerialConfig};
-use std::io::{self, Write};
+use rustyline::completion::Completer;
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
+use rustyline::history::DefaultHistory;
+use rustyline::validate::Validator;
+use rustyline::{Editor, Helper, Result as RlResult};
+use std::borrow::Cow::{self, Owned};
 
-/// Interactive shell
+/// Command names available in the interactive shell.
+const COMMANDS: &[&str] = &[
+    "help", "list", "open", "close", "send", "recv", "status", "protocol", "dtr", "rts", "quit",
+    "exit",
+];
+
+/// Sub-command completions for multi-word commands.
+const PROTOCOL_SUBCOMMANDS: &[&str] = &["list", "set", "clear", "show"];
+const SIGNAL_VALUES: &[&str] = &["on", "off"];
+const SEND_FLAGS: &[&str] = &["--hex", "--base64"];
+
+/// Rustyline helper providing tab completion for serial-cli commands.
+struct SerialCompleter;
+
+impl Helper for SerialCompleter {}
+
+impl Completer for SerialCompleter {
+    type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> RlResult<(usize, Vec<String>)> {
+        let input = &line[..pos];
+        let parts: Vec<&str> = input.split_whitespace().collect();
+
+        // Determine if cursor is in the middle of a word
+        let trailing_space = input.ends_with(' ');
+
+        if parts.is_empty() || (parts.len() == 1 && !trailing_space) {
+            // Complete first command
+            let partial = parts.first().copied().unwrap_or("");
+            let matches: Vec<String> = COMMANDS
+                .iter()
+                .filter(|cmd| cmd.starts_with(partial))
+                .map(|s| s.to_string())
+                .collect();
+            return Ok((0, matches));
+        }
+
+        // Multi-word: context-aware completion
+        let cmd = parts[0];
+        let start = input.len() - input.trim_end().len();
+
+        match cmd {
+            "protocol" => {
+                if parts.len() == 1 || (parts.len() == 2 && !trailing_space) {
+                    let partial = parts.get(1).copied().unwrap_or("");
+                    let matches: Vec<String> = PROTOCOL_SUBCOMMANDS
+                        .iter()
+                        .filter(|s| s.starts_with(partial))
+                        .map(|s| s.to_string())
+                        .collect();
+                    return Ok((start, matches));
+                }
+                if parts[1] == "set" && (trailing_space || parts.len() == 3) {
+                    let protocols = ["at_command", "line", "modbus_ascii", "modbus_rtu"];
+                    let partial = if trailing_space {
+                        ""
+                    } else {
+                        parts.get(2).copied().unwrap_or("")
+                    };
+                    let matches: Vec<String> = protocols
+                        .iter()
+                        .filter(|s| s.starts_with(partial))
+                        .map(|s| s.to_string())
+                        .collect();
+                    return Ok((start, matches));
+                }
+            }
+            "send" => {
+                let partial = if trailing_space {
+                    ""
+                } else {
+                    parts.last().copied().unwrap_or("")
+                };
+                let matches: Vec<String> = SEND_FLAGS
+                    .iter()
+                    .filter(|f| f.starts_with(partial))
+                    .map(|s| s.to_string())
+                    .collect();
+                if !matches.is_empty() {
+                    return Ok((start, matches));
+                }
+            }
+            "dtr" | "rts" => {
+                if parts.len() == 1 || (parts.len() == 2 && !trailing_space) {
+                    let partial = parts.get(1).copied().unwrap_or("");
+                    let matches: Vec<String> = SIGNAL_VALUES
+                        .iter()
+                        .filter(|s| s.starts_with(partial))
+                        .map(|s| s.to_string())
+                        .collect();
+                    return Ok((start, matches));
+                }
+            }
+            _ => {}
+        }
+
+        Ok((pos, vec![]))
+    }
+}
+
+impl Hinter for SerialCompleter {
+    type Hint = String;
+
+    fn hint(&self, _line: &str, _pos: usize, _ctx: &rustyline::Context<'_>) -> Option<String> {
+        None
+    }
+}
+
+impl Highlighter for SerialCompleter {
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &self,
+        prompt: &'p str,
+        _default: bool,
+    ) -> Cow<'b, str> {
+        Owned(format!("\x1b[1;36m{}\x1b[0m", prompt))
+    }
+}
+
+impl Validator for SerialCompleter {}
+
+/// Interactive shell backed by rustyline.
 pub struct InteractiveShell {
     running: bool,
     manager: PortManager,
     current_port_id: Option<String>,
+    editor: Editor<SerialCompleter, DefaultHistory>,
 }
 
 impl InteractiveShell {
-    /// Create a new interactive shell
+    /// Create a new interactive shell.
     pub fn new() -> Self {
+        let mut editor = Editor::new().expect("Failed to create line editor");
+
+        // Load history from previous sessions
+        if let Some(dir) = Self::history_dir() {
+            let history_path = dir.join("serial_cli_history.txt");
+            if editor.load_history(&history_path).is_err() {
+                tracing::debug!("No previous command history found");
+            }
+        }
+
         Self {
             running: false,
             manager: PortManager::new(),
             current_port_id: None,
+            editor,
         }
     }
 
-    /// Set the current port ID
+    /// Set the current port ID.
     pub fn set_current_port(&mut self, port_id: String) {
         self.current_port_id = Some(port_id);
     }
 
-    /// Run the interactive shell
+    /// Run the interactive shell REPL.
     pub async fn run(&mut self) -> Result<()> {
         self.running = true;
         tracing::info!("Starting interactive shell");
@@ -37,26 +181,41 @@ impl InteractiveShell {
         println!();
 
         while self.running {
-            tracing::trace!("serial> ");
-            io::stdout().flush().map_err(SerialError::Io)?;
-
-            let mut line = String::new();
-            io::stdin().read_line(&mut line).map_err(SerialError::Io)?;
-
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            if let Err(e) = self.execute_command(line).await {
-                eprintln!("Error: {}", e);
+            let readline = self.editor.readline("serial> ");
+            match readline {
+                Ok(line) => {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    let _ = self.editor.add_history_entry(trimmed);
+                    if let Err(e) = self.execute_command(trimmed).await {
+                        eprintln!("Error: {}", e);
+                    }
+                }
+                Err(rustyline::error::ReadlineError::Interrupted) => {
+                    // Ctrl-C: just redisplay the prompt
+                    println!();
+                }
+                Err(rustyline::error::ReadlineError::Eof) => {
+                    // Ctrl-D: exit
+                    println!("Goodbye!");
+                    self.running = false;
+                }
+                Err(e) => {
+                    eprintln!("Input error: {}", e);
+                    self.running = false;
+                }
             }
         }
+
+        // Save history for next session
+        self.save_history();
 
         Ok(())
     }
 
-    /// Execute a command
+    /// Execute a single command line.
     pub async fn execute_command(&mut self, line: &str) -> Result<()> {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.is_empty() {
@@ -87,6 +246,23 @@ impl InteractiveShell {
         Ok(())
     }
 
+    fn save_history(&mut self) {
+        if let Some(dir) = Self::history_dir() {
+            let _ = std::fs::create_dir_all(&dir);
+            let history_path = dir.join("serial_cli_history.txt");
+            if let Err(e) = self.editor.save_history(&history_path) {
+                tracing::debug!("Failed to save history: {}", e);
+            }
+        }
+    }
+
+    fn history_dir() -> Option<std::path::PathBuf> {
+        directories::ProjectDirs::from("", "", "serial-cli")
+            .map(|dirs| dirs.data_dir().to_path_buf())
+    }
+
+    // ── Command handlers ───────────────────────────────────────────
+
     /// Help command
     fn cmd_help(&self) {
         println!("Available commands:");
@@ -94,7 +270,7 @@ impl InteractiveShell {
         println!("  list              - List available serial ports");
         println!("  open <port>       - Open a serial port");
         println!("  close [port_id]   - Close a serial port (closes current if no ID given)");
-        println!("  send <data>       - Send data to the current port");
+        println!("  send [--hex|--base64] <data> - Send data to the current port");
         println!("  recv [n]          - Receive data from the current port (default: 64 bytes)");
         println!("  status            - Show port status");
         println!();
@@ -110,6 +286,12 @@ impl InteractiveShell {
         println!("  rts [on|off]      - Get or set RTS signal state");
         println!();
         println!("  quit/exit         - Exit the shell");
+        println!();
+        println!("Keyboard shortcuts:");
+        println!("  Tab               - Auto-complete commands and arguments");
+        println!("  Up/Down           - Navigate command history");
+        println!("  Ctrl+C            - Cancel current input");
+        println!("  Ctrl+D            - Exit the shell");
     }
 
     /// List ports command
@@ -198,7 +380,11 @@ impl InteractiveShell {
     /// Send command
     async fn cmd_send(&mut self, args: &[&str]) -> Result<()> {
         if args.is_empty() {
-            println!("Usage: send <data>");
+            println!("Usage: send [--hex|--base64] <data>");
+            println!("  send hello          - Send plain text");
+            println!("  send --hex AABBCC   - Send hex-encoded bytes");
+            println!("  send --hex 0xAABBCC - Send hex-encoded bytes (0x prefix)");
+            println!("  send --base64 SGVsbG8= - Send base64-encoded bytes");
             return Ok(());
         }
 
@@ -208,7 +394,35 @@ impl InteractiveShell {
             return Ok(());
         }
 
-        let data = args.join(" ");
+        // Parse flags
+        let (hex_mode, base64_mode, data_args): (bool, bool, Vec<&str>) = {
+            let mut h = false;
+            let mut b = false;
+            let mut rest = Vec::new();
+            for arg in args {
+                match *arg {
+                    "--hex" | "-x" => h = true,
+                    "--base64" | "-b" => b = true,
+                    other => rest.push(other),
+                }
+            }
+            (h, b, rest)
+        };
+
+        if hex_mode && base64_mode {
+            eprintln!("Error: --hex and --base64 are mutually exclusive");
+            return Ok(());
+        }
+
+        let data_str = data_args.join(" ");
+        let bytes: Vec<u8> = if hex_mode {
+            crate::cli::commands::parsers::parse_hex_string(&data_str)?
+        } else if base64_mode {
+            crate::cli::commands::parsers::base64_decode(&data_str)?
+        } else {
+            data_str.as_bytes().to_vec()
+        };
+
         let port_id = self.current_port_id.as_ref().unwrap();
 
         tracing::info!("Sending data to port {}", port_id);
@@ -218,9 +432,15 @@ impl InteractiveShell {
         let mut handle = port_handle.lock().await;
 
         // Send data
-        match handle.write(data.as_bytes()) {
+        match handle.write(&bytes) {
             Ok(n) => {
-                println!("Sent {} bytes", n);
+                if hex_mode {
+                    println!("Sent {} bytes (hex)", n);
+                } else if base64_mode {
+                    println!("Sent {} bytes (base64)", n);
+                } else {
+                    println!("Sent {} bytes", n);
+                }
             }
             Err(e) => {
                 eprintln!("Failed to send data: {}", e);
@@ -560,11 +780,59 @@ impl Default for InteractiveShell {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rustyline::history::DefaultHistory;
+
+    fn test_ctx() -> rustyline::Context<'static> {
+        static HISTORY: std::sync::OnceLock<DefaultHistory> = std::sync::OnceLock::new();
+        let history = HISTORY.get_or_init(DefaultHistory::new);
+        // SAFETY: the returned Context borrows `history` which lives for 'static
+        unsafe { std::mem::transmute(rustyline::Context::new(history)) }
+    }
 
     #[test]
     fn test_shell_creation() {
         let shell = InteractiveShell::new();
         assert!(!shell.running);
         assert!(shell.current_port_id.is_none());
+    }
+
+    #[test]
+    fn test_completer_top_level_commands() {
+        let completer = SerialCompleter;
+        let (pos, matches) = completer.complete("se", 2, &test_ctx()).unwrap();
+        assert_eq!(pos, 0);
+        assert!(matches.contains(&"send".to_string()));
+    }
+
+    #[test]
+    fn test_completer_protocol_subcommands() {
+        let completer = SerialCompleter;
+        let (_pos, matches) = completer.complete("protocol se", 11, &test_ctx()).unwrap();
+        assert!(matches.contains(&"set".to_string()));
+    }
+
+    #[test]
+    fn test_completer_signal_values() {
+        let completer = SerialCompleter;
+        let (_, matches) = completer.complete("dtr o", 5, &test_ctx()).unwrap();
+        assert!(matches.contains(&"on".to_string()));
+        assert!(matches.contains(&"off".to_string()));
+    }
+
+    #[test]
+    fn test_completer_send_flags() {
+        let completer = SerialCompleter;
+        let (_, matches) = completer.complete("send --h", 8, &test_ctx()).unwrap();
+        assert!(matches.contains(&"--hex".to_string()));
+    }
+
+    #[test]
+    fn test_completer_protocol_set_name() {
+        let completer = SerialCompleter;
+        let (_, matches) = completer
+            .complete("protocol set mod", 16, &test_ctx())
+            .unwrap();
+        assert!(matches.contains(&"modbus_rtu".to_string()));
+        assert!(matches.contains(&"modbus_ascii".to_string()));
     }
 }

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { toast } from "sonner";
+import { useTheme } from "@/hooks/useTheme";
 import { tauriApi } from "@/lib/tauri-api";
 import { hexToBytes } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
@@ -19,6 +20,7 @@ export type FileType = "script" | "protocol";
 
 export function EditorPage() {
   const { t } = useTranslation();
+  const theme = useTheme();
   const activeEntry = useConnectionStore((s) =>
     s.connections.find((c) => c.portId === s.activePortId),
   );
@@ -586,7 +588,7 @@ export function EditorPage() {
                   <MonacoEditor
                     height="100%"
                     language="lua"
-                    theme="vs-dark"
+                    theme={theme === "light" ? "light" : "vs-dark"}
                     value={currentScript?.content ?? ""}
                     onChange={(value) =>
                       value !== undefined && updateContent(value)

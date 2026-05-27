@@ -312,6 +312,7 @@
     "hotReload": "Hot Reload",
     "customDir": "Custom Protocol Directory",
     "theme": "Theme",
+    "themeDesc": "Choose application color theme",
     "maxPackets": "Max Packets",
     "defaultFormat": "Default Format",
     "general": "General",

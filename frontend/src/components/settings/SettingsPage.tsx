@@ -563,6 +563,18 @@ export function SettingsPage() {
               {t("settings.display")}
             </h2>
             <FieldRow
+              label={t("settings.theme")}
+              desc={t("settings.themeDesc")}
+            >
+              <select
+                value={config.display.theme}
+                onChange={(e) => update("display", "theme", e.target.value)}
+              >
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+              </select>
+            </FieldRow>
+            <FieldRow
               label={t("settings.maxPackets")}
               desc={t("settings.maxPacketsDesc")}
             >
