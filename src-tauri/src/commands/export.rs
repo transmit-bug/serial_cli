@@ -28,8 +28,7 @@ pub async fn export_data(
 
     if let Some(parent) = path.parent() {
         if !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {}", e))?;
         }
     }
 
@@ -83,8 +82,7 @@ fn export_csv(path: &PathBuf, packets: &[serde_json::Value]) -> Result<(), Strin
     use std::io::Write;
     let mut file = fs::File::create(path).map_err(|e| format!("Failed to create file: {}", e))?;
 
-    writeln!(file, "timestamp,direction,data_hex")
-        .map_err(|e| e.to_string())?;
+    writeln!(file, "timestamp,direction,data_hex").map_err(|e| e.to_string())?;
 
     for packet in packets {
         let dir = packet["direction"].as_str().unwrap_or("?");

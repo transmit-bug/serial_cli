@@ -60,9 +60,7 @@ async fn main() {
                 .with(stderr_layer)
                 .init();
         } else {
-            tracing_subscriber::fmt()
-                .with_env_filter("info")
-                .init();
+            tracing_subscriber::fmt().with_env_filter("info").init();
         }
     }
 
@@ -208,11 +206,7 @@ fn spawn_port_monitor(app: tauri::AppHandle) {
             let removed: Vec<String> = known.difference(&current).cloned().collect();
 
             if !added.is_empty() || !removed.is_empty() {
-                tracing::debug!(
-                    "Ports changed: +{} -{}",
-                    added.len(),
-                    removed.len()
-                );
+                tracing::debug!("Ports changed: +{} -{}", added.len(), removed.len());
                 if let Err(e) =
                     events::emitter::emit_ports_changed(app.clone(), added, removed).await
                 {

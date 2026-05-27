@@ -211,9 +211,7 @@ pub async fn get_connection_presets() -> Result<Vec<ConnectionPresetData>, Strin
 
 /// Save all connection presets (replaces entire list)
 #[tauri::command]
-pub async fn save_connection_presets(
-    presets: Vec<ConnectionPresetData>,
-) -> Result<(), String> {
+pub async fn save_connection_presets(presets: Vec<ConnectionPresetData>) -> Result<(), String> {
     let config_path = get_config_path()?;
 
     if let Some(parent) = config_path.parent() {
@@ -244,10 +242,9 @@ pub async fn save_connection_presets(
         })
         .collect();
 
-    let toml_string =
-        toml::to_string_pretty(&existing_config).map_err(|e| format!("Failed to serialize config: {}", e))?;
-    fs::write(&config_path, toml_string)
-        .map_err(|e| format!("Failed to write config file: {}", e))
+    let toml_string = toml::to_string_pretty(&existing_config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+    fs::write(&config_path, toml_string).map_err(|e| format!("Failed to write config file: {}", e))
 }
 
 /// Delete a connection preset by name
@@ -266,10 +263,9 @@ pub async fn delete_connection_preset(name: String) -> Result<(), String> {
         .connection_presets
         .retain(|p| p.name != name);
 
-    let toml_string =
-        toml::to_string_pretty(&existing_config).map_err(|e| format!("Failed to serialize config: {}", e))?;
-    fs::write(&config_path, toml_string)
-        .map_err(|e| format!("Failed to write config file: {}", e))
+    let toml_string = toml::to_string_pretty(&existing_config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+    fs::write(&config_path, toml_string).map_err(|e| format!("Failed to write config file: {}", e))
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

@@ -197,11 +197,11 @@ impl ProtocolManager {
         }
 
         // Take the reload event receiver
-        let mut reload_rx = watcher
-            .reload_events()
-            .ok_or_else(|| SerialError::Protocol(ProtocolError::InvalidState(
+        let mut reload_rx = watcher.reload_events().ok_or_else(|| {
+            SerialError::Protocol(ProtocolError::InvalidState(
                 "Failed to get reload event receiver".to_string(),
-            )))?;
+            ))
+        })?;
 
         // Clone data the background task needs
         let registry = self.registry.clone();
@@ -267,7 +267,10 @@ impl ProtocolManager {
         self.watcher_task = Some(task);
         *self.hot_reload_enabled.lock().await = true;
 
-        tracing::info!("Protocol hot-reload enabled (watching {} protocols)", self.custom_protocols.len());
+        tracing::info!(
+            "Protocol hot-reload enabled (watching {} protocols)",
+            self.custom_protocols.len()
+        );
         Ok(())
     }
 

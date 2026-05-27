@@ -294,33 +294,36 @@ impl LuaBindings {
 
     /// Register virtual_create API
     pub fn register_virtual_create(&self) -> Result<()> {
-        let create = self.lua.create_function(move |_lua, (backend, _monitor): (Option<String>, Option<bool>)| {
-            use crate::serial_core::backends::BackendType;
+        let create = self.lua.create_function(
+            move |_lua, (backend, _monitor): (Option<String>, Option<bool>)| {
+                use crate::serial_core::backends::BackendType;
 
-            let backend_type = match backend.as_deref() {
-                Some("pty") => BackendType::Pty,
-                Some("namedpipe") => BackendType::NamedPipe,
-                Some("socat") => BackendType::Socat,
-                None => BackendType::detect(),
-                Some(other) => {
+                let backend_type = match backend.as_deref() {
+                    Some("pty") => BackendType::Pty,
+                    Some("namedpipe") => BackendType::NamedPipe,
+                    Some("socat") => BackendType::Socat,
+                    None => BackendType::detect(),
+                    Some(other) => {
+                        return Err(mlua::Error::RuntimeError(format!(
+                            "Unknown backend: {}. Available: pty, namedpipe, socat",
+                            other
+                        )))
+                    }
+                };
+
+                if !backend_type.is_available() {
                     return Err(mlua::Error::RuntimeError(format!(
-                        "Unknown backend: {}. Available: pty, namedpipe, socat",
-                        other
-                    )))
+                        "Backend {:?} is not available on this platform",
+                        backend_type
+                    )));
                 }
-            };
 
-            if !backend_type.is_available() {
-                return Err(mlua::Error::RuntimeError(format!(
-                    "Backend {:?} is not available on this platform",
-                    backend_type
-                )));
-            }
-
-            Err::<(), _>(mlua::Error::RuntimeError(
-                "virtual_create is not supported in Lua scripts — use the GUI or CLI instead".to_string()
-            ))
-        })?;
+                Err::<(), _>(mlua::Error::RuntimeError(
+                    "virtual_create is not supported in Lua scripts — use the GUI or CLI instead"
+                        .to_string(),
+                ))
+            },
+        )?;
 
         self.lua.globals().set("virtual_create", create)?;
         Ok(())
@@ -330,7 +333,8 @@ impl LuaBindings {
     pub fn register_virtual_stop(&self) -> Result<()> {
         let stop = self.lua.create_function(move |_, _id: String| {
             Err::<(), _>(mlua::Error::RuntimeError(
-                "virtual_stop is not supported in Lua scripts — use the GUI or CLI instead".to_string()
+                "virtual_stop is not supported in Lua scripts — use the GUI or CLI instead"
+                    .to_string(),
             ))
         })?;
 

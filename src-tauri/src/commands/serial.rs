@@ -8,8 +8,8 @@
 
 use crate::state::app_state::{AppState, DataSniffer, PortStatsTracker};
 use log::{debug, error, info};
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, State};
 
@@ -128,7 +128,10 @@ pub async fn start_sniffing(
     let read_stop = stop_flag.clone();
     let read_port_id = port_id.clone();
     let read_task_handle = tokio::task::spawn_blocking(move || {
-        info!("Sniffer blocking-read task started for port: {}", read_port_id);
+        info!(
+            "Sniffer blocking-read task started for port: {}",
+            read_port_id
+        );
         let mut buffer = vec![0u8; 4096];
 
         loop {
@@ -168,7 +171,10 @@ pub async fn start_sniffing(
             }
         }
 
-        info!("Sniffer blocking-read task stopped for port: {}", read_port_id);
+        info!(
+            "Sniffer blocking-read task stopped for port: {}",
+            read_port_id
+        );
     });
 
     // --- Async event loop: receive data, update stats, emit Tauri events ---
@@ -186,8 +192,7 @@ pub async fn start_sniffing(
             if data.is_empty() {
                 let disconnect_msg = format!("Port {} disconnected", event_port_id);
                 tracing::warn!("{}", disconnect_msg);
-                let _ =
-                    crate::events::emitter::emit_error(event_app.clone(), disconnect_msg).await;
+                let _ = crate::events::emitter::emit_error(event_app.clone(), disconnect_msg).await;
                 break;
             }
 
@@ -260,7 +265,10 @@ pub async fn stop_sniffing(port_id: String, state: State<'_, AppState>) -> Resul
                 error!("Sniffer event task error for port {}: {:?}", port_id, e);
             }
             Err(_) => {
-                error!("Timeout waiting for sniffer event task for port: {}", port_id);
+                error!(
+                    "Timeout waiting for sniffer event task for port: {}",
+                    port_id
+                );
             }
         }
 
@@ -273,7 +281,10 @@ pub async fn stop_sniffing(port_id: String, state: State<'_, AppState>) -> Resul
                 error!("Sniffer read task error for port {}: {:?}", port_id, e);
             }
             Err(_) => {
-                error!("Timeout waiting for sniffer read task for port: {}", port_id);
+                error!(
+                    "Timeout waiting for sniffer read task for port: {}",
+                    port_id
+                );
             }
         }
     } else {

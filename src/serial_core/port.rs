@@ -958,7 +958,10 @@ impl SerialPortHandle {
 
             // Safety limit: discard stale buffer if it grows beyond 64 KB
             if self.frame_buffer.len() > 65536 {
-                tracing::warn!("frame buffer overflow ({} bytes), clearing", self.frame_buffer.len());
+                tracing::warn!(
+                    "frame buffer overflow ({} bytes), clearing",
+                    self.frame_buffer.len()
+                );
                 self.frame_buffer.clear();
             }
 
@@ -974,7 +977,11 @@ impl SerialPortHandle {
                 }
                 Err(e) => {
                     // Parse error — discard buffer, return raw data from this read
-                    tracing::debug!("protocol parse error ({} bytes buffered): {}", self.frame_buffer.len(), e);
+                    tracing::debug!(
+                        "protocol parse error ({} bytes buffered): {}",
+                        self.frame_buffer.len(),
+                        e
+                    );
                     self.frame_buffer.clear();
                     buf[..n].to_vec()
                 }

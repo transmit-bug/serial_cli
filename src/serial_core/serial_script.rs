@@ -97,10 +97,7 @@ impl SerialScriptEngine {
 
     /// Register the serial_send callback in Lua globals.
     /// This must be called after `load()` and before using the engine.
-    pub fn set_send_callback(
-        &self,
-        send_fn: SendFn,
-    ) -> Result<()> {
+    pub fn set_send_callback(&self, send_fn: SendFn) -> Result<()> {
         let lua_guard = self.lua.lock().unwrap();
         let lua = lua_guard.inner();
         let globals = lua.globals();

@@ -16,7 +16,8 @@ use tauri::State;
 #[tauri::command]
 pub async fn execute_script(script: String, _state: State<'_, AppState>) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
-        let bindings = LuaBindings::new().map_err(|e| format!("Failed to create Lua engine: {}", e))?;
+        let bindings =
+            LuaBindings::new().map_err(|e| format!("Failed to create Lua engine: {}", e))?;
 
         bindings
             .register_all_apis()
