@@ -14,8 +14,7 @@
 
 ## 待办
 
-- ✅ 拖拽导入 .lua 脚本 / .json 协议文件到 Editor 页面
-- Batch / Benchmark CLI 功能接入 GUI
+（无）
 
 ---
 
