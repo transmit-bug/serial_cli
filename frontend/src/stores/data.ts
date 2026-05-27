@@ -29,6 +29,7 @@ export interface ExportOptions {
 interface DataStore {
   packets: DataPacket[];
   displayFormat: DisplayFormat;
+  showTimestamp: boolean;
   autoScroll: boolean;
   maxPackets: number;
   searchQuery: string;
@@ -53,6 +54,11 @@ interface DataStore {
   setExportProgress: (progress: number | null) => void;
   getFilteredPackets: (portId?: string) => DataPacket[];
   exportData: (searchQuery: string, searchOpts: SearchOptions) => void;
+  applyConfig: (cfg: {
+    maxPackets?: number;
+    format?: string;
+    showTimestamp?: boolean;
+  }) => void;
 }
 
 /** Check if a string matches a query with given search options. */
@@ -79,6 +85,7 @@ export function matchesSearch(
 export const useDataStore = create<DataStore>()((set, get) => ({
   packets: [],
   displayFormat: "mixed",
+  showTimestamp: true,
   autoScroll: true,
   maxPackets: MAX_PACKETS,
   searchQuery: "",
@@ -181,7 +188,6 @@ export const useDataStore = create<DataStore>()((set, get) => ({
         return;
       }
 
-      // Convert packets to backend-expected format
       const exportData = packets.map((p) => ({
         direction: p.direction,
         data: p.data,
@@ -195,5 +201,20 @@ export const useDataStore = create<DataStore>()((set, get) => ({
       setProgress(null);
       throw e;
     }
+  },
+
+  applyConfig: (cfg) => {
+    const updates: Partial<DataStore> = {};
+    if (cfg.maxPackets && cfg.maxPackets > 0)
+      updates.maxPackets = cfg.maxPackets;
+    if (
+      cfg.format === "hex" ||
+      cfg.format === "ascii" ||
+      cfg.format === "mixed"
+    )
+      updates.displayFormat = cfg.format;
+    if (cfg.showTimestamp !== undefined)
+      updates.showTimestamp = cfg.showTimestamp;
+    if (Object.keys(updates).length > 0) set(updates);
   },
 }));

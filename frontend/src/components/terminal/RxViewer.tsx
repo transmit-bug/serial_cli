@@ -45,11 +45,13 @@ function HighlightedText({
 function PacketRow({
   packet,
   displayFormat,
+  showTimestamp,
   searchQuery,
   searchOptions,
 }: {
   packet: DataPacket;
   displayFormat: DisplayFormat;
+  showTimestamp: boolean;
   searchQuery: string;
   searchOptions: SearchOptions;
 }) {
@@ -106,9 +108,11 @@ function PacketRow({
       <span className="text-text-muted w-8 shrink-0 text-right">
         {packet.id}
       </span>
-      <span className="text-text-secondary w-20 shrink-0">
-        {formatTimestamp(packet.timestamp)}
-      </span>
+      {showTimestamp && (
+        <span className="text-text-secondary w-20 shrink-0">
+          {formatTimestamp(packet.timestamp)}
+        </span>
+      )}
       <span className={`w-6 shrink-0 ${dirClass}`}>{dirLabel}</span>
       {dataCols}
     </div>
@@ -119,6 +123,7 @@ export function RxViewer({ portId }: { portId?: string }) {
   const { t } = useTranslation();
   const packets = useDataStore((s) => s.packets);
   const displayFormat = useDataStore((s) => s.displayFormat);
+  const showTimestamp = useDataStore((s) => s.showTimestamp);
   const autoScroll = useDataStore((s) => s.autoScroll);
   const searchQuery = useDataStore((s) => s.searchQuery);
   const searchOptions = useDataStore((s) => s.searchOptions);
@@ -274,7 +279,7 @@ export function RxViewer({ portId }: { portId?: string }) {
         {filteredPackets.length === 0 ? (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             {searchQuery && packets.length > 0
-              ? t("terminal.noData")
+              ? t("terminal.noSearchResults")
               : t("terminal.noData")}
           </div>
         ) : (
@@ -302,6 +307,7 @@ export function RxViewer({ portId }: { portId?: string }) {
                   <PacketRow
                     packet={packet}
                     displayFormat={displayFormat}
+                    showTimestamp={showTimestamp}
                     searchQuery={searchQuery}
                     searchOptions={searchOptions}
                   />

@@ -234,17 +234,24 @@ export function ConnectionBar() {
       {/* Script */}
       <select
         disabled={!isConnected}
+        value=""
         onChange={async (e) => {
           if (!activePortId) return;
-          if (e.target.value) {
-            const script = scripts.find((s) => s.name === e.target.value);
-            if (script) {
-              await useConnectionStore
-                .getState()
-                .setPortError(activePortId, null);
-            }
-          } else {
+          const name = e.target.value;
+          if (!name) {
             await tauriApi.detachScript(activePortId);
+            return;
+          }
+          const info = scripts.find((s) => s.name === name);
+          if (!info) return;
+          try {
+            const resp = await fetch(`file://${info.path}`);
+            const source = await resp.text();
+            await tauriApi.attachScript(activePortId, source);
+          } catch (err) {
+            useConnectionStore
+              .getState()
+              .setPortError(activePortId, String(err));
           }
         }}
       >
@@ -257,7 +264,6 @@ export function ConnectionBar() {
           </option>
         ))}
       </select>
-
     </div>
   );
 }

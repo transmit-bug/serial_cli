@@ -142,6 +142,7 @@
     "exportData": "Export Data",
     "connectToStart": "Connect a serial port to start",
     "noData": "No data received",
+    "noSearchResults": "No matching results",
     "historyUp": "↑",
     "historyDown": "↓",
     "searchMatchCount": "{{matched}} / {{total}}",

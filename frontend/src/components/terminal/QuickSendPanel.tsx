@@ -1,6 +1,6 @@
+import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Trash2 } from "lucide-react";
 import { useCommandStore } from "@/stores/commands";
 import { useConnectionStore } from "@/stores/connection";
 import { useDataStore } from "@/stores/data";
@@ -12,15 +12,18 @@ interface QuickSendPanelProps {
 
 export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
   const { t } = useTranslation();
-  const { portId, status } = useConnectionStore();
+  const activePortId = useConnectionStore((s) => s.activePortId);
+  const connections = useConnectionStore((s) => s.connections);
+  const portId = activePortId;
+  const isConnected =
+    !!activePortId &&
+    connections.find((c) => c.portId === activePortId)?.status === "connected";
   const addPacket = useDataStore((s) => s.addPacket);
   const commands = useCommandStore((s) => s.commands);
   const updateCommand = useCommandStore((s) => s.updateCommand);
   const addCommand = useCommandStore((s) => s.addCommand);
   const deleteCommand = useCommandStore((s) => s.deleteCommand);
   const sendCommand = useCommandStore((s) => s.sendCommand);
-
-  const isConnected = status === "connected";
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<QuickCommand>({
     label: "",
