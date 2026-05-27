@@ -8,6 +8,7 @@
 
 #![allow(dead_code)]
 
+#[cfg(windows)]
 pub mod windows;
 
 use std::collections::HashMap;
@@ -264,72 +265,99 @@ impl ResourceMonitor {
 
     /// Update resource usage (platform-specific)
     pub fn update(&mut self) {
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         {
-            // Get memory usage on Unix systems
-            self.memory_usage = Self::get_memory_usage_unix();
-            self.open_fds = Self::get_open_fds_unix();
+            self.memory_usage = Self::get_memory_usage_linux();
+            self.open_fds = Self::get_open_fds_linux();
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            self.memory_usage = Self::get_memory_usage_macos();
+            self.open_fds = Self::get_open_fds_macos();
         }
 
         #[cfg(windows)]
         {
-            // Use Windows-specific monitoring
             match windows::WindowsPerformanceMonitor::new() {
-                Ok(mut win_monitor) => {
-                    match win_monitor.update_metrics() {
-                        Ok(metrics) => {
-                            self.memory_usage = metrics.working_set_size;
-                            self.cpu_usage = metrics.cpu_usage;
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to update Windows metrics: {:?}", e);
-                            // Fallback to basic memory estimation
-                            self.memory_usage = 0;
-                            self.cpu_usage = 0.0;
-                        }
+                Ok(mut win_monitor) => match win_monitor.update_metrics() {
+                    Ok(metrics) => {
+                        self.memory_usage = metrics.working_set_size;
+                        self.cpu_usage = metrics.cpu_usage;
                     }
-                }
+                    Err(e) => {
+                        tracing::warn!("Failed to update Windows metrics: {:?}", e);
+                        self.memory_usage = 0;
+                        self.cpu_usage = 0.0;
+                    }
+                },
                 Err(e) => {
                     tracing::warn!("Failed to create Windows performance monitor: {:?}", e);
-                    // Fallback values
                     self.memory_usage = 0;
                     self.cpu_usage = 0.0;
                 }
             }
-            // On Windows, file descriptors are not directly accessible
             self.open_fds = 0;
         }
 
         self.thread_count = Self::get_thread_count();
     }
 
-    #[cfg(unix)]
-    fn get_memory_usage_unix() -> usize {
+    #[cfg(target_os = "linux")]
+    fn get_memory_usage_linux() -> usize {
         use std::fs;
-        // Try to read from /proc/self/status
         if let Ok(status) = fs::read_to_string("/proc/self/status") {
             for line in status.lines() {
                 if line.starts_with("VmRSS:") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() >= 2 {
                         if let Ok(kb) = parts[1].parse::<usize>() {
-                            return kb * 1024; // Convert to bytes
+                            return kb * 1024;
                         }
                     }
                 }
             }
         }
-
-        // Fallback: estimate based on heap size
         0
     }
 
-    #[cfg(unix)]
-    fn get_open_fds_unix() -> usize {
+    #[cfg(target_os = "linux")]
+    fn get_open_fds_linux() -> usize {
         use std::fs;
-        // Count entries in /proc/self/fd
         if let Ok(entries) = fs::read_dir("/proc/self/fd") {
             return entries.count();
+        }
+        0
+    }
+
+    #[cfg(target_os = "macos")]
+    fn get_memory_usage_macos() -> usize {
+        unsafe {
+            let mut info: std::mem::MaybeUninit<libc::proc_taskinfo> =
+                std::mem::MaybeUninit::zeroed();
+            let size = libc::proc_pidinfo(
+                libc::getpid(),
+                libc::PROC_PIDTASKINFO,
+                0,
+                info.as_mut_ptr() as *mut libc::c_void,
+                std::mem::size_of::<libc::proc_taskinfo>() as i32,
+            );
+            if size > 0 {
+                return info.assume_init().pti_resident_size as usize;
+            }
+        }
+        0
+    }
+
+    #[cfg(target_os = "macos")]
+    fn get_open_fds_macos() -> usize {
+        unsafe {
+            let pid = libc::getpid();
+            let buf_size =
+                libc::proc_pidinfo(pid, libc::PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0);
+            if buf_size > 0 {
+                return (buf_size as usize) / std::mem::size_of::<libc::proc_fdinfo>();
+            }
         }
         0
     }
