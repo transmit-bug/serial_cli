@@ -239,6 +239,76 @@ pub async fn check_virtual_port_health(
     }
 }
 
+/// Send data to one end of a virtual serial port pair.
+///
+/// Opens the target device path as a regular serial port, writes the data,
+/// and closes it immediately. This is a one-shot write suitable for testing.
+#[tauri::command]
+pub async fn send_to_virtual_port(
+    id: String,
+    port_end: String,
+    data: Vec<u8>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    let registry = state.virtual_port_registry.read().await;
+    let pair = registry
+        .get(&id)
+        .ok_or_else(|| format!("Virtual port not found: {}", id))?;
+
+    let device_path = if port_end == "b" || port_end == "port_b" {
+        pair.port_b.clone()
+    } else if port_end == "a" || port_end == "port_a" {
+        pair.port_a.clone()
+    } else {
+        return Err(format!(
+            "Invalid port_end: {}. Must be 'a' or 'b'",
+            port_end
+        ));
+    };
+    drop(registry);
+
+    // Open the virtual port device through the PortManager, write data, and close it
+    let config = serial_cli::serial_core::SerialConfig {
+        baudrate: 115200,
+        databits: 8,
+        stopbits: 1,
+        parity: serial_cli::serial_core::Parity::None,
+        timeout_ms: 1000,
+        flow_control: serial_cli::serial_core::FlowControl::None,
+        dtr_enable: false,
+        rts_enable: false,
+    };
+
+    let manager = state.port_manager.lock().await;
+    let port_id = manager
+        .open_port_virtual(&device_path, config, true)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let port_handle = manager
+        .get_port(&port_id)
+        .await
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    let mut handle = port_handle.lock().await;
+
+    let bytes_written = handle
+        .write(&data)
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    drop(handle);
+
+    // Clean up the temporary port
+    let _ = manager.close_port(&port_id).await;
+    drop(manager);
+
+    // Emit data-sent event for the virtual port
+    if let Err(e) = crate::events::emitter::emit_data_sent(app, id.clone(), data.clone()).await {
+        log::warn!("Failed to emit data-sent event for virtual port: {}", e);
+    }
+
+    Ok(bytes_written)
+}
+
 /// Get captured packets for a monitored virtual port
 #[tauri::command]
 pub async fn get_captured_packets(

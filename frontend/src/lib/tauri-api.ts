@@ -91,6 +91,8 @@ export const tauriApi = {
     invoke<boolean>("check_virtual_port_health", { id }),
   getCapturedPackets: (id: string) =>
     invoke<CapturedPacket[]>("get_captured_packets", { id }),
+  sendToVirtualPort: (id: string, portEnd: string, data: number[]) =>
+    invoke<number>("send_to_virtual_port", { id, portEnd, data }),
 
   // Config commands
   getConfig: () => invoke<ConfigData>("get_config"),
@@ -111,7 +113,6 @@ export const tauriApi = {
     invoke<void>("delete_connection_preset", { name }),
 
   // Log commands
-  readLogs: (maxLines?: number) =>
-    invoke<string[]>("read_logs", { maxLines }),
+  readLogs: (maxLines?: number) => invoke<string[]>("read_logs", { maxLines }),
   clearLogs: () => invoke<void>("clear_logs"),
 };

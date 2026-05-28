@@ -180,6 +180,7 @@
   "virtual": {
     "title": "Virtual Serial Ports",
     "createPair": "Create New Pair",
+    "createSuccess": "Virtual port pair created",
     "backend": "Backend",
     "portA": "Port A",
     "portB": "Port B",
@@ -189,7 +190,22 @@
     "capturedPackets": "Captured Packets",
     "noPorts": "No virtual ports",
     "startCapture": "Start Capture",
-    "stopCapture": "Stop Capture"
+    "stopCapture": "Stop Capture",
+    "emptyState": "No virtual ports",
+    "emptyStateDesc": "Virtual port pairs let you test serial communication without physical hardware",
+    "filterAll": "All",
+    "packetsBridged": "packets",
+    "errors": "errors",
+    "healthFailed": "Health check failed",
+    "portInfo": "Port Information",
+    "quickSend": "Quick Send",
+    "sendToA": "To A",
+    "sendToB": "To B",
+    "enableMonitor": "Enable monitoring (packet capture)",
+    "bufferSize": "Buffer Size (bytes)",
+    "maxPackets": "Max Packets (0 = unlimited)",
+    "copyPath": "Copy path to clipboard",
+    "noPackets": "No packets captured"
   },
   "scripts": {
     "title": "Scripts",
@@ -271,24 +287,6 @@
     "customFrameDesc": "STX/LEN/CMD/DATA/CHECKSUM/ETX format",
     "simpleAt": "Simple AT",
     "simpleAtDesc": "Line-based AT command/response protocol"
-  },
-  "virtual": {
-    "title": "Virtual Serial Ports",
-    "createPair": "Create New Pair",
-    "backend": "Backend",
-    "portA": "Port A",
-    "portB": "Port B",
-    "uptime": "Uptime",
-    "bridged": "Bridged",
-    "capture": "Capture",
-    "capturedPackets": "Captured Packets",
-    "noPorts": "No virtual ports",
-    "startCapture": "Start Capture",
-    "stopCapture": "Stop Capture",
-    "emptyState": "No virtual ports",
-    "emptyStateDesc": "Virtual port pairs let you test serial communication without physical hardware",
-    "filterAll": "All",
-    "packetsBridged": "Packets Bridged"
   },
   "settings": {
     "title": "Settings",

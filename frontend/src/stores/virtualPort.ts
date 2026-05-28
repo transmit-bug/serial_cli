@@ -14,6 +14,12 @@ interface VirtualPortStore {
   healthMap: Record<string, boolean>;
   loading: boolean;
 
+  // Enhanced state
+  statsMap: Record<string, VirtualPortStats>;
+  throughputMap: Record<string, number>;
+  prevBytesMap: Record<string, number>;
+  createFormOpen: boolean;
+
   refreshPorts: () => Promise<void>;
   createPort: (config: CreateVirtualPortConfig) => Promise<void>;
   stopPort: (id: string) => Promise<void>;
@@ -21,14 +27,22 @@ interface VirtualPortStore {
   checkHealth: (id: string) => Promise<boolean>;
   loadCapturedPackets: (id: string) => Promise<void>;
   setSelectedPort: (id: string | null) => void;
+  setCreateFormOpen: (open: boolean) => void;
+  sendToPort: (portEnd: string, data: number[]) => Promise<number>;
 }
 
-export const useVirtualPortStore = create<VirtualPortStore>()((set) => ({
+export const useVirtualPortStore = create<VirtualPortStore>()((set, get) => ({
   ports: [],
   selectedPort: null,
   capturedPackets: [],
   healthMap: {},
   loading: false,
+
+  // Enhanced state
+  statsMap: {},
+  throughputMap: {},
+  prevBytesMap: {},
+  createFormOpen: false,
 
   refreshPorts: async () => {
     set({ loading: true });
@@ -51,12 +65,29 @@ export const useVirtualPortStore = create<VirtualPortStore>()((set) => ({
     set((s) => ({
       ports: s.ports.filter((p) => p.id !== id),
       selectedPort: s.selectedPort === id ? null : s.selectedPort,
+      statsMap: {
+        ...s.statsMap,
+        [id]: undefined as unknown as VirtualPortStats,
+      },
+      throughputMap: { ...s.throughputMap, [id]: 0 },
     }));
   },
 
   getStats: async (id) => {
     try {
-      return await tauriApi.getVirtualPortStats(id);
+      const stats = await tauriApi.getVirtualPortStats(id);
+      if (stats) {
+        // Compute throughput delta
+        const { prevBytesMap, throughputMap } = get();
+        const prevBytes = prevBytesMap[id] ?? stats.bytes_bridged;
+        const delta = stats.bytes_bridged - prevBytes;
+        set({
+          statsMap: { ...get().statsMap, [id]: stats },
+          throughputMap: { ...throughputMap, [id]: delta },
+          prevBytesMap: { ...prevBytesMap, [id]: stats.bytes_bridged },
+        });
+      }
+      return stats;
     } catch {
       return null;
     }
@@ -83,4 +114,12 @@ export const useVirtualPortStore = create<VirtualPortStore>()((set) => ({
   },
 
   setSelectedPort: (id) => set({ selectedPort: id }),
+
+  setCreateFormOpen: (open) => set({ createFormOpen: open }),
+
+  sendToPort: async (portEnd: string, data: number[]) => {
+    const { selectedPort } = get();
+    if (!selectedPort) throw new Error("No virtual port selected");
+    return tauriApi.sendToVirtualPort(selectedPort, portEnd, data);
+  },
 }));

@@ -180,6 +180,7 @@
   "virtual": {
     "title": "虚拟串口",
     "createPair": "创建新端口对",
+    "createSuccess": "虚拟端口对已创建",
     "backend": "后端",
     "portA": "端口 A",
     "portB": "端口 B",
@@ -189,7 +190,22 @@
     "capturedPackets": "抓包数据",
     "noPorts": "暂无虚拟端口",
     "startCapture": "开始抓包",
-    "stopCapture": "停止抓包"
+    "stopCapture": "停止抓包",
+    "emptyState": "没有虚拟端口",
+    "emptyStateDesc": "虚拟端口对可以用于测试串口通信而无需物理硬件",
+    "filterAll": "全部",
+    "packetsBridged": "个包",
+    "errors": "个错误",
+    "healthFailed": "健康检查失败",
+    "portInfo": "端口信息",
+    "quickSend": "快速发送",
+    "sendToA": "发送到 A",
+    "sendToB": "发送到 B",
+    "enableMonitor": "启用监控（抓包）",
+    "bufferSize": "缓冲区大小 (字节)",
+    "maxPackets": "最大抓包数 (0 = 不限)",
+    "copyPath": "复制路径到剪贴板",
+    "noPackets": "暂无抓包数据"
   },
   "scripts": {
     "title": "脚本",
@@ -271,24 +287,6 @@
     "customFrameDesc": "STX/LEN/CMD/DATA/CHECKSUM/ETX 格式",
     "simpleAt": "简单 AT",
     "simpleAtDesc": "基于行的 AT 命令/响应协议"
-  },
-  "virtual": {
-    "title": "虚拟串口",
-    "createPair": "创建新端口对",
-    "backend": "后端",
-    "portA": "端口 A",
-    "portB": "端口 B",
-    "uptime": "运行时间",
-    "bridged": "桥接数据",
-    "capture": "抓包",
-    "capturedPackets": "抓包数据",
-    "noPorts": "暂无虚拟端口",
-    "startCapture": "开始抓包",
-    "stopCapture": "停止抓包",
-    "emptyState": "没有虚拟端口",
-    "emptyStateDesc": "虚拟端口对可以用于测试串口通信而无需物理硬件",
-    "filterAll": "全部",
-    "packetsBridged": "桥接包数"
   },
   "settings": {
     "title": "设置",
