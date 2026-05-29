@@ -495,6 +495,5 @@ Planned features for future releases:
 ## See Also
 
 - [Architecture Documentation](../dev/ARCH.md)
-- [Server Mode Design](../dev/SERVER_MODE.md)
 - [Protocol Reference](../reference/protocols.md)
 - [AI Usage Guide](USAGE.md)

@@ -163,5 +163,4 @@ serial-cli server stop
 ## See Also
 
 - [Server Mode User Guide](../../docs/ai/SERVER_MODE.md) — detailed API reference and AI integration examples
-- [Server Mode Design](../../docs/dev/SERVER_MODE.md) — technical design (Chinese)
 - [Architecture Documentation](../../docs/dev/ARCH.md) — project structure and module layout

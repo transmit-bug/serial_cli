@@ -27,7 +27,7 @@ docs/
 │   └── ui-actions.md
 └── ai/             # AI/automation workflow docs
     ├── USAGE.md
-    └── SERVER_MODE.md
+    └── SERVER_MODE.md   # Server mode API reference (user-facing)
 ```
 
 ## Documentation Guidelines
