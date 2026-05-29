@@ -84,6 +84,18 @@ harness = false
 name = "lua_execution"
 harness = false
 
+[[bench]]
+name = "serial_io"
+harness = false
+
+[[bench]]
+name = "startup"
+harness = false
+
+[[bench]]
+name = "concurrency"
+harness = false
+
 [lib]
 name = "serial_cli"
 path = "src/lib.rs"

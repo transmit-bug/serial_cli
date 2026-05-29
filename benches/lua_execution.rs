@@ -3,8 +3,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use serial_cli::lua::LuaEngine;
 
-mod common;
-
 /// Benchmark script execution overhead
 fn bench_script_overhead(c: &mut Criterion) {
     let mut group = c.benchmark_group("script_overhead");

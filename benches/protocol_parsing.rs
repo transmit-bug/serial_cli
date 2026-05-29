@@ -5,8 +5,6 @@ use serial_cli::protocol::built_in::modbus::ModbusMode;
 use serial_cli::protocol::built_in::{AtCommandProtocol, LineProtocol, ModbusProtocol};
 use serial_cli::protocol::Protocol;
 
-mod common;
-
 /// Benchmark AT command parsing
 fn bench_at_command_parsing(c: &mut Criterion) {
     let mut group = c.benchmark_group("at_command_parsing");
