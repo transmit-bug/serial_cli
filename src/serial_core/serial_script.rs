@@ -40,6 +40,8 @@ pub struct SerialScriptEngine {
     lua: Arc<Mutex<LuaSend>>,
     /// Script source (for hot-reload)
     script: String,
+    /// Stored send callback — re-registered on hot-reload
+    send_fn: Option<SendFn>,
     /// Timer interval in ms (0 = disabled)
     timer_interval_ms: u64,
     /// Timer task handle
@@ -69,6 +71,7 @@ impl SerialScriptEngine {
         Ok(Self {
             lua: Arc::new(Mutex::new(LuaSend::new(lua))),
             script: script.to_string(),
+            send_fn: None,
             timer_interval_ms: 0,
             timer_task: None,
             timer_stop: Arc::new(Mutex::new(false)),
@@ -97,7 +100,8 @@ impl SerialScriptEngine {
 
     /// Register the serial_send callback in Lua globals.
     /// This must be called after `load()` and before using the engine.
-    pub fn set_send_callback(&self, send_fn: SendFn) -> Result<()> {
+    pub fn set_send_callback(&mut self, send_fn: SendFn) -> Result<()> {
+        self.send_fn = Some(send_fn.clone());
         let lua_guard = self.lua.lock().unwrap();
         let lua = lua_guard.inner();
         let globals = lua.globals();
@@ -335,7 +339,14 @@ impl SerialScriptEngine {
         *self.lua.lock().unwrap() = LuaSend::new(lua);
         self.script = new_script.to_string();
 
-        self.load()
+        self.load()?;
+
+        // Re-register the send callback on the new Lua instance
+        if let Some(ref send_fn) = self.send_fn.clone() {
+            self.set_send_callback(send_fn.clone())?;
+        }
+
+        Ok(())
     }
 
     /// Get the timer interval in ms (0 = disabled).

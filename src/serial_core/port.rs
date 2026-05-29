@@ -92,6 +92,9 @@ pub struct SerialPortHandle {
     /// When a protocol is set, raw bytes are appended here before parsing,
     /// allowing multi-read frames (e.g., Modbus RTU) to be reassembled.
     frame_buffer: Vec<u8>,
+    /// Excess buffer for data returned by on_recv that didn't fit the caller's buffer.
+    /// Prepend this data on the next read() call before performing an OS read.
+    excess_buffer: Vec<u8>,
     script_engine: Option<SerialScriptEngine>,
     dtr_state: bool,
     rts_state: bool,
@@ -335,6 +338,7 @@ impl PortManager {
             config,
             protocol: None,
             frame_buffer: Vec::new(),
+            excess_buffer: Vec::new(),
             script_engine: None,
             dtr_state,
             rts_state,
@@ -354,19 +358,24 @@ impl PortManager {
             tokio::spawn(async move {
                 let mut buffer = vec![0u8; 4096];
                 loop {
-                    let mut handle = port_handle_clone.lock().await;
-                    match handle.read(&mut buffer) {
-                        Ok(n) if n > 0 => {
-                            let data = buffer[..n].to_vec();
-                            tracing::debug!("IoLoop: Received {} bytes from {}", n, port_id_clone);
-                            if let Ok(text) = String::from_utf8(data.clone()) {
-                                tracing::debug!("Data: {}", text);
-                            }
+                    // Hold the lock only for the duration of the read,
+                    // then release it so external callers can access the port.
+                    let n = {
+                        let mut handle = port_handle_clone.lock().await;
+                        match handle.read(&mut buffer) {
+                            Ok(n) => n,
+                            Err(_) => break,
                         }
-                        Ok(_) => {}
-                        Err(_) => break,
+                    }; // Lock released here
+
+                    if n > 0 {
+                        let data = buffer[..n].to_vec();
+                        tracing::debug!("IoLoop: Received {} bytes from {}", n, port_id_clone);
+                        if let Ok(text) = String::from_utf8(data.clone()) {
+                            tracing::debug!("Data: {}", text);
+                        }
                     }
-                    drop(handle);
+
                     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
                 }
             });
@@ -745,7 +754,7 @@ impl SerialPortHandle {
     /// # Safety
     ///
     /// The script engine must not outlive the port handle.
-    pub unsafe fn attach_script(&mut self, engine: SerialScriptEngine) -> Result<()> {
+    pub unsafe fn attach_script(&mut self, mut engine: SerialScriptEngine) -> Result<()> {
         if self.script_engine.is_some() {
             return Err(SerialError::Script(crate::error::ScriptError::ApiError(
                 "A script is already attached to this port".to_string(),
@@ -909,8 +918,8 @@ impl SerialPortHandle {
             data.to_vec()
         };
 
-        // If script returned nil (intercepted), don't send anything
-        if after_script.is_empty() && self.script_engine.is_some() {
+        // If script returned nil or empty result, treat as intercepted — don't send
+        if after_script.is_empty() {
             return Ok(0);
         }
 
@@ -934,14 +943,26 @@ impl SerialPortHandle {
     /// Read bytes from the serial port into the provided buffer.
     /// Returns the number of bytes actually read. Respects the configured timeout.
     ///
-    /// Data flow: serial port → protocol `parse()` → script `on_recv()` → caller.
-    /// The script can intercept, modify, suppress, or auto-reply to received data.
+    /// Data flow: excess buffer (if any) → serial port → protocol `parse()` →
+    /// script `on_recv()` → caller. The script can intercept, modify, suppress,
+    /// or auto-reply to received data.
+    ///
+    /// If `on_recv` returns more data than fits in `buf`, excess data is stored
+    /// and prepended on the next `read()` call — no data is silently lost.
     ///
     /// # Errors
     ///
     /// Returns [`SerialError::Serial`] with [`IoError`](SerialPortError::IoError)
     /// if the read fails (e.g., timeout, disconnected).
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        // First, drain any excess data from a previous call
+        if !self.excess_buffer.is_empty() {
+            let len = self.excess_buffer.len().min(buf.len());
+            buf[..len].copy_from_slice(&self.excess_buffer[..len]);
+            self.excess_buffer.drain(..len);
+            return Ok(len);
+        }
+
         let n = self
             .port
             .read(buf)
@@ -956,13 +977,15 @@ impl SerialPortHandle {
             // Append new data to the frame buffer
             self.frame_buffer.extend_from_slice(&buf[..n]);
 
-            // Safety limit: discard stale buffer if it grows beyond 64 KB
+            // Safety limit: trim oldest bytes from buffer if it grows beyond 64 KB
             if self.frame_buffer.len() > 65536 {
+                let trim = self.frame_buffer.len() - 32768;
                 tracing::warn!(
-                    "frame buffer overflow ({} bytes), clearing",
-                    self.frame_buffer.len()
+                    "frame buffer overflow ({} bytes), trimming oldest {} bytes",
+                    self.frame_buffer.len(),
+                    trim
                 );
-                self.frame_buffer.clear();
+                self.frame_buffer.drain(..trim);
             }
 
             match proto.parse(&self.frame_buffer) {
@@ -976,13 +999,17 @@ impl SerialPortHandle {
                     parsed
                 }
                 Err(e) => {
-                    // Parse error — discard buffer, return raw data from this read
+                    // Parse error — discard first byte (likely corrupt/stale) and
+                    // retain remaining buffer for the next parse attempt.
                     tracing::debug!(
                         "protocol parse error ({} bytes buffered): {}",
                         self.frame_buffer.len(),
                         e
                     );
-                    self.frame_buffer.clear();
+                    if !self.frame_buffer.is_empty() {
+                        self.frame_buffer.drain(..1);
+                    }
+                    // Return raw data from this read so caller still sees it
                     buf[..n].to_vec()
                 }
             }
@@ -997,9 +1024,12 @@ impl SerialPortHandle {
             after_protocol
         };
 
-        // Copy result back to buffer
+        // Copy result back to buffer, storing excess for the next call
         let len = after_script.len().min(buf.len());
         buf[..len].copy_from_slice(&after_script[..len]);
+        if after_script.len() > len {
+            self.excess_buffer.extend_from_slice(&after_script[len..]);
+        }
         Ok(len)
     }
 
