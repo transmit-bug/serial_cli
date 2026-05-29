@@ -7,6 +7,7 @@ use crate::serial_core::PortManager;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::{Mutex, RwLock};
@@ -28,6 +29,11 @@ pub struct ServerState {
 
     /// Server configuration
     pub config: ServerConfig,
+
+    /// Total RPC requests processed
+    pub total_requests: Arc<AtomicU64>,
+    /// Total RPC errors
+    pub total_errors: Arc<AtomicU64>,
 }
 
 /// Server configuration
@@ -66,6 +72,10 @@ pub struct ConnectionContext {
 
     /// Last activity timestamp
     pub last_activity: SystemTime,
+
+    /// Whether this connection is subscribed to data push notifications
+    #[serde(default)]
+    pub subscribed: bool,
 }
 
 impl ServerState {
@@ -81,6 +91,8 @@ impl ServerState {
             protocol_manager,
             connections: Arc::new(RwLock::new(HashMap::new())),
             config,
+            total_requests: Arc::new(AtomicU64::new(0)),
+            total_errors: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -199,6 +211,7 @@ mod tests {
             protocol_name: None,
             created_at: SystemTime::now(),
             last_activity: SystemTime::now(),
+            subscribed: false,
         }
     }
 

@@ -17,7 +17,7 @@ use crate::serial_core::signals::PlatformSignals;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
 
 /// Thread-safe manager for discovering, opening, and tracking serial ports.
 ///
@@ -95,6 +95,10 @@ pub struct SerialPortHandle {
     /// Excess buffer for data returned by on_recv that didn't fit the caller's buffer.
     /// Prepend this data on the next read() call before performing an OS read.
     excess_buffer: Vec<u8>,
+    /// Broadcast channel for received raw data.
+    /// Subscribers (e.g., server connections) receive data pushed by the IoLoop.
+    /// Buffer size of 32 means slow subscribers will drop oldest data.
+    data_tx: broadcast::Sender<Vec<u8>>,
     script_engine: Option<SerialScriptEngine>,
     dtr_state: bool,
     rts_state: bool,
@@ -332,6 +336,7 @@ impl PortManager {
 
         let dtr_state = config.dtr_enable;
         let rts_state = config.rts_enable;
+        let (data_tx, _data_rx) = broadcast::channel::<Vec<u8>>(32);
         let handle = SerialPortHandle {
             name: name.to_string(),
             port,
@@ -339,6 +344,7 @@ impl PortManager {
             protocol: None,
             frame_buffer: Vec::new(),
             excess_buffer: Vec::new(),
+            data_tx,
             script_engine: None,
             dtr_state,
             rts_state,
@@ -348,6 +354,7 @@ impl PortManager {
 
         let mut ports_guard = self.ports.lock().await;
         let port_id = format!("{}-{}", name, uuid::Uuid::new_v4());
+        let data_tx_clone = handle.data_tx.clone();
         let port_handle = Arc::new(Mutex::new(handle));
         ports_guard.insert(port_id.clone(), port_handle.clone());
 
@@ -358,20 +365,19 @@ impl PortManager {
             tokio::spawn(async move {
                 let mut buffer = vec![0u8; 4096];
                 loop {
-                    // Hold the lock only for the duration of the read,
-                    // then release it so external callers can access the port.
                     let n = {
                         let mut handle = port_handle_clone.lock().await;
                         match handle.read(&mut buffer) {
                             Ok(n) => n,
                             Err(_) => break,
                         }
-                    }; // Lock released here
+                    };
 
                     if n > 0 {
                         let data = buffer[..n].to_vec();
+                        let _ = data_tx_clone.send(data.clone());
                         tracing::debug!("IoLoop: Received {} bytes from {}", n, port_id_clone);
-                        if let Ok(text) = String::from_utf8(data.clone()) {
+                        if let Ok(text) = String::from_utf8(data) {
                             tracing::debug!("Data: {}", text);
                         }
                     }
@@ -732,6 +738,13 @@ impl SerialPortHandle {
     /// Get the port's active [`SerialConfig`].
     pub fn config(&self) -> &SerialConfig {
         &self.config
+    }
+
+    /// Subscribe to the data broadcast channel.
+    /// Returns a [`broadcast::Receiver<Vec<u8>>`] that receives raw data
+    /// from the IoLoop. Used by the server for push notifications.
+    pub fn subscribe_data(&self) -> broadcast::Receiver<Vec<u8>> {
+        self.data_tx.subscribe()
     }
 
     /// Get the protocol name associated with this port, if one has been set.

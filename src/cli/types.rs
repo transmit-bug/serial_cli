@@ -247,18 +247,6 @@ pub enum ServerCommand {
     /// Server status
     Status,
 
-    /// (Internal) Server daemon entry point
-    #[command(hide = true)]
-    Daemon {
-        /// Unix socket path
-        #[arg(long)]
-        socket_path: Option<String>,
-
-        /// TCP port
-        #[arg(long)]
-        port: Option<u16>,
-    },
-
     /// Call RPC method (for AI/automation)
     Call {
         /// RPC method name (e.g., port_open, port_send)

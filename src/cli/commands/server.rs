@@ -11,9 +11,10 @@ use crate::server::listener::{run_socket_server, spawn_idle_cleanup_task};
 use crate::server::session::{ServerSessionManager, ServerSessionMeta};
 #[cfg(unix)]
 use crate::server::state::{default_log_path, default_socket_path, ServerConfig, ServerState};
+#[cfg(unix)]
+use tokio_util::sync::CancellationToken;
 use std::io;
 use std::path::PathBuf;
-use std::process::Command;
 
 /// Dispatch a [`ServerCommand`] to the appropriate handler.
 #[cfg(unix)]
@@ -32,10 +33,6 @@ pub async fn handle_server_command(cmd: ServerCommand, _json_output: bool) -> Re
         }
         ServerCommand::Status => {
             show_server_status().await?;
-        }
-        ServerCommand::Daemon { socket_path, port } => {
-            // This is the entry point for the daemon process
-            run_daemon(socket_path, port).await?;
         }
         ServerCommand::Call {
             method,
@@ -71,7 +68,7 @@ async fn start_server(
     // Check if server is already running
     if let Ok(Some(meta)) = ServerSessionManager::load_session() {
         if ServerSessionManager::is_process_running(meta.pid) {
-            println!("✗ Server is already running (PID: {})", meta.pid);
+            println!("Server is already running (PID: {})", meta.pid);
             println!("  Socket: {}", meta.socket_path.display());
             println!("  Use 'server stop' to stop the server first.");
             return Err(SerialError::Io(io::Error::new(
@@ -84,62 +81,62 @@ async fn start_server(
         }
     }
 
-    // Prepare configuration
+    // Prepare paths
     let socket_path = socket_path
         .map(PathBuf::from)
         .unwrap_or_else(default_socket_path);
 
     let log_path = log.map(PathBuf::from).unwrap_or_else(default_log_path);
+    let pid_file = ServerSessionManager::session_dir()?.join("server.pid");
+    let stdout_file = log_path.with_extension("out");
+    let stderr_file = log_path.with_extension("err");
 
-    // Spawn daemon process
-    let current_exe = std::env::current_exe()?;
-    let mut args = vec![
-        "server".to_string(),
-        "daemon".to_string(),
-        "--socket-path".to_string(),
-        socket_path.to_str().unwrap().to_string(),
-    ];
+    // Daemonize: fork into background, child continues here
+    let daemonize = daemonize::Daemonize::new()
+        .pid_file(&pid_file)
+        .working_directory("/")
+        .stdout(
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&stdout_file)?,
+        )
+        .stderr(
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&stderr_file)?,
+        );
 
-    if let Some(p) = port {
-        args.push("--port".to_string());
-        args.push(p.to_string());
+    let outcome = daemonize.execute();
+
+    if outcome.is_parent() {
+        // Parent process — daemon forked, wait briefly then check session
+        std::thread::sleep(std::time::Duration::from_millis(300));
+
+        if let Ok(Some(meta)) = ServerSessionManager::load_session() {
+            if ServerSessionManager::is_process_running(meta.pid) {
+                println!("Server started successfully");
+                println!("  PID: {}", meta.pid);
+                println!("  Socket: {}", socket_path.display());
+                println!("  Log: {}", log_path.display());
+                println!("  Max connections: {}", max_connections);
+                println!();
+                println!("Use 'server status' to check server status.");
+                println!("Use 'server call <method> <args>' to send RPC requests.");
+            } else {
+                eprintln!("Server process exited immediately");
+                return Err(SerialError::Io(io::Error::other("Server process exited")));
+            }
+        } else {
+            eprintln!("Server started but session file not created");
+            return Err(SerialError::Io(io::Error::other("Session file missing")));
+        }
+        return Ok(());
     }
 
-    let mut child = Command::new(&current_exe)
-        .args(&args)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
-
-    // Give the daemon a moment to start
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    // Check if it's still running
-    match child.try_wait() {
-        Ok(Some(status)) => {
-            println!("✗ Server failed to start");
-            println!("  Exit status: {}", status);
-            return Err(SerialError::Io(io::Error::other("Server process exited")));
-        }
-        Ok(None) => {
-            // Still running - success
-            let pid = child.id();
-            println!("✓ Server started successfully");
-            println!("  PID: {}", pid);
-            println!("  Socket: {}", socket_path.display());
-            println!("  Log: {}", log_path.display());
-            println!("  Max connections: {}", max_connections);
-            println!();
-            println!("Use 'server status' to check server status.");
-            println!("Use 'server call <method> <args>' to send RPC requests.");
-        }
-        Err(e) => {
-            println!("✗ Failed to check server status: {}", e);
-            return Err(SerialError::Io(e));
-        }
-    }
-
-    Ok(())
+    // Child process — run the actual daemon
+    run_daemon(socket_path.clone(), port, log_path).await
 }
 
 /// Stop the server daemon
@@ -227,18 +224,16 @@ async fn show_server_status() -> Result<()> {
 
 /// Run the daemon process (entry point for daemon)
 #[cfg(unix)]
-async fn run_daemon(socket_path: Option<String>, port: Option<u16>) -> Result<()> {
-    let socket_path = socket_path
-        .map(PathBuf::from)
-        .unwrap_or_else(default_socket_path);
-
-    // Create server state
+async fn run_daemon(socket_path: PathBuf, port: Option<u16>, log_path: PathBuf) -> Result<()> {
+    // Create server state (config values used throughout)
+    let max_connections = 10;
+    let idle_timeout_secs = 300;
     let config = ServerConfig {
         socket_path: Some(socket_path.clone()),
         tcp_port: port,
-        max_connections: 10,
-        log_path: default_log_path(),
-        idle_timeout_secs: 300,
+        max_connections,
+        log_path: log_path.clone(),
+        idle_timeout_secs,
     };
 
     let state = ServerState::new(config).await;
@@ -250,18 +245,37 @@ async fn run_daemon(socket_path: Option<String>, port: Option<u16>) -> Result<()
         socket_path: socket_path.clone(),
         tcp_port: port,
         started_at: ServerSessionManager::current_timestamp(),
-        log_path: PathBuf::from("/tmp/serial-cli-server.log"),
-        max_connections: 10,
+        log_path,
+        max_connections,
     };
     ServerSessionManager::save_session(&meta)?;
 
+    // CancellationToken for graceful shutdown
+    let token = CancellationToken::new();
+
+    // Spawn SIGTERM handler
+    let token_clone = token.clone();
+    tokio::spawn(async move {
+        if let Ok(mut sigterm) =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        {
+            sigterm.recv().await;
+            tracing::info!("Received SIGTERM, initiating graceful shutdown...");
+            token_clone.cancel();
+        }
+    });
+
     // Spawn idle connection cleanup task
-    spawn_idle_cleanup_task(state.clone());
+    spawn_idle_cleanup_task(state.clone(), token.clone());
 
-    // Run server (blocking)
-    run_socket_server(state, socket_path).await?;
+    // Run server (blocks until shutdown signal)
+    let result = run_socket_server(state.clone(), socket_path.clone(), token.clone()).await;
 
-    Ok(())
+    // Cleanup after shutdown
+    tracing::info!("Shutting down: clearing session...");
+    ServerSessionManager::clear_session()?;
+
+    result
 }
 
 /// Call RPC method over Unix socket

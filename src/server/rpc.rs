@@ -1,12 +1,65 @@
 //! JSON-RPC 2.0 dispatcher
 //!
 //! Handles incoming JSON-RPC requests and dispatches to appropriate method handlers.
+//! Uses typed parameter structs for automatic serde deserialization.
 
 use crate::serial_core::SerialConfig;
+use crate::server::session::ServerSessionManager;
 use crate::server::state::{ConnectionContext, ServerState};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::SystemTime;
+
+// ── Typed parameter structs ──────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct PortOpenParams {
+    port: String,
+    #[serde(default = "default_baudrate")]
+    baudrate: u32,
+    protocol: Option<String>,
+}
+
+fn default_baudrate() -> u32 {
+    115200
+}
+
+#[derive(Deserialize)]
+struct PortCloseParams {
+    connection_id: String,
+}
+
+#[derive(Deserialize)]
+struct PortSendParams {
+    connection_id: String,
+    data: String,
+}
+
+#[derive(Deserialize)]
+struct PortRecvParams {
+    connection_id: String,
+    #[serde(default = "default_timeout")]
+    timeout: u64,
+}
+
+fn default_timeout() -> u64 {
+    1000
+}
+
+#[derive(Deserialize)]
+struct ProtocolLoadParams {
+    path: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    name: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ProtocolUnloadParams {
+    name: String,
+}
+
+// ── JSON-RPC envelope types ─────────────────────────────────────────────
 
 /// JSON-RPC 2.0 request
 #[derive(Debug, Deserialize)]
@@ -17,7 +70,7 @@ struct JsonRpcRequest {
     id: Value,
 }
 
-/// JSON-RPC 2.0 response (built at dispatch time, not deserialized)
+/// JSON-RPC 2.0 response
 #[derive(Debug, Serialize)]
 struct JsonRpcResponse {
     jsonrpc: &'static str,
@@ -74,12 +127,18 @@ impl RpcDispatcher {
             ));
         }
 
+        self.state
+            .total_requests
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         let result: Result<Value, MethodError> = match req.method.as_str() {
             "port_list" => self.port_list(req.params).await,
             "port_open" => self.port_open(req.params).await,
             "port_close" => self.port_close(req.params).await,
             "port_send" => self.port_send(req.params).await,
             "port_recv" => self.port_recv(req.params).await,
+            "port_subscribe" => self.port_subscribe(req.params).await,
+            "port_unsubscribe" => self.port_unsubscribe(req.params).await,
             "protocol_list" => self.protocol_list(req.params).await,
             "protocol_load" => self.protocol_load(req.params).await,
             "protocol_unload" => self.protocol_unload(req.params).await,
@@ -87,6 +146,12 @@ impl RpcDispatcher {
             "server_stats" => self.server_stats(req.params).await,
             _ => Err((-32601, "Method not found".to_string(), None)),
         };
+
+        if result.is_err() {
+            self.state
+                .total_errors
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
 
         let response = match result {
             Ok(value) => Self::success_resp(value, &req.id),
@@ -148,27 +213,14 @@ impl RpcDispatcher {
 
     /// Open a serial port
     async fn port_open(&self, params: Option<Value>) -> Result<Value, MethodError> {
-        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
-
-        let port = params.get("port").and_then(|v| v.as_str()).ok_or((
-            -32602,
-            "Missing 'port' parameter".to_string(),
-            None,
-        ))?;
-
-        let baudrate = params
-            .get("baudrate")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(115200) as u32;
-
-        let protocol_name = params.get("protocol").and_then(|v| v.as_str());
+        let params: PortOpenParams = parse_params(params)?;
 
         if self.state.is_max_connections_reached().await {
             return Err((-32000, "Max connections reached".to_string(), None));
         }
 
         let config = SerialConfig {
-            baudrate,
+            baudrate: params.baudrate,
             ..Default::default()
         };
 
@@ -177,12 +229,12 @@ impl RpcDispatcher {
             .port_manager
             .lock()
             .await
-            .open_port(port, config)
+            .open_port(&params.port, config)
             .await
             .map_err(|e| (-32603, e.to_string(), None))?;
 
         // Attach protocol instance to the port handle if one was requested
-        if let Some(proto_name) = protocol_name {
+        if let Some(ref proto_name) = params.protocol {
             let registry = self.state.protocol_registry.lock().await;
             let port_manager = self.state.port_manager.lock().await;
             if let Err(e) = port_manager
@@ -195,7 +247,6 @@ impl RpcDispatcher {
                     port_id,
                     e
                 );
-                // Don't fail the open — the port works without a protocol
             }
         }
 
@@ -203,9 +254,10 @@ impl RpcDispatcher {
         let ctx = ConnectionContext {
             connection_id: connection_id.clone(),
             port_id: Some(port_id.clone()),
-            protocol_name: protocol_name.map(|s| s.to_string()),
+            protocol_name: params.protocol.clone(),
             created_at: SystemTime::now(),
             last_activity: SystemTime::now(),
+            subscribed: false,
         };
 
         self.state
@@ -215,25 +267,16 @@ impl RpcDispatcher {
 
         Ok(serde_json::json!({
             "connection_id": connection_id,
-            "port": port,
-            "protocol": protocol_name,
+            "port": params.port,
+            "protocol": params.protocol,
         }))
     }
 
     /// Close a serial port
     async fn port_close(&self, params: Option<Value>) -> Result<Value, MethodError> {
-        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
+        let params: PortCloseParams = parse_params(params)?;
 
-        let connection_id = params
-            .get("connection_id")
-            .and_then(|v| v.as_str())
-            .ok_or((
-                -32602,
-                "Missing 'connection_id' parameter".to_string(),
-                None,
-            ))?;
-
-        let ctx = self.state.remove_connection(connection_id).await.ok_or((
+        let ctx = self.state.remove_connection(&params.connection_id).await.ok_or((
             -32603,
             "Connection not found".to_string(),
             None,
@@ -251,33 +294,17 @@ impl RpcDispatcher {
 
         Ok(serde_json::json!({
             "success": true,
-            "connection_id": connection_id,
+            "connection_id": params.connection_id,
         }))
     }
 
     /// Send data to a port
     async fn port_send(&self, params: Option<Value>) -> Result<Value, MethodError> {
-        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
-
-        let connection_id = params
-            .get("connection_id")
-            .and_then(|v| v.as_str())
-            .ok_or((
-                -32602,
-                "Missing 'connection_id' parameter".to_string(),
-                None,
-            ))?
-            .to_string();
-
-        let data_str = params.get("data").and_then(|v| v.as_str()).ok_or((
-            -32602,
-            "Missing 'data' parameter".to_string(),
-            None,
-        ))?;
+        let params: PortSendParams = parse_params(params)?;
 
         let port_id = {
             let connections = self.state.connections.read().await;
-            let ctx = connections.get(&connection_id).ok_or((
+            let ctx = connections.get(&params.connection_id).ok_or((
                 -32603,
                 "Connection not found".to_string(),
                 None,
@@ -287,11 +314,11 @@ impl RpcDispatcher {
                 .ok_or((-32603, "No port associated".to_string(), None))?
         };
 
-        let data = if let Some(hex_str) = data_str.strip_prefix("hex:") {
+        let data = if let Some(hex_str) = params.data.strip_prefix("hex:") {
             crate::cli::commands::parsers::parse_hex_string(hex_str)
                 .map_err(|e| (-32602, e.to_string(), None))?
         } else {
-            data_str.as_bytes().to_vec()
+            params.data.as_bytes().to_vec()
         };
 
         let port_handle = self
@@ -308,7 +335,7 @@ impl RpcDispatcher {
             .write(&data)
             .map_err(|e| (-32603, e.to_string(), None))?;
 
-        self.state.update_activity(&connection_id).await;
+        self.state.update_activity(&params.connection_id).await;
 
         Ok(serde_json::json!({
             "bytes_sent": bytes_sent,
@@ -317,26 +344,11 @@ impl RpcDispatcher {
 
     /// Receive data from a port
     async fn port_recv(&self, params: Option<Value>) -> Result<Value, MethodError> {
-        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
-
-        let connection_id = params
-            .get("connection_id")
-            .and_then(|v| v.as_str())
-            .ok_or((
-                -32602,
-                "Missing 'connection_id' parameter".to_string(),
-                None,
-            ))?
-            .to_string();
-
-        let timeout_ms = params
-            .get("timeout")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(1000);
+        let params: PortRecvParams = parse_params(params)?;
 
         let port_id = {
             let connections = self.state.connections.read().await;
-            let ctx = connections.get(&connection_id).ok_or((
+            let ctx = connections.get(&params.connection_id).ok_or((
                 -32603,
                 "Connection not found".to_string(),
                 None,
@@ -355,7 +367,7 @@ impl RpcDispatcher {
             .await
             .map_err(|e| (-32603, e.to_string(), None))?;
 
-        let timeout_duration = std::time::Duration::from_millis(timeout_ms);
+        let timeout_duration = std::time::Duration::from_millis(params.timeout);
 
         let read_result = tokio::time::timeout(
             timeout_duration,
@@ -384,12 +396,61 @@ impl RpcDispatcher {
             }
         };
 
-        self.state.update_activity(&connection_id).await;
+        self.state.update_activity(&params.connection_id).await;
 
         Ok(serde_json::json!({
             "data": data_hex,
             "bytes_read": bytes_read,
             "timeout": timed_out,
+        }))
+    }
+
+    /// Subscribe to data push notifications for a port
+    async fn port_subscribe(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        #[derive(Deserialize)]
+        struct Params {
+            connection_id: String,
+        }
+        let params: Params = parse_params(params)?;
+
+        let mut connections = self.state.connections.write().await;
+        let ctx = connections.get_mut(&params.connection_id).ok_or((
+            -32603,
+            "Connection not found".to_string(),
+            None,
+        ))?;
+
+        if ctx.subscribed {
+            return Ok(serde_json::json!({
+                "subscribed": true,
+                "already_subscribed": true,
+            }));
+        }
+
+        ctx.subscribed = true;
+        Ok(serde_json::json!({
+            "subscribed": true,
+        }))
+    }
+
+    /// Unsubscribe from data push notifications
+    async fn port_unsubscribe(&self, params: Option<Value>) -> Result<Value, MethodError> {
+        #[derive(Deserialize)]
+        struct Params {
+            connection_id: String,
+        }
+        let params: Params = parse_params(params)?;
+
+        let mut connections = self.state.connections.write().await;
+        let ctx = connections.get_mut(&params.connection_id).ok_or((
+            -32603,
+            "Connection not found".to_string(),
+            None,
+        ))?;
+
+        ctx.subscribed = false;
+        Ok(serde_json::json!({
+            "subscribed": false,
         }))
     }
 
@@ -415,17 +476,9 @@ impl RpcDispatcher {
 
     /// Load a custom protocol
     async fn protocol_load(&self, params: Option<Value>) -> Result<Value, MethodError> {
-        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
+        let params: ProtocolLoadParams = parse_params(params)?;
 
-        let path = params.get("path").and_then(|v| v.as_str()).ok_or((
-            -32602,
-            "Missing 'path' parameter".to_string(),
-            None,
-        ))?;
-
-        let _name = params.get("name").and_then(|v| v.as_str());
-
-        let path_buf = std::path::PathBuf::from(path);
+        let path_buf = std::path::PathBuf::from(&params.path);
         let mut manager = self.state.protocol_manager.lock().await;
 
         let info = manager
@@ -441,23 +494,17 @@ impl RpcDispatcher {
 
     /// Unload a custom protocol
     async fn protocol_unload(&self, params: Option<Value>) -> Result<Value, MethodError> {
-        let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
-
-        let name = params.get("name").and_then(|v| v.as_str()).ok_or((
-            -32602,
-            "Missing 'name' parameter".to_string(),
-            None,
-        ))?;
+        let params: ProtocolUnloadParams = parse_params(params)?;
 
         let mut manager = self.state.protocol_manager.lock().await;
         manager
-            .unload_protocol(name)
+            .unload_protocol(&params.name)
             .await
             .map_err(|e| (-32603, e.to_string(), None))?;
 
         Ok(serde_json::json!({
             "success": true,
-            "name": name,
+            "name": params.name,
         }))
     }
 
@@ -487,12 +534,25 @@ impl RpcDispatcher {
         let _ = params;
 
         let stats = self.state.connection_stats().await;
+        let total_requests = self.state.total_requests.load(std::sync::atomic::Ordering::Relaxed);
+        let total_errors = self.state.total_errors.load(std::sync::atomic::Ordering::Relaxed);
+        let started_at = ServerSessionManager::current_timestamp();
 
         Ok(serde_json::json!({
             "connections": stats,
             "max_connections": self.state.config.max_connections,
+            "total_requests": total_requests,
+            "total_errors": total_errors,
+            "started_at": started_at,
         }))
     }
+}
+
+/// Deserialize params from Option<Value> into a typed struct.
+fn parse_params<T: for<'de> Deserialize<'de>>(params: Option<Value>) -> Result<T, MethodError> {
+    let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
+    serde_json::from_value(params)
+        .map_err(|e| (-32602, format!("Invalid params: {}", e), None))
 }
 
 /// Encode bytes as hex string
@@ -603,5 +663,27 @@ mod tests {
         let response = dispatcher.handle_request(request).await;
 
         assert!(response.contains(r#""id":"test-id-123""#));
+    }
+
+    #[tokio::test]
+    async fn test_typed_params_port_open_defaults() {
+        // Verify that PortOpenParams deserializes with defaults
+        let params: PortOpenParams = serde_json::from_value(serde_json::json!({
+            "port": "/dev/ttyUSB0"
+        }))
+        .unwrap();
+        assert_eq!(params.port, "/dev/ttyUSB0");
+        assert_eq!(params.baudrate, 115200);
+        assert!(params.protocol.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_typed_params_port_recv_defaults() {
+        let params: PortRecvParams = serde_json::from_value(serde_json::json!({
+            "connection_id": "test"
+        }))
+        .unwrap();
+        assert_eq!(params.connection_id, "test");
+        assert_eq!(params.timeout, 1000);
     }
 }

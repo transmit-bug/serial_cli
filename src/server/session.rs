@@ -42,7 +42,7 @@ pub struct ServerSessionManager;
 
 impl ServerSessionManager {
     /// Get the directory where session files are stored
-    fn session_dir() -> Result<PathBuf> {
+    pub fn session_dir() -> Result<PathBuf> {
         let cache = directories::BaseDirs::new()
             .ok_or_else(|| {
                 SerialError::Io(std::io::Error::new(
@@ -101,71 +101,29 @@ impl ServerSessionManager {
     }
 
     /// Check if a process with the given PID is still running
-    #[cfg(unix)]
     pub fn is_process_running(pid: u32) -> bool {
-        // SAFETY: kill syscall with sig=0 is the standard POSIX way to check process existence
-        unsafe { libc::kill(pid as libc::pid_t, 0) == 0 }
+        let sys = sysinfo::System::new_with_specifics(
+            sysinfo::RefreshKind::new()
+                .with_processes(sysinfo::ProcessRefreshKind::new()),
+        );
+        sys.process(sysinfo::Pid::from_u32(pid)).is_some()
     }
 
-    #[cfg(windows)]
-    pub fn is_process_running(pid: u32) -> bool {
-        use windows::Win32::Foundation::CloseHandle;
-        use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION};
-
-        let rights = PROCESS_QUERY_INFORMATION;
-        unsafe {
-            match OpenProcess(rights, false, pid) {
-                Ok(handle) => {
-                    if handle.is_invalid() {
-                        false
-                    } else {
-                        let _ = CloseHandle(handle);
-                        true
-                    }
-                }
-                Err(_) => false,
-            }
-        }
-    }
-
-    /// Send SIGTERM to a process
-    #[cfg(unix)]
+    /// Terminate a process by PID
     pub fn stop_process(pid: u32) -> Result<()> {
-        // SAFETY: kill with SIGTERM is the standard way to terminate a process
-        let ret = unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) };
-        if ret != 0 {
-            return Err(SerialError::Io(std::io::Error::other(format!(
-                "Failed to send SIGTERM to process {}",
-                pid
-            ))));
-        }
-        Ok(())
-    }
-
-    #[cfg(windows)]
-    pub fn stop_process(pid: u32) -> Result<()> {
-        use windows::Win32::Foundation::CloseHandle;
-        use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
-
-        let rights = PROCESS_TERMINATE;
-        let handle = unsafe { OpenProcess(rights, false, pid) }.map_err(|e| {
-            SerialError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to open process {}: {:?}", pid, e),
-            ))
-        })?;
-        unsafe {
-            let result = TerminateProcess(handle, 1);
-            let _ = CloseHandle(handle);
-            if result.is_ok() {
-                Ok(())
-            } else {
-                Err(SerialError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to terminate process {}", pid),
+        let sys = sysinfo::System::new_with_specifics(
+            sysinfo::RefreshKind::new()
+                .with_processes(sysinfo::ProcessRefreshKind::new()),
+        );
+        sys.process(sysinfo::Pid::from_u32(pid))
+            .ok_or_else(|| {
+                SerialError::Io(std::io::Error::other(format!(
+                    "Process {} not found",
+                    pid
                 )))
-            }
-        }
+            })?
+            .kill();
+        Ok(())
     }
 
     /// Get current timestamp as UNIX epoch seconds
