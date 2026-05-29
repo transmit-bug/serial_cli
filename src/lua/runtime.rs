@@ -125,7 +125,7 @@ impl ScriptRuntime {
         globals.set(
             "hex_decode",
             lua.create_function(|lua, hex: String| {
-                let bytes = Self::hex_decode(&hex);
+                let bytes = Self::hex_decode(&hex)?;
                 let table = lua.create_table()?;
                 for (i, &byte) in bytes.iter().enumerate() {
                     table.set(i + 1, byte)?;
@@ -137,12 +137,7 @@ impl ScriptRuntime {
         globals.set(
             "hex_to_bytes",
             lua.create_function(|lua, hex: String| {
-                if !hex.len().is_multiple_of(2) {
-                    return Err(mlua::Error::RuntimeError(
-                        "Hex string must have even length".to_string(),
-                    ));
-                }
-                let bytes = Self::hex_decode(&hex);
+                let bytes = Self::hex_decode(&hex)?;
                 let result = lua.create_table()?;
                 for (i, byte) in bytes.iter().enumerate() {
                     result.set(i + 1, *byte)?;
@@ -234,15 +229,26 @@ impl ScriptRuntime {
     }
 
     /// Decode a hex string to bytes (shared helper).
-    fn hex_decode(hex: &str) -> Vec<u8> {
+    fn hex_decode(hex: &str) -> mlua::Result<Vec<u8>> {
         let hex = hex.replace([' ', ':', '-'], "");
-        if !hex.len().is_multiple_of(2) {
-            return vec![];
+        if hex.is_empty() {
+            return Ok(vec![]);
         }
-        (0..hex.len())
+        if !hex.len().is_multiple_of(2) {
+            return Err(mlua::Error::RuntimeError(
+                "Hex string must have even length".to_string(),
+            ));
+        }
+        if !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(mlua::Error::RuntimeError(
+                "Invalid hex string: contains non-hex characters".to_string(),
+            ));
+        }
+        let bytes: Vec<u8> = (0..hex.len())
             .step_by(2)
             .filter_map(|i| u8::from_str_radix(&hex[i..i + 2], 16).ok())
-            .collect()
+            .collect();
+        Ok(bytes)
     }
 }
 
@@ -279,23 +285,43 @@ fn lua_value_to_json(value: Value) -> mlua::Result<serde_json::Value> {
             .ok_or_else(|| mlua::Error::RuntimeError("Invalid float value".to_string())),
         Value::String(s) => Ok(serde_json::Value::String(s.to_str()?.to_string())),
         Value::Table(t) => {
-            let len = t.len().unwrap_or(0) as usize;
-            if len > 0 {
-                let mut arr = Vec::with_capacity(len);
-                for i in 1..=len as i64 {
-                    match t.get(i) {
-                        Ok(v) => arr.push(lua_value_to_json(v)?),
-                        Err(_) => arr.push(serde_json::Value::Null),
-                    }
-                }
+            // Collect all key-value pairs first (pairs() consumes the table).
+            let collected: Vec<(Value, Value)> = t
+                .pairs()
+                .collect::<mlua::Result<Vec<(Value, Value)>>>()
+                .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+
+            let has_string_keys =
+                collected.iter().any(|(k, _)| !matches!(k, Value::Integer(_)));
+            let len = collected.len();
+
+            if len > 0 && !has_string_keys {
+                // Pure array table: sort by integer key and collect values.
+                let mut entries: Vec<(i64, Value)> = collected
+                    .into_iter()
+                    .filter_map(|(k, v)| {
+                        if let Value::Integer(i) = k {
+                            Some((i, v))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                entries.sort_by_key(|(i, _)| *i);
+                let arr: Vec<serde_json::Value> = entries
+                    .into_iter()
+                    .map(|(_, v)| lua_value_to_json(v))
+                    .collect::<mlua::Result<_>>()?;
                 Ok(serde_json::Value::Array(arr))
             } else {
+                // Object table
                 let mut map = serde_json::Map::new();
-                let pairs: mlua::Result<Vec<(mlua::String, Value)>> = t.pairs().collect();
-                for pair in pairs.map_err(|e| mlua::Error::RuntimeError(e.to_string()))? {
-                    let key = pair.0.to_str()?.to_string();
-                    let value = lua_value_to_json(pair.1)?;
-                    map.insert(key, value);
+                for (key, val) in collected {
+                    if let Value::String(s) = key {
+                        let k = s.to_str()?.to_string();
+                        let v = lua_value_to_json(val)?;
+                        map.insert(k, v);
+                    }
                 }
                 Ok(serde_json::Value::Object(map))
             }

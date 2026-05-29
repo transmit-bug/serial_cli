@@ -35,37 +35,34 @@ impl ScriptEngine {
 
     /// Execute a script with arguments
     pub fn execute_with_args(&self, script: &str, args: Vec<String>) -> Result<()> {
-        // Create the 'arg' table in Lua
         let lua = self.bindings.lua();
         let globals = lua.globals();
 
-        // Create arg table
+        // Create the 'arg' table
         let arg_table = lua.create_table()?;
-
-        // Set arg[0] to script name (if available) or empty string
         arg_table.set(0, "script")?;
-
-        // Set arg[1], arg[2], ... to the provided arguments
         for (i, arg) in args.iter().enumerate() {
             arg_table.set(i + 1, arg.clone())?;
         }
-
-        // Set arg.n to the number of arguments
         arg_table.set("n", args.len())?;
-
-        // Set the arg table as a global
         globals.set("arg", arg_table)?;
 
-        // Also set individual global variables for convenience
+        // Set individual global variables for convenience
         for (i, arg) in args.iter().enumerate() {
             let var_name = format!("arg{}", i + 1);
             globals.set(var_name, arg.clone())?;
         }
 
         // Execute the script
-        self.bindings.execute_script(script)?;
+        let result = self.bindings.execute_script(script);
 
-        Ok(())
+        // Clean up globals to prevent state leakage across calls
+        globals.set("arg", mlua::Value::Nil)?;
+        for i in 0..args.len() {
+            globals.set(format!("arg{}", i + 1), mlua::Value::Nil)?;
+        }
+
+        result
     }
 
     /// Get the port manager

@@ -8,11 +8,12 @@
 //! tokio runtime to avoid panicking when Lua executes inside an existing tokio context
 //! (the "cannot block current thread" problem).
 
-use crate::error::{Result, SerialError};
+use crate::error::{Result, SerialError, SerialPortError};
 use crate::lua::runtime::ScriptRuntime;
 use crate::serial_core::PortManager;
 use mlua::{Function, Lua, Value};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 /// Convert a hex-encoded string to bytes (used for binary protocol data in Lua).
@@ -251,28 +252,34 @@ impl LuaBindings {
 
         let recv = self
             .lua
-            .create_function(move |_, (port_id, _timeout_ms): (String, u64)| {
+            .create_function(move |_, (port_id, timeout_ms): (String, u64)| {
                 let pm = port_manager.clone();
                 run_in_separate_runtime(move || async move {
                     let pm_guard = pm.lock().await;
                     let port_handle = pm_guard.get_port(&port_id).await?;
 
-                    // Use spawn_blocking for the synchronous read
-                    let read_result = tokio::task::spawn_blocking(move || {
-                        let mut port = port_handle.blocking_lock();
-                        let mut buffer = vec![0u8; 4096];
-                        let n = port.read(&mut buffer)?;
-                        buffer.truncate(n);
-                        Ok::<_, crate::error::SerialError>(
-                            String::from_utf8_lossy(&buffer).to_string(),
-                        )
-                    })
-                    .await
-                    .map_err(|e| {
-                        crate::error::SerialError::Serial(crate::error::SerialPortError::IoError(
-                            e.to_string(),
-                        ))
-                    })??;
+                    // Use std::thread + mpsc channel to enforce per-call timeout
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    std::thread::spawn(move || {
+                        let result = (|| {
+                            let mut port = port_handle.blocking_lock();
+                            let mut buffer = vec![0u8; 4096];
+                            let n = port.read(&mut buffer)?;
+                            buffer.truncate(n);
+                            Ok::<_, crate::error::SerialError>(
+                                String::from_utf8_lossy(&buffer).to_string(),
+                            )
+                        })();
+                        let _ = tx.send(result);
+                    });
+
+                    let read_result = rx
+                        .recv_timeout(Duration::from_millis(timeout_ms))
+                        .map_err(|_| {
+                            crate::error::SerialError::Serial(SerialPortError::IoError(
+                                "recv timeout".to_string(),
+                            ))
+                        })??;
 
                     Ok(read_result)
                 })
@@ -505,17 +512,11 @@ impl LuaBindings {
     pub fn register_protocol_list(&self) -> Result<()> {
         let list = self.lua.create_function(|lua, ()| {
             let result = lua.create_table()?;
-            let builtins = [
-                ("lines", "Line-based protocol (delimited by newlines)"),
-                ("at_command", "AT Command protocol for modems"),
-                ("modbus_rtu", "Modbus RTU protocol"),
-                ("modbus_ascii", "Modbus ASCII protocol"),
-            ];
+            let builtins = crate::protocol::built_in::BUILTIN_PROTOCOL_NAMES;
 
-            for (i, (name, description)) in builtins.iter().enumerate() {
+            for (i, &name) in builtins.iter().enumerate() {
                 let proto_table = lua.create_table()?;
-                proto_table.set("name", *name)?;
-                proto_table.set("description", *description)?;
+                proto_table.set("name", name)?;
                 proto_table.set("type", "built-in")?;
                 result.set(i + 1, proto_table)?;
             }
@@ -530,23 +531,17 @@ impl LuaBindings {
     /// Register protocol_info API
     pub fn register_protocol_info(&self) -> Result<()> {
         let info = self.lua.create_function(|lua, protocol_name: String| {
-            let builtins = [
-                ("lines", "Line-based protocol (delimited by newlines)"),
-                ("at_command", "AT Command protocol for modems"),
-                ("modbus_rtu", "Modbus RTU protocol"),
-                ("modbus_ascii", "Modbus ASCII protocol"),
-            ];
+            let builtins = crate::protocol::built_in::BUILTIN_PROTOCOL_NAMES;
 
             let protocol = builtins
                 .iter()
-                .find(|(name, _)| *name == protocol_name)
+                .find(|&&name| name == protocol_name)
                 .ok_or_else(|| {
                     mlua::Error::RuntimeError(format!("Protocol not found: {}", protocol_name))
                 })?;
 
             let result = lua.create_table()?;
-            result.set("name", protocol.0)?;
-            result.set("description", protocol.1)?;
+            result.set("name", *protocol)?;
             result.set("type", "built-in")?;
             Ok(result)
         })?;
@@ -1059,10 +1054,9 @@ mod tests {
         bindings.register_protocol_info().unwrap();
 
         let script = r#"
-            local info = protocol_info("lines")
+            local info = protocol_info("line")
             assert(type(info) == "table")
-            assert(info.name == "lines")
-            assert(type(info.description) == "string")
+            assert(info.name == "line")
             assert(info.type == "built-in")
         "#;
 
