@@ -13,7 +13,7 @@ function hexToBytes(data: string): number[] {
     .trim()
     .split(/\s+/)
     .map((b) => parseInt(b, 16))
-    .filter((n) => !Number.isNaN(n));
+    .filter((n) => !Number.isNaN(n) && n >= 0 && n <= 0xff);
 }
 
 function asciiToBytes(data: string): number[] {

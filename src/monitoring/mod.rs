@@ -342,7 +342,7 @@ impl ResourceMonitor {
                 info.as_mut_ptr() as *mut libc::c_void,
                 std::mem::size_of::<libc::proc_taskinfo>() as i32,
             );
-            if size > 0 {
+            if size >= std::mem::size_of::<libc::proc_taskinfo>() as i32 {
                 return info.assume_init().pti_resident_size as usize;
             }
         }
@@ -353,20 +353,70 @@ impl ResourceMonitor {
     fn get_open_fds_macos() -> usize {
         unsafe {
             let pid = libc::getpid();
+            // First call: get required buffer size
             let buf_size =
                 libc::proc_pidinfo(pid, libc::PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0);
-            if buf_size > 0 {
-                return (buf_size as usize) / std::mem::size_of::<libc::proc_fdinfo>();
+            if buf_size <= 0 {
+                return 0;
             }
+            // Second call: actually read the FD entries
+            let mut buf: Vec<libc::proc_fdinfo> =
+                Vec::with_capacity((buf_size as usize) / std::mem::size_of::<libc::proc_fdinfo>());
+            let read_size = libc::proc_pidinfo(
+                pid,
+                libc::PROC_PIDLISTFDS,
+                0,
+                buf.as_mut_ptr() as *mut libc::c_void,
+                buf_size,
+            );
+            if read_size <= 0 {
+                return 0;
+            }
+            buf.set_len((read_size as usize) / std::mem::size_of::<libc::proc_fdinfo>());
+            buf.len()
         }
-        0
     }
 
+    #[cfg(target_os = "linux")]
     fn get_thread_count() -> usize {
-        // Estimate thread count using available parallelism
-        std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(1)
+        // Read from /proc/self/status
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            for line in status.lines() {
+                if line.starts_with("Threads:") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        if let Ok(count) = parts[1].parse::<usize>() {
+                            return count;
+                        }
+                    }
+                }
+            }
+        }
+        1
+    }
+
+    #[cfg(target_os = "macos")]
+    fn get_thread_count() -> usize {
+        unsafe {
+            let mut info: std::mem::MaybeUninit<libc::proc_taskinfo> =
+                std::mem::MaybeUninit::zeroed();
+            let size = libc::proc_pidinfo(
+                libc::getpid(),
+                libc::PROC_PIDTASKINFO,
+                0,
+                info.as_mut_ptr() as *mut libc::c_void,
+                std::mem::size_of::<libc::proc_taskinfo>() as i32,
+            );
+            if size >= std::mem::size_of::<libc::proc_taskinfo>() as i32 {
+                return info.assume_init().pti_threadnum as usize;
+            }
+        }
+        1
+    }
+
+    #[cfg(windows)]
+    fn get_thread_count() -> usize {
+        1 // Windows implementation already uses WindowsPerformanceMonitor
     }
 
     /// Format as string

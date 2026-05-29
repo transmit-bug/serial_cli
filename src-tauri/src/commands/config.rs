@@ -159,6 +159,10 @@ pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> R
     existing_config.display.max_packets = config.display.max_packets;
     existing_config.display.show_timestamp = config.display.show_timestamp;
 
+    existing_config.protocols.hot_reload = config.protocols.hot_reload;
+    existing_config.virtual_ports.backend = config.virtual_ports.backend;
+    existing_config.virtual_ports.monitor = config.virtual_ports.monitor;
+
     // Serialize to TOML
     let toml_string = toml::to_string_pretty(&existing_config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;

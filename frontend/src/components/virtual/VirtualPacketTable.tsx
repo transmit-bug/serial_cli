@@ -24,12 +24,12 @@ export function VirtualPacketTable({
   const filteredPackets = packets.filter((p) => {
     if (directionFilter === "all") return true;
     return directionFilter === "a2b"
-      ? p.direction === "a2b"
-      : p.direction === "b2a";
+      ? p.direction === "AtoB"
+      : p.direction === "BtoA";
   });
 
-  const a2bCount = packets.filter((p) => p.direction === "a2b").length;
-  const b2aCount = packets.filter((p) => p.direction === "b2a").length;
+  const a2bCount = packets.filter((p) => p.direction === "AtoB").length;
+  const b2aCount = packets.filter((p) => p.direction === "BtoA").length;
 
   const handleExport = useCallback(() => {
     if (filteredPackets.length === 0) return;
@@ -123,14 +123,14 @@ export function VirtualPacketTable({
               ) : (
                 filteredPackets.map((pkt, i) => (
                   <tr
-                    key={i}
+                    key={`${pkt.timestamp_millis}-${i}`}
                     className="border-b border-border/50 hover:bg-surface/30"
                   >
                     <td className="px-2 py-1 text-text-muted">{i + 1}</td>
                     <td
-                      className={`px-2 py-1 ${pkt.direction === "a2b" ? "text-accent" : "text-blue-400"}`}
+                      className={`px-2 py-1 ${pkt.direction === "AtoB" ? "text-accent" : "text-blue-400"}`}
                     >
-                      {pkt.direction === "a2b" ? "A→B" : "B→A"}
+                      {pkt.direction === "AtoB" ? "A→B" : "B→A"}
                     </td>
                     <td className="px-2 py-1 text-text-secondary">
                       {new Date(pkt.timestamp_millis).toLocaleTimeString()}

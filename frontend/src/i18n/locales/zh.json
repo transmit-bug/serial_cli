@@ -205,7 +205,10 @@
     "bufferSize": "缓冲区大小 (字节)",
     "maxPackets": "最大抓包数 (0 = 不限)",
     "copyPath": "复制路径到剪贴板",
-    "noPackets": "暂无抓包数据"
+    "noPackets": "暂无抓包数据",
+    "emptyStateCreate": "创建虚拟端口对以开始",
+    "selectPort": "选择端口查看详情",
+    "bridgeDiagram": "[设备] ─ A ◄══► B ─ [程序]"
   },
   "scripts": {
     "title": "脚本",

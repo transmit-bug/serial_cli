@@ -278,7 +278,7 @@ function EmptyState() {
         </div>
         {/* Simple bridge diagram */}
         <div className="text-[10px] font-mono text-text-muted py-1">
-          [设备] ─ A ◄══► B ─ [程序]
+          {t("virtual.bridgeDiagram")}
         </div>
         <button
           onClick={() => setCreateFormOpen(true)}

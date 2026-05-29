@@ -1,6 +1,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { useCommandStore } from "@/stores/commands";
 import type { QuickCommand } from "@/types";
 
@@ -35,8 +36,8 @@ export function CommandSender({
       try {
         await sendFn(cmd.data, cmd.format);
         onSent?.(cmd.data, cmd.format);
-      } catch {
-        // error handled by caller
+      } catch (err) {
+        toast.error(`Send failed: ${err}`);
       }
     },
     [enabled, commands, sendFn, onSent],

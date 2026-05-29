@@ -36,8 +36,8 @@ export function VirtualPortsPage() {
         ) : (
           <div className="flex items-center justify-center h-full text-text-muted text-xs">
             {ports.length === 0
-              ? "Create a virtual port pair to get started"
-              : "Select a port to view details"}
+              ? t("virtual.emptyStateCreate")
+              : t("virtual.selectPort")}
           </div>
         )}
       </div>

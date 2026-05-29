@@ -330,8 +330,8 @@ pub async fn get_captured_packets(
         .into_iter()
         .map(|p| {
             let dir = match p.direction {
-                serial_cli::serial_core::VirtualPacketDirection::AtoB => "A→B".to_string(),
-                serial_cli::serial_core::VirtualPacketDirection::BtoA => "B→A".to_string(),
+                serial_cli::serial_core::VirtualPacketDirection::AtoB => "AtoB".to_string(),
+                serial_cli::serial_core::VirtualPacketDirection::BtoA => "BtoA".to_string(),
             };
             let ts = p
                 .timestamp

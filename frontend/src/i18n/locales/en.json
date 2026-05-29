@@ -205,7 +205,10 @@
     "bufferSize": "Buffer Size (bytes)",
     "maxPackets": "Max Packets (0 = unlimited)",
     "copyPath": "Copy path to clipboard",
-    "noPackets": "No packets captured"
+    "noPackets": "No packets captured",
+    "emptyStateCreate": "Create a virtual port pair to get started",
+    "selectPort": "Select a port to view details",
+    "bridgeDiagram": "[Device] ─ A ◄══► B ─ [App]"
   },
   "scripts": {
     "title": "Scripts",

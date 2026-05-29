@@ -11,6 +11,14 @@ use serial_cli::protocol::ProtocolInfo;
 use std::path::PathBuf;
 use tauri::State;
 
+/// Reject paths containing traversal components or absolute separators.
+fn sanitize_name(name: &str) -> Result<String, String> {
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
+        return Err(format!("Invalid protocol name: path components not allowed"));
+    }
+    Ok(name.to_string())
+}
+
 /// List available protocols
 #[tauri::command]
 pub async fn list_protocols(state: State<'_, AppState>) -> Result<Vec<ProtocolInfo>, String> {
@@ -25,14 +33,25 @@ pub async fn load_protocol(
     state: State<'_, AppState>,
 ) -> Result<ProtocolInfo, String> {
     let path_buf = PathBuf::from(&path);
+    let canonical = path_buf
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve path: {}", e))?;
 
-    if !path_buf.exists() {
-        return Err(format!("File not found: {}", path));
+    let protocols_dir = state
+        .protocols_dir
+        .as_ref()
+        .ok_or("Protocols directory not configured")?;
+    let canonical_dir = protocols_dir
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve protocols directory: {}", e))?;
+
+    if !canonical.starts_with(&canonical_dir) {
+        return Err("Path must be within the protocols directory".to_string());
     }
 
     let mut manager = state.protocol_manager.lock().await;
     manager
-        .load_protocol(&path_buf)
+        .load_protocol(&canonical)
         .await
         .map_err(|e| format!("Failed to load protocol: {}", e))
 }
@@ -87,12 +106,21 @@ pub async fn get_protocol_info(
 #[tauri::command]
 pub async fn validate_protocol(path: String) -> Result<(), String> {
     let path_buf = PathBuf::from(&path);
+    let canonical = path_buf
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve path: {}", e))?;
 
-    if !path_buf.exists() {
-        return Err(format!("File not found: {}", path));
+    // Reject paths outside expected directories (e.g., /etc/passwd)
+    let file_name = canonical
+        .file_name()
+        .ok_or("Invalid protocol file path")?
+        .to_str()
+        .ok_or("Non-UTF8 path")?;
+    if !file_name.ends_with(".lua") {
+        return Err("Protocol files must have .lua extension".to_string());
     }
 
-    serial_cli::protocol::ProtocolManager::validate_protocol(&path_buf)
+    serial_cli::protocol::ProtocolManager::validate_protocol(&canonical)
         .map_err(|e| format!("Protocol validation failed: {}", e))
 }
 
@@ -175,11 +203,14 @@ pub async fn save_protocol_file(
     content: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
+    // Sanitize: reject path components
+    let safe_name = sanitize_name(&name)?;
+
     // Ensure name ends with .lua
-    let file_name = if name.ends_with(".lua") {
-        name
+    let file_name = if safe_name.ends_with(".lua") {
+        safe_name
     } else {
-        format!("{name}.lua")
+        format!("{safe_name}.lua")
     };
 
     let protocol_dir = state

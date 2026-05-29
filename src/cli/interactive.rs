@@ -432,19 +432,13 @@ impl InteractiveShell {
         let mut handle = port_handle.lock().await;
 
         // Send data
-        match handle.write(&bytes) {
-            Ok(n) => {
-                if hex_mode {
-                    println!("Sent {} bytes (hex)", n);
-                } else if base64_mode {
-                    println!("Sent {} bytes (base64)", n);
-                } else {
-                    println!("Sent {} bytes", n);
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to send data: {}", e);
-            }
+        let n = handle.write(&bytes)?;
+        if hex_mode {
+            println!("Sent {} bytes (hex)", n);
+        } else if base64_mode {
+            println!("Sent {} bytes (base64)", n);
+        } else {
+            println!("Sent {} bytes", n);
         }
 
         Ok(())
