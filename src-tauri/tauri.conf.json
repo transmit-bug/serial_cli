@@ -4,8 +4,8 @@
   "version": "0.6.0",
   "identifier": "com.serial-cli.gui",
   "build": {
-    "beforeDevCommand": "cd ../frontend && pnpm dev",
-    "beforeBuildCommand": "cd ../frontend && pnpm build",
+    "beforeDevCommand": "cd frontend && pnpm dev",
+    "beforeBuildCommand": "cd frontend && pnpm build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../frontend/dist"
   },

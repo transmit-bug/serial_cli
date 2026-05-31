@@ -1,9 +1,11 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useVirtualPortStore } from "@/stores/virtualPort";
 import { VirtualPortDetail } from "./VirtualPortDetail";
 import { VirtualPortList } from "./VirtualPortList";
 
 export function VirtualPortsPage() {
+  const { t } = useTranslation();
   const { ports, selectedPort, refreshPorts } = useVirtualPortStore();
 
   // Refresh port list periodically
