@@ -43,7 +43,7 @@ export function VirtualPortList() {
 
       {/* Port list */}
       <div className="flex-1 overflow-y-auto">
-        {ports.length === 0 ? (
+        {ports.length === 0 && !createFormOpen ? (
           <EmptyState />
         ) : (
           <div className="p-2 space-y-2">
