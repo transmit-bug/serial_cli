@@ -6,6 +6,7 @@
 
 ## 已完成
 
+- ✅ 全面更新项目文档（CHANGELOG、README、SERVER_MODE、ARCH、FRONTEND-REWRITE-DESIGN、events）
 - ✅ Tauri 后端补充 29 个单元测试（port_state、port 解析、virtual_port、config、export 5 个模块）
 - ✅ CI 前端改用 pnpm（替换 npm ci --force，添加 pnpm store 缓存）
 - ✅ 修复 GitHub Actions：cargo fmt 格式违规（benches + src 共 12 文件）
