@@ -3,16 +3,55 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### CI/CD Improvements
+- **pnpm migration** — CI frontend tests now use `pnpm install --frozen-lockfile` instead of `npm ci --force`, matching project's actual package manager
+- **Benchmark fix** — Fixed `--save-baseline` failure by running each Criterion bench explicitly
+- **Release workflow fix** — Fixed `generate_release_notes` conflict with custom body, added proper `prev-tag` resolution for changelog links
+- **Security advisory** — Added `deny.toml` skip for RUSTSEC-2025-0069 (daemonize unmaintained, no safe replacement)
+
+### Testing
+- **Tauri backend tests** — Added 29 unit tests across 5 modules (port_state, port parsing, virtual_port, config, export). Previously all 18 Tauri Rust files had zero tests.
+- **Total tests**: 260+ passing (231 core + 29 Tauri)
+
+### GUI Fixes
+- Hide empty state when create form is open in virtual ports
+- Fix tauri.conf.json frontend path
+
+---
+
 ## [0.6.0] - 2026-05-14
 
-### 🚀 Server Mode (NEW!)
+### 🚀 Server Mode (Production-Ready)
 - **JSON-RPC 2.0 daemon** over Unix socket for AI/automation workflows
 - **Persistent connections** — 10-100x latency improvement (50-200ms → 1-5ms)
 - **Protocol persistence** — Load custom protocols once, available globally
 - **Multi-client support** — Up to 10 concurrent connections
-- **10 RPC methods**: port_list, port_open, port_close, port_send, port_recv, protocol_list, protocol_load, protocol_unload, connection_list, server_stats
+- **12 RPC methods**: port_list, port_open, port_close, port_send, port_recv, port_subscribe, port_unsubscribe, protocol_list, protocol_load, protocol_unload, connection_list, server_stats
+- **Graceful shutdown** — Signal handling, session cleanup
+- **Data push** — Subscribe/unsubscribe for real-time event streaming
 - **Session management** — PID tracking, stale session cleanup
 - **Configurable** — Unix socket path, max connections, log path
+
+### 🎨 GUI Enhancements
+- **Virtual ports UI** — Bridge visualization, packet capture display
+- **Hex/binary send** — Multi-format data sending in terminal
+- **Readline shell** — Interactive shell improvements
+- **Theme switching** — Light/dark/cyber themes
+
+### Protocol Security
+- Path traversal protection for custom protocol loading
+- Virtual port direction consistency fixes
+- Monitoring fixes for cross-platform support
+
+### Core Fixes
+- **serial_core** — Resolved 7 bugs in port I/O, IoLoop, and script engine
+- **Lua module** — Resolved 6 logic bugs in Lua bindings
+
+### Benchmarks
+- Consolidated all benchmarks into `benches/` via Criterion (5 suites)
+- Weekly regression tracking with CI integration
 
 ---
 

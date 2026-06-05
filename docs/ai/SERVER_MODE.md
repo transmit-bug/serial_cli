@@ -1,8 +1,8 @@
-# Server Mode - AI/Optimization Workflow
+# Server Mode - AI/Automation Workflow
 
 **Version**: 0.6.0
-**Status**: Stable
-**Updated**: 2026-05-13
+**Status**: Production-Ready
+**Updated**: 2026-06-06
 
 ---
 
@@ -227,6 +227,24 @@ serial-cli server call protocol_unload '{
 
 ### Connection Management
 
+#### port_subscribe
+
+Subscribe to real-time data push notifications for a connection.
+
+```bash
+serial-cli server call port_subscribe '{"connection_id": "xxx"}'
+```
+
+When data arrives on the subscribed connection, the server pushes events to the client via the Unix socket.
+
+#### port_unsubscribe
+
+Unsubscribe from data push notifications.
+
+```bash
+serial-cli server call port_unsubscribe '{"connection_id": "xxx"}'
+```
+
 #### connection_list
 
 List all active connections.
@@ -317,8 +335,12 @@ serial-cli server stop
 
 ```bash
 serial-cli server start \
-  --socket-path /tmp/custom.sock \  # Custom socket path
-  --port 8080 \                      # Or use TCP port instead of Unix socket
+  --socket-path /tmp/custom.sock     # Custom socket path
+```
+
+**Note:** Server Mode currently supports only Unix sockets (named pipes on Windows). TCP socket support is planned for a future release.
+
+The server socket path defaults to a platform-specific location (typically `~/.cache/serial_cli/serial-cli.sock` on Linux, or the equivalent on other platforms).
   --log /path/to/server.log \        # Custom log file
   --max-connections 20               # Max concurrent connections
 ```

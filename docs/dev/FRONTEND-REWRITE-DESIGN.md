@@ -875,33 +875,32 @@ interface ConfigData {
 
 ## 12. Tauri Backend Fixes
 
-### 12.1 Fix Double Read Loop Bug
+> **Status: RESOLVED** — All items in this section have been implemented.
 
-**Problem:** `open_port` (port.rs:109-153) spawns a background read task AND `start_sniffing` (serial.rs:115-194) spawns another. Both compete for the same port's data.
+### 12.1 Fix Double Read Loop Bug ✅ RESOLVED
 
-**Fix:** Remove the background read task from `open_port`. Data reading should be exclusively handled by `start_sniffing` (the sniffer approach with proper event emission).
+**Problem:** `open_port` spawned a background read task AND `start_sniffing` spawned another. Both competed for the same port's data.
 
-The `open_port` command should only:
-1. Open the port with config
-2. Return the port_id
-3. NOT spawn any background reader
+**Resolution:** `open_port` no longer spawns any background reader. Data reading is exclusively handled by `start_sniffing` which uses the `spawn_blocking` + `mpsc` + `spawn` pattern with proper event emission.
 
-The frontend workflow becomes:
+The frontend workflow is:
 1. `open_port(port_name, config)` → get port_id
 2. `start_sniffing(port_id)` → begin data capture + event emission
 
-### 12.2 Activate Event Emitters
+### 12.2 Activate Event Emitters ✅ RESOLVED
 
-Wire up the previously-stubbed event emitters:
+**Resolution:** All event emitters are now wired up:
 
-- `emit_port_status_changed`: Call in `close_port` and when sniffer detects port disconnection
-- `emit_error`: Call in error paths of commands (wrap with error handler)
-- `emit_virtual_port_stats_updated`: Call periodically or on stats change
+- `emit_port_status_changed` — called in `open_port` and `close_port` commands
+- `emit_error` — called in sniffer disconnect path and error paths
+- `emit_virtual_port_stats_updated` — called in `get_virtual_port_stats` command
+- `emit_data_received` / `emit_data_sent` — called in sniffing and send_data commands
 
-### 12.3 Other Fixes
+### 12.3 Other Fixes ✅ RESOLVED
 
-- Remove `HashMap` import from `port_state.rs` (no longer needed after PortStateManager removal)
-- Ensure `open_port_virtual` is properly used for both hardware and virtual ports
+**Resolution:**
+- Unused imports cleaned up
+- `open_port_virtual` is properly used for both hardware and virtual ports
 
 ---
 

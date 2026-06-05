@@ -3,7 +3,7 @@
   ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.6.0-blue?style=for-the-badge&logo=rust)
   [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-  [![Tests](https://img.shields.io/badge/Tests-374%20passing-success?style=for-the-badge)](https://github.com/zazac-zhang/serial_cli)
+  [![Tests](https://img.shields.io/badge/Tests-260%2B%20passing-success?style=for-the-badge)](https://github.com/zazac-zhang/serial_cli)
   [![GUI](https://img.shields.io/badge/GUI-Production%20Ready-brightgreen?style=for-the-badge&logo=react)](https://reactjs.org/)
 
   # 🚀 Serial CLI
@@ -20,7 +20,7 @@
 
 Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **CLI interface**, **structured JSON output**, **embedded LuaJIT scripting**, **support for multiple protocols**, and a **modern GUI application** - making it perfect for both human interaction and AI/automation workflows.
 
-**✨ CLI Production Ready** • **🖥️ GUI Production Ready** • **🔧 374+ Tests Passing** • **🌍 Linux • macOS • Windows**
+**✨ CLI Production Ready** • **🖥️ GUI Production Ready** • **🔧 260+ Tests Passing** • **🌍 Linux • macOS • Windows**
 
 ---
 
@@ -122,7 +122,7 @@ serial> quit
 
 | 📡 **Protocols** | 🔄 **Batch Mode** | 🔍 **Sniff Sessions** | 🖥️ **GUI Available** | 🚀 **Server Mode** |
 |:---:|:---:|:---:|:---:|:---:|
-| Modbus • AT Commands • Custom | Variables, loops, error reporting | Start/stop/stats/save | Tauri-based GUI (NEW!) | Daemon with JSON-RPC (NEW!) |
+| Modbus • AT Commands • Custom | Variables, loops, error reporting | Start/stop/stats/save | Tauri-based GUI | Daemon with JSON-RPC (12 methods) |
 
 </div>
 
@@ -135,11 +135,11 @@ serial> quit
 - **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
 - **🔄 Batch Processing** - Execute multiple scripts with variable substitution, loops, and per-script error reporting
 - **🔍 Sniff Sessions** - Start/stop/stats/save serial traffic with background daemon and session management
-- **🚀 Server Mode** - **NEW!** Persistent daemon with JSON-RPC 2.0 interface for AI/automation workflows:
+- **🚀 Server Mode** - Persistent daemon with JSON-RPC 2.0 interface for AI/automation workflows:
   - 10-100x latency improvement (50-200ms → 1-5ms with persistent connections)
   - Protocol persistence (load once, use globally)
   - Multi-client support (up to 10 concurrent connections)
-  - Standard JSON-RPC 2.0 API with 10 methods
+  - Standard JSON-RPC 2.0 API with 12 methods (including subscribe/unsubscribe)
   - Unix socket IPC (Unix) and named pipes (Windows)
   - Perfect for AI agent integration and automation
 - **🖥️ GUI Application** - Modern Tauri-based GUI with:
@@ -151,7 +151,7 @@ serial> quit
   - System notifications
   - Complete keyboard shortcuts
   - Internationalization (en/zh)
-- **🔌 Virtual Serial Ports** - **NEW!** Pluggable backend architecture:
+- **🔌 Virtual Serial Ports** - Pluggable backend architecture:
   - **PTY Backend** (Unix/macOS) - POSIX pseudo-terminals
   - **NamedPipe Backend** (Windows) - Windows named pipes
   - **Socat Backend** (Cross-platform) - Socat-based virtual ports
@@ -305,6 +305,8 @@ serial-cli server stop
 - `port_close` - Close a serial port connection
 - `port_send` - Send data to an open port
 - `port_recv` - Receive data from an open port
+- `port_subscribe` - Subscribe to real-time data push notifications
+- `port_unsubscribe` - Unsubscribe from data push notifications
 - `protocol_list` - List available protocols
 - `protocol_load` - Load a custom protocol
 - `protocol_unload` - Unload a custom protocol
@@ -576,8 +578,8 @@ serial_cli/
 │   ├── serial_core/        # Serial port I/O
 │   ├── protocol/           # Protocol engine
 │   ├── lua/                # LuaJIT integration
-│   ├── server/             # Server Mode daemon (NEW!)
-│   ├── task/               # Task scheduling
+│   ├── server/             # Server Mode daemon
+│   ├── task/               # Task scheduling (experimental)
 │   └── cli/                # CLI interface
 ├── src-tauri/              # Tauri application (GUI backend)
 │   ├── src/                # Tauri-specific code

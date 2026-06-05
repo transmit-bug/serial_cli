@@ -10,8 +10,12 @@ The Serial CLI event system provides real-time updates using Tauri's event emitt
 |-------|-----------|---------|
 | `data-received` | Backend → Frontend | `{ port_id, data: number[], timestamp, direction: "rx" }` |
 | `data-sent` | Backend → Frontend | `{ port_id, data: number[], timestamp, direction: "tx" }` |
+| `port-status-changed` | Backend → Frontend | `{ port_id, status: object, timestamp }` |
 | `ports-changed` | Backend → Frontend | `{ added?: PortInfo[], removed?: string[] }` |
 | `error-occurred` | Backend → Frontend | `{ error: string, timestamp: number }` |
+| `virtual-port-created` | Backend → Frontend | `{ port_id, port_info: object, timestamp }` |
+| `virtual-port-stopped` | Backend → Frontend | `{ port_id, timestamp }` |
+| `virtual-port-stats-updated` | Backend → Frontend | `{ port_id, stats: object, timestamp }` |
 
 ### Payload Types
 

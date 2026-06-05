@@ -1,8 +1,8 @@
 # Architecture Reference
 
-**Updated**: 2026-05-14
+**Updated**: 2026-06-06
 **Version**: 0.6.0
-**Status**: All core modules implemented and tested (231 tests passing)
+**Status**: All core modules implemented and tested (260+ tests passing: 231 core + 29 Tauri)
 
 ---
 
@@ -39,7 +39,14 @@ src/
 │   ├── port.rs             # PortManager, SerialConfig, PortHandle
 │   ├── io_loop.rs          # Async I/O event loop
 │   ├── sniffer.rs          # SerialSniffer, SnifferConfig
-│   ├── virtual_port.rs     # VirtualSerialPair (PTY backend)
+│   ├── virtual_port.rs     # VirtualSerialPair (pluggable backends)
+│   ├── factory.rs          # BackendFactory — platform auto-detection
+│   ├── backends/           # Virtual backend implementations
+│   │   ├── mod.rs          # BackendType enum, factory registration
+│   │   ├── trait.rs        # VirtualBackend trait
+│   │   ├── pty.rs          # PTY backend (Unix/macOS)
+│   │   ├── named_pipe.rs   # NamedPipe backend (Windows)
+│   │   └── socat.rs        # Socat backend (cross-platform)
 │   ├── signals.rs          # Platform signal control (DTR/RTS)
 │   ├── serial_script.rs    # SerialScriptEngine (Hook mode Lua)
 │   └── windows_signals.rs  # Windows-specific signal impl
@@ -59,7 +66,8 @@ src/
 │   ├── bindings.rs         # LuaBindings — Autonomous mode (CLI scripts)
 │   ├── runtime.rs          # ScriptRuntime — unified tool function registration
 │   ├── engine.rs           # LuaEngine — lightweight wrapper
-│   └── executor.rs         # ScriptEngine — script execution engine
+│   ├── executor.rs         # ScriptEngine — script execution engine
+│   └── ui_actions.rs       # UiAction — GUI script action bindings
 │
 ├── task/                   # Task scheduling
 │   ├── queue.rs            # TaskQueue
@@ -129,10 +137,10 @@ User input → Cli::parse() → match Commands
 src-tauri/          # Rust backend (workspace member)
   src/
     main.rs         # Tauri app entry
-    commands/       # Tauri command handlers (36 commands)
-    events/         # Event emitter system
+    commands/       # Tauri command handlers (52 commands across 11 modules)
+    events/         # Event emitter system (8 event types)
     state/          # AppState, port state types
-frontend/           # React + TypeScript (待重写)
+frontend/           # React 19 + TypeScript (rewritten)
 ```
 
 See `docs/reference/protocols.md` for protocol documentation.
