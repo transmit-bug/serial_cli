@@ -348,3 +348,99 @@ pub async fn get_captured_packets(
 
     Ok(dtos)
 }
+
+fn parse_backend_type(backend: &str) -> Option<BackendType> {
+    match backend {
+        "pty" => Some(BackendType::Pty),
+        "namedpipe" => Some(BackendType::NamedPipe),
+        "socat" => Some(BackendType::Socat),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_backend_type_pty() {
+        assert_eq!(parse_backend_type("pty"), Some(BackendType::Pty));
+    }
+
+    #[test]
+    fn test_parse_backend_type_namedpipe() {
+        assert_eq!(parse_backend_type("namedpipe"), Some(BackendType::NamedPipe));
+    }
+
+    #[test]
+    fn test_parse_backend_type_socat() {
+        assert_eq!(parse_backend_type("socat"), Some(BackendType::Socat));
+    }
+
+    #[test]
+    fn test_parse_backend_type_invalid() {
+        assert_eq!(parse_backend_type("invalid"), None);
+        assert_eq!(parse_backend_type(""), None);
+        assert_eq!(parse_backend_type("PTY"), None); // case-sensitive
+    }
+
+    #[test]
+    fn test_captured_packet_dto_serialization() {
+        let dto = CapturedPacketDto {
+            direction: "AtoB".to_string(),
+            data: vec![0x01, 0x02, 0x03],
+            timestamp_millis: 1234567890,
+        };
+        let json = serde_json::to_string(&dto).unwrap();
+        assert!(json.contains("AtoB"));
+        assert!(json.contains("1234567890"));
+    }
+
+    #[test]
+    fn test_virtual_port_stats_serialization() {
+        let stats = VirtualPortStats {
+            id: "vp-1".to_string(),
+            port_a: "/dev/pty0".to_string(),
+            port_b: "/dev/pty1".to_string(),
+            backend: "Pty".to_string(),
+            running: true,
+            uptime_secs: 300,
+            bytes_bridged: 10240,
+            packets_bridged: 100,
+            bridge_errors: 0,
+            last_error: None,
+            capture_packets: 50,
+            capture_bytes: 5120,
+            monitoring: true,
+        };
+        let json = serde_json::to_string(&stats).unwrap();
+        assert!(json.contains("vp-1"));
+        assert!(json.contains("running"));
+        assert!(json.contains("10240"));
+        assert!(json.contains("Pty"));
+    }
+
+    #[test]
+    fn test_create_virtual_port_config_deserialization() {
+        let json = r#"{
+            "name": "test-pair",
+            "backend": "pty",
+            "buffer_size": 4096,
+            "monitor": true
+        }"#;
+        let config: CreateVirtualPortConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.backend, "pty");
+        assert_eq!(config.buffer_size, Some(4096));
+        assert_eq!(config.monitor, Some(true));
+    }
+
+    #[test]
+    fn test_create_virtual_port_config_optional_fields() {
+        let json = r#"{"backend": "socat"}"#;
+        let config: CreateVirtualPortConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.backend, "socat");
+        assert!(config.name.is_none());
+        assert!(config.buffer_size.is_none());
+        assert!(config.monitor.is_none());
+    }
+}

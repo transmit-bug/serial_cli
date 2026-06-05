@@ -356,3 +356,79 @@ pub struct DisplayConfigData {
     #[serde(rename = "showTimestamp")]
     pub show_timestamp: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serial_config_data_serialization() {
+        let data = SerialConfigData {
+            default_baudrate: 115200,
+            databits: 8,
+            stopbits: 1,
+            parity: "None".to_string(),
+            timeout_ms: 1000,
+        };
+        let json = serde_json::to_string(&data).unwrap();
+        assert!(json.contains("defaultBaudrate"));
+        assert!(json.contains("timeoutMs"));
+        let deserialized: SerialConfigData = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.default_baudrate, 115200);
+    }
+
+    #[test]
+    fn test_display_config_data_serialization() {
+        let data = DisplayConfigData {
+            theme: "dark".to_string(),
+            max_packets: 10000,
+            format: "hex".to_string(),
+            show_timestamp: true,
+        };
+        let json = serde_json::to_string(&data).unwrap();
+        assert!(json.contains("maxPackets"));
+        assert!(json.contains("showTimestamp"));
+        let deserialized: DisplayConfigData = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.theme, "dark");
+        assert_eq!(deserialized.max_packets, 10000);
+    }
+
+    #[test]
+    fn test_protocols_config_data_serialization() {
+        let data = ProtocolsConfigData {
+            hot_reload: true,
+            custom_dir: "/path/to/protocols".to_string(),
+        };
+        let json = serde_json::to_string(&data).unwrap();
+        assert!(json.contains("hotReload"));
+        assert!(json.contains("customDir"));
+        let deserialized: ProtocolsConfigData = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.hot_reload);
+    }
+
+    #[test]
+    fn test_connection_preset_data_roundtrip() {
+        let preset = ConnectionPresetData {
+            name: "Arduino Uno".to_string(),
+            port_name: "/dev/ttyUSB0".to_string(),
+            baudrate: 9600,
+            databits: 8,
+            stopbits: 1,
+            parity: "None".to_string(),
+            flow_control: "None".to_string(),
+            timeout_ms: 1000,
+        };
+        let json = serde_json::to_string(&preset).unwrap();
+        let deserialized: ConnectionPresetData = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "Arduino Uno");
+        assert_eq!(deserialized.baudrate, 9600);
+        assert_eq!(deserialized.port_name, "/dev/ttyUSB0");
+    }
+
+    #[test]
+    fn test_log_path_platform_specific() {
+        let path = get_log_path();
+        // Should not panic, should return a valid path
+        assert!(path.to_str().is_some());
+    }
+}

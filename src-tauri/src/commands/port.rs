@@ -293,3 +293,52 @@ fn parse_flow_control(flow: &str) -> FlowControl {
         _ => FlowControl::None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_parity_odd() {
+        assert!(matches!(parse_parity("Odd"), Parity::Odd));
+        assert!(matches!(parse_parity("odd"), Parity::Odd));
+        assert!(matches!(parse_parity("ODD"), Parity::Odd));
+    }
+
+    #[test]
+    fn test_parse_parity_even() {
+        assert!(matches!(parse_parity("Even"), Parity::Even));
+        assert!(matches!(parse_parity("even"), Parity::Even));
+        assert!(matches!(parse_parity("EVEN"), Parity::Even));
+    }
+
+    #[test]
+    fn test_parse_parity_none() {
+        assert!(matches!(parse_parity("None"), Parity::None));
+        assert!(matches!(parse_parity("none"), Parity::None));
+        assert!(matches!(parse_parity("invalid"), Parity::None));
+        assert!(matches!(parse_parity(""), Parity::None));
+    }
+
+    #[test]
+    fn test_parse_flow_control_software() {
+        assert!(matches!(parse_flow_control("Software"), FlowControl::Software));
+        assert!(matches!(parse_flow_control("software"), FlowControl::Software));
+        assert!(matches!(parse_flow_control("SOFTWARE"), FlowControl::Software));
+    }
+
+    #[test]
+    fn test_parse_flow_control_hardware() {
+        assert!(matches!(parse_flow_control("Hardware"), FlowControl::Hardware));
+        assert!(matches!(parse_flow_control("hardware"), FlowControl::Hardware));
+        assert!(matches!(parse_flow_control("HARDWARE"), FlowControl::Hardware));
+    }
+
+    #[test]
+    fn test_parse_flow_control_none() {
+        assert!(matches!(parse_flow_control("None"), FlowControl::None));
+        assert!(matches!(parse_flow_control("none"), FlowControl::None));
+        assert!(matches!(parse_flow_control("invalid"), FlowControl::None));
+        assert!(matches!(parse_flow_control(""), FlowControl::None));
+    }
+}

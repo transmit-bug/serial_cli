@@ -108,3 +108,90 @@ fn export_json(path: &PathBuf, packets: &[serde_json::Value]) -> Result<(), Stri
         .map_err(|e| format!("Failed to serialize JSON: {}", e))?;
     fs::write(path, json).map_err(|e| format!("Failed to write file: {}", e))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    fn make_test_packet(direction: &str, data: &[u8], ts: u64) -> serde_json::Value {
+        serde_json::json!({
+            "direction": direction,
+            "data": data,
+            "timestamp_millis": ts,
+        })
+    }
+
+    #[test]
+    fn test_export_txt() {
+        let packets = vec![
+            make_test_packet("TX", &[0x01, 0x02, 0x03], 1234567890),
+            make_test_packet("RX", &[0x04, 0x05], 1234567900),
+        ];
+        let temp_dir = env::temp_dir();
+        let path = temp_dir.join("serial_cli_test_export.txt");
+
+        export_txt(&path, &packets).unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("Serial Data Export"));
+        assert!(content.contains("TX"));
+        assert!(content.contains("RX"));
+        assert!(content.contains("01 02 03"));
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_export_csv() {
+        let packets = vec![
+            make_test_packet("TX", &[0xAA, 0xBB], 1000),
+            make_test_packet("RX", &[0xCC], 2000),
+        ];
+        let temp_dir = env::temp_dir();
+        let path = temp_dir.join("serial_cli_test_export.csv");
+
+        export_csv(&path, &packets).unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines[0], "timestamp,direction,data_hex");
+        assert!(content.contains("1000,TX,AABB"));
+        assert!(content.contains("2000,RX,CC"));
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_export_json() {
+        let packets = vec![
+            make_test_packet("TX", &[0x01], 1000),
+            make_test_packet("RX", &[0x02, 0x03], 2000),
+        ];
+        let temp_dir = env::temp_dir();
+        let path = temp_dir.join("serial_cli_test_export.json");
+
+        export_json(&path, &packets).unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0]["direction"], "TX");
+        assert_eq!(parsed[1]["data"].as_array().unwrap().len(), 2);
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_export_txt_empty_packets() {
+        let temp_dir = env::temp_dir();
+        let path = temp_dir.join("serial_cli_test_empty.txt");
+
+        export_txt(&path, &[]).unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("Serial Data Export"));
+
+        let _ = fs::remove_file(&path);
+    }
+}
