@@ -103,8 +103,7 @@ impl ServerSessionManager {
     /// Check if a process with the given PID is still running
     pub fn is_process_running(pid: u32) -> bool {
         let sys = sysinfo::System::new_with_specifics(
-            sysinfo::RefreshKind::new()
-                .with_processes(sysinfo::ProcessRefreshKind::new()),
+            sysinfo::RefreshKind::new().with_processes(sysinfo::ProcessRefreshKind::new()),
         );
         sys.process(sysinfo::Pid::from_u32(pid)).is_some()
     }
@@ -112,15 +111,11 @@ impl ServerSessionManager {
     /// Terminate a process by PID
     pub fn stop_process(pid: u32) -> Result<()> {
         let sys = sysinfo::System::new_with_specifics(
-            sysinfo::RefreshKind::new()
-                .with_processes(sysinfo::ProcessRefreshKind::new()),
+            sysinfo::RefreshKind::new().with_processes(sysinfo::ProcessRefreshKind::new()),
         );
         sys.process(sysinfo::Pid::from_u32(pid))
             .ok_or_else(|| {
-                SerialError::Io(std::io::Error::other(format!(
-                    "Process {} not found",
-                    pid
-                )))
+                SerialError::Io(std::io::Error::other(format!("Process {} not found", pid)))
             })?
             .kill();
         Ok(())

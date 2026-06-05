@@ -54,7 +54,8 @@ fn bench_protocol_load(c: &mut Criterion) {
                 temp_dir.join(format!("benchmark_proto_{}.lua", std::process::id()));
 
             let mut file = File::create(&temp_file_path).expect("create temp file");
-            file.write_all(script_content.as_bytes()).expect("write temp file");
+            file.write_all(script_content.as_bytes())
+                .expect("write temp file");
 
             let _loaded = black_box(ProtocolLoader::load_from_file(&temp_file_path).unwrap());
 

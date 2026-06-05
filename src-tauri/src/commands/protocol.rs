@@ -14,7 +14,9 @@ use tauri::State;
 /// Reject paths containing traversal components or absolute separators.
 fn sanitize_name(name: &str) -> Result<String, String> {
     if name.contains("..") || name.contains('/') || name.contains('\\') {
-        return Err(format!("Invalid protocol name: path components not allowed"));
+        return Err(format!(
+            "Invalid protocol name: path components not allowed"
+        ));
     }
     Ok(name.to_string())
 }

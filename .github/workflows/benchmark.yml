@@ -51,7 +51,13 @@ jobs:
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run benchmarks
-        run: cargo bench -- --save-baseline default
+        run: |
+          # Run each criterion bench explicitly (avoiding lib target which doesn't understand --save-baseline)
+          cargo bench --bench concurrency -- --save-baseline default
+          cargo bench --bench lua_execution -- --save-baseline default
+          cargo bench --bench protocol_parsing -- --save-baseline default
+          cargo bench --bench serial_io -- --save-baseline default
+          cargo bench --bench startup -- --save-baseline default
 
       - name: Download previous benchmark baseline
         uses: actions/cache@v4

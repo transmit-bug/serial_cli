@@ -7,15 +7,15 @@
 use crate::error::Result;
 use crate::server::rpc::RpcDispatcher;
 use crate::server::state::ServerState;
+use futures::SinkExt;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
+use tokio_stream::StreamExt;
 use tokio_util::codec::{Framed, LinesCodec};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
-use tokio_stream::StreamExt;
-use futures::SinkExt;
 
 /// Run the Unix socket server with graceful shutdown support.
 ///

@@ -6,6 +6,12 @@ db-path = "~/.cargo/advisory-db"
 # 数据库URL
 db-urls = ["https://github.com/rustsec/advisory-db"]
 
+# Allow unmaintained crates that have no safe alternatives
+# TODO: Replace with a maintained alternative when available
+[[advisories.skip]]
+id = "RUSTSEC-2025-0069"
+reason = "daemonize is unmaintained; no safe drop-in replacement available. Used only for server daemonization."
+
 [licenses]
 # 许可证策略
 allow = [

@@ -291,8 +291,9 @@ fn lua_value_to_json(value: Value) -> mlua::Result<serde_json::Value> {
                 .collect::<mlua::Result<Vec<(Value, Value)>>>()
                 .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
 
-            let has_string_keys =
-                collected.iter().any(|(k, _)| !matches!(k, Value::Integer(_)));
+            let has_string_keys = collected
+                .iter()
+                .any(|(k, _)| !matches!(k, Value::Integer(_)));
             let len = collected.len();
 
             if len > 0 && !has_string_keys {

@@ -11,10 +11,10 @@ use crate::server::listener::{run_socket_server, spawn_idle_cleanup_task};
 use crate::server::session::{ServerSessionManager, ServerSessionMeta};
 #[cfg(unix)]
 use crate::server::state::{default_log_path, default_socket_path, ServerConfig, ServerState};
-#[cfg(unix)]
-use tokio_util::sync::CancellationToken;
 use std::io;
 use std::path::PathBuf;
+#[cfg(unix)]
+use tokio_util::sync::CancellationToken;
 
 /// Dispatch a [`ServerCommand`] to the appropriate handler.
 #[cfg(unix)]

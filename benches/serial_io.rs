@@ -15,9 +15,7 @@ fn bench_buffer_copy(c: &mut Criterion) {
     for size in [64, 256, 1024, 4096, 16384] {
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
             let data = vec![0u8; size];
-            b.iter(|| {
-                black_box(black_box(&data).clone())
-            });
+            b.iter(|| black_box(black_box(&data).clone()));
         });
     }
 

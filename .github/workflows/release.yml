@@ -178,6 +178,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find previous tag
+        id: prev-tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git tag --sort=-v:refname | head -2 | tail -1)
+          echo "tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -211,7 +219,7 @@ jobs:
           files: ./release-files/*
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
           body: |
             ## Serial CLI ${{ github.ref_name }}
 
@@ -268,7 +276,7 @@ jobs:
             💬 **讨论**: [Discussions](https://github.com/zazac-zhang/serial_cli/discussions)
 
             ---
-            **完整变更日志**: https://github.com/zazac-zhang/serial_cli/compare/${{ github.event.release.previous_tag_name }}...${{ github.ref_name }}
+            **完整变更日志**: https://github.com/zazac-zhang/serial_cli/compare/${{ steps.prev-tag.outputs.tag }}...${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

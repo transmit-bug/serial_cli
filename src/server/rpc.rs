@@ -276,11 +276,11 @@ impl RpcDispatcher {
     async fn port_close(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let params: PortCloseParams = parse_params(params)?;
 
-        let ctx = self.state.remove_connection(&params.connection_id).await.ok_or((
-            -32603,
-            "Connection not found".to_string(),
-            None,
-        ))?;
+        let ctx = self
+            .state
+            .remove_connection(&params.connection_id)
+            .await
+            .ok_or((-32603, "Connection not found".to_string(), None))?;
 
         if let Some(port_id) = ctx.port_id {
             self.state
@@ -534,8 +534,14 @@ impl RpcDispatcher {
         let _ = params;
 
         let stats = self.state.connection_stats().await;
-        let total_requests = self.state.total_requests.load(std::sync::atomic::Ordering::Relaxed);
-        let total_errors = self.state.total_errors.load(std::sync::atomic::Ordering::Relaxed);
+        let total_requests = self
+            .state
+            .total_requests
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let total_errors = self
+            .state
+            .total_errors
+            .load(std::sync::atomic::Ordering::Relaxed);
         let started_at = ServerSessionManager::current_timestamp();
 
         Ok(serde_json::json!({
@@ -551,8 +557,7 @@ impl RpcDispatcher {
 /// Deserialize params from Option<Value> into a typed struct.
 fn parse_params<T: for<'de> Deserialize<'de>>(params: Option<Value>) -> Result<T, MethodError> {
     let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
-    serde_json::from_value(params)
-        .map_err(|e| (-32602, format!("Invalid params: {}", e), None))
+    serde_json::from_value(params).map_err(|e| (-32602, format!("Invalid params: {}", e), None))
 }
 
 /// Encode bytes as hex string

@@ -29,22 +29,26 @@ fn bench_concurrent_buffer_ops(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_buffer_ops");
 
     for num_tasks in [2, 4, 8] {
-        group.bench_with_input(BenchmarkId::from_parameter(num_tasks), &num_tasks, |b, &n| {
-            b.iter(|| {
-                run_async_benchmark(move || async move {
-                    let mut join_set = JoinSet::new();
-                    for _ in 0..n {
-                        join_set.spawn(async {
-                            let _buffer = vec![0u8; 4096];
-                            tokio::task::yield_now().await;
-                        });
-                    }
-                    while let Some(res) = join_set.join_next().await {
-                        res.expect("task join failed");
-                    }
+        group.bench_with_input(
+            BenchmarkId::from_parameter(num_tasks),
+            &num_tasks,
+            |b, &n| {
+                b.iter(|| {
+                    run_async_benchmark(move || async move {
+                        let mut join_set = JoinSet::new();
+                        for _ in 0..n {
+                            join_set.spawn(async {
+                                let _buffer = vec![0u8; 4096];
+                                tokio::task::yield_now().await;
+                            });
+                        }
+                        while let Some(res) = join_set.join_next().await {
+                            res.expect("task join failed");
+                        }
+                    })
                 })
-            })
-        });
+            },
+        );
     }
 
     group.finish();
@@ -55,21 +59,25 @@ fn bench_concurrent_lua_init(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_lua_init");
 
     for num_tasks in [2, 4] {
-        group.bench_with_input(BenchmarkId::from_parameter(num_tasks), &num_tasks, |b, &n| {
-            b.iter(|| {
-                run_async_benchmark(move || async move {
-                    let mut join_set = JoinSet::new();
-                    for _ in 0..n {
-                        join_set.spawn(async {
-                            let _engine = LuaEngine::new().expect("Lua engine init failed");
-                        });
-                    }
-                    while let Some(res) = join_set.join_next().await {
-                        res.expect("task join failed");
-                    }
+        group.bench_with_input(
+            BenchmarkId::from_parameter(num_tasks),
+            &num_tasks,
+            |b, &n| {
+                b.iter(|| {
+                    run_async_benchmark(move || async move {
+                        let mut join_set = JoinSet::new();
+                        for _ in 0..n {
+                            join_set.spawn(async {
+                                let _engine = LuaEngine::new().expect("Lua engine init failed");
+                            });
+                        }
+                        while let Some(res) = join_set.join_next().await {
+                            res.expect("task join failed");
+                        }
+                    })
                 })
-            })
-        });
+            },
+        );
     }
 
     group.finish();
@@ -80,21 +88,25 @@ fn bench_concurrent_config_load(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_config_load");
 
     for num_tasks in [2, 4, 8] {
-        group.bench_with_input(BenchmarkId::from_parameter(num_tasks), &num_tasks, |b, &n| {
-            b.iter(|| {
-                run_async_benchmark(move || async move {
-                    let mut join_set = JoinSet::new();
-                    for _ in 0..n {
-                        join_set.spawn(async {
-                            let _manager = ConfigManager::new();
-                        });
-                    }
-                    while let Some(res) = join_set.join_next().await {
-                        res.expect("task join failed");
-                    }
+        group.bench_with_input(
+            BenchmarkId::from_parameter(num_tasks),
+            &num_tasks,
+            |b, &n| {
+                b.iter(|| {
+                    run_async_benchmark(move || async move {
+                        let mut join_set = JoinSet::new();
+                        for _ in 0..n {
+                            join_set.spawn(async {
+                                let _manager = ConfigManager::new();
+                            });
+                        }
+                        while let Some(res) = join_set.join_next().await {
+                            res.expect("task join failed");
+                        }
+                    })
                 })
-            })
-        });
+            },
+        );
     }
 
     group.finish();
