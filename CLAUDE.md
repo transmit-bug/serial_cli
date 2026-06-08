@@ -93,3 +93,17 @@ just gui-test-watch     # Run frontend tests in watch mode
 ```
 
 **Frontend stack:** pnpm, React 19, Vite 8, Tailwind CSS 4, Zustand 5, biome, vitest
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues for `zazac-zhang/serial_cli` (uses `gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles mapped to default label names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
