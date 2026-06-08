@@ -46,3 +46,4 @@ src-tauri/WixTools
 *.tmp
 *.temp
 .cache/
+.claude/
