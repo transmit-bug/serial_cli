@@ -6,7 +6,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use serial_cli::protocol::{ProtocolManager, ProtocolRegistry};
 use serial_cli::script::ScriptManager;
 use serial_cli::serial_core::{PortManager, VirtualSerialPair};
 use std::collections::HashMap;
@@ -76,10 +75,6 @@ pub struct DataSniffer {
 pub struct AppState {
     /// Serial port manager
     pub port_manager: Arc<Mutex<PortManager>>,
-    /// Protocol registry
-    pub protocol_registry: Arc<Mutex<ProtocolRegistry>>,
-    /// Protocol manager for custom protocols
-    pub protocol_manager: Arc<Mutex<ProtocolManager>>,
     /// Unified script manager (replaces protocol lifecycle)
     pub script_manager: Arc<Mutex<ScriptManager>>,
     /// Active data sniffers per port (port_id -> DataSniffer)
@@ -95,9 +90,6 @@ pub struct AppState {
 impl AppState {
     /// Create a new application state
     pub async fn new() -> Self {
-        let protocol_registry = Arc::new(Mutex::new(ProtocolRegistry::new()));
-        let protocol_manager =
-            Arc::new(Mutex::new(ProtocolManager::new(protocol_registry.clone())));
         let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
 
         // Set up protocols directory
@@ -109,8 +101,6 @@ impl AppState {
 
         Self {
             port_manager: Arc::new(Mutex::new(PortManager::new())),
-            protocol_registry,
-            protocol_manager,
             script_manager,
             active_sniffers: Arc::new(Mutex::new(HashMap::new())),
             port_stats: Arc::new(Mutex::new(HashMap::new())),

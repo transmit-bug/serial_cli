@@ -67,14 +67,7 @@ async fn main() {
     // Create global app state
     let app_state = AppState::new().await;
 
-    // Register all built-in protocols
-    if let Err(e) = serial_cli::protocol::registration::register_all_built_in(
-        app_state.protocol_registry.clone(),
-    )
-    .await
-    {
-        tracing::warn!("Failed to register built-in protocols: {}", e);
-    }
+    // Built-in scripts are registered automatically by ScriptManager::new()
 
     // Build Tauri application
     tauri::Builder::default()

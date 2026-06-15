@@ -2,7 +2,6 @@
 //!
 //! Provides the global server state shared across all RPC connections.
 
-use crate::protocol::{ProtocolManager, ProtocolRegistry};
 use crate::script::ScriptManager;
 use crate::serial_core::PortManager;
 use serde::{Deserialize, Serialize};
@@ -18,12 +17,6 @@ use tokio::sync::{Mutex, RwLock};
 pub struct ServerState {
     /// Serial port manager (shared with CLI)
     pub port_manager: Arc<Mutex<PortManager>>,
-
-    /// Protocol registry (shared with CLI)
-    pub protocol_registry: Arc<Mutex<ProtocolRegistry>>,
-
-    /// Protocol manager for custom protocols (shared with CLI)
-    pub protocol_manager: Arc<Mutex<ProtocolManager>>,
 
     /// Unified script manager (replaces protocol lifecycle)
     pub script_manager: Arc<Mutex<ScriptManager>>,
@@ -85,15 +78,10 @@ pub struct ConnectionContext {
 impl ServerState {
     /// Create a new server state
     pub async fn new(config: ServerConfig) -> Self {
-        let protocol_registry = Arc::new(Mutex::new(ProtocolRegistry::new()));
-        let protocol_manager =
-            Arc::new(Mutex::new(ProtocolManager::new(protocol_registry.clone())));
         let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
 
         Self {
             port_manager: Arc::new(Mutex::new(PortManager::new())),
-            protocol_registry,
-            protocol_manager,
             script_manager,
             connections: Arc::new(RwLock::new(HashMap::new())),
             config,
