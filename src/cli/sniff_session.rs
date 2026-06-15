@@ -360,7 +360,7 @@ pub async fn run_sniff_daemon(
             e
         })?;
 
-    let session = sniffer.start_sniffing(port).await?;
+    let session = sniffer.start_sniffing(&port_id, port).await?;
     tracing::info!("[sniff-daemon] Sniffing started on port: {}", port);
 
     // Spawn the read loop

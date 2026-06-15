@@ -77,15 +77,13 @@ impl SerialSniffer {
         }
     }
 
-    /// Start sniffing on a port
-    pub async fn start_sniffing(&self, port_name: &str) -> Result<SnifferSession> {
-        let manager = PortManager::new();
-        let port_id = manager
-            .open_port(port_name, SerialConfig::default())
-            .await?;
-
+    /// Start sniffing on an already-open port.
+    ///
+    /// The caller is responsible for opening the port via PortManager.
+    /// The sniffer just monitors data flowing through the port.
+    pub async fn start_sniffing(&self, port_id: &str, port_name: &str) -> Result<SnifferSession> {
         Ok(SnifferSession::new(
-            port_id,
+            port_id.to_string(),
             port_name.to_string(),
             self.packets.clone(),
             self.config.clone(),
