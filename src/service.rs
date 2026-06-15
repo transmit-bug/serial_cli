@@ -97,6 +97,22 @@ impl CommandService {
         let pm = self.port_manager.lock().await;
         pm.close_port(port_id).await
     }
+
+    /// Send data to an open port.
+    pub async fn send_data(&self, port_id: &str, data: &[u8]) -> Result<usize> {
+        let pm = self.port_manager.lock().await;
+        let port_handle = pm.get_port(port_id).await?;
+        let mut handle = port_handle.lock().await;
+        handle.write(data)
+    }
+
+    /// Receive data from an open port.
+    pub async fn recv_data(&self, port_id: &str, buf: &mut [u8]) -> Result<usize> {
+        let pm = self.port_manager.lock().await;
+        let port_handle = pm.get_port(port_id).await?;
+        let mut handle = port_handle.lock().await;
+        handle.read(buf)
+    }
 }
 
 impl Clone for CommandService {
