@@ -10,7 +10,6 @@
 //! - [`SerialPortInfo`] — metadata about an enumerated port
 
 use crate::error::{Result, SerialError, SerialPortError};
-use crate::protocol::{Protocol, ProtocolRegistry};
 use crate::serial_core::serial_script::SerialScriptEngine;
 #[cfg(unix)]
 use crate::serial_core::signals::PlatformSignals;
@@ -87,11 +86,6 @@ pub struct SerialPortHandle {
     name: String,
     port: Box<dyn serialport::SerialPort>,
     config: SerialConfig,
-    protocol: Option<Box<dyn Protocol>>,
-    /// Accumulation buffer for protocol framing across reads.
-    /// When a protocol is set, raw bytes are appended here before parsing,
-    /// allowing multi-read frames (e.g., Modbus RTU) to be reassembled.
-    frame_buffer: Vec<u8>,
     /// Excess buffer for data returned by on_recv that didn't fit the caller's buffer.
     /// Prepend this data on the next read() call before performing an OS read.
     excess_buffer: Vec<u8>,
@@ -341,8 +335,6 @@ impl PortManager {
             name: name.to_string(),
             port,
             config,
-            protocol: None,
-            frame_buffer: Vec::new(),
             excess_buffer: Vec::new(),
             data_tx,
             script_engine: None,
@@ -461,50 +453,6 @@ impl PortManager {
         }
         result.sort_by(|a, b| a.1.cmp(&b.1));
         result
-    }
-
-    /// Associate a protocol instance with an open port.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SerialError::Serial`] if the port ID is not found.
-    pub async fn set_port_protocol_instance(
-        &self,
-        port_id: &str,
-        protocol: Option<Box<dyn Protocol>>,
-    ) -> Result<()> {
-        let port_handle = self.get_port(port_id).await?;
-        let mut handle = port_handle.lock().await;
-        handle.set_protocol_instance(protocol);
-        Ok(())
-    }
-
-    /// Associate a protocol by name with an open port.
-    /// Resolves the name to a protocol instance via the given registry.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SerialError::Serial`] if the port ID is not found or the protocol is not registered.
-    pub async fn set_port_protocol_by_name(
-        &self,
-        port_id: &str,
-        registry: &ProtocolRegistry,
-        protocol_name: &str,
-    ) -> Result<()> {
-        let protocol = registry.get_protocol(protocol_name).await?;
-        self.set_port_protocol_instance(port_id, Some(protocol))
-            .await
-    }
-
-    /// Get the protocol name associated with a port.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SerialError::Serial`] if the port ID is not found.
-    pub async fn get_port_protocol_name(&self, port_id: &str) -> Result<Option<String>> {
-        let port_handle = self.get_port(port_id).await?;
-        let handle = port_handle.lock().await;
-        Ok(handle.protocol_name().map(|s| s.to_string()))
     }
 
     /// Set the DTR (Data Terminal Ready) signal for a port.
@@ -767,16 +715,6 @@ impl SerialPortHandle {
         self.data_tx.subscribe()
     }
 
-    /// Get the protocol name associated with this port, if one has been set.
-    pub fn protocol_name(&self) -> Option<&str> {
-        self.protocol.as_ref().map(|p| p.name())
-    }
-
-    /// Set the protocol instance for this port.
-    pub fn set_protocol_instance(&mut self, protocol: Option<Box<dyn Protocol>>) {
-        self.protocol = protocol;
-    }
-
     /// Attach a Lua script engine to this port.
     ///
     /// The script's `on_open` hook is called immediately with the port name and config.
@@ -944,32 +882,20 @@ impl SerialPortHandle {
     /// Returns [`SerialError::Serial`] with [`IoError`](SerialPortError::IoError)
     /// if the underlying write fails.
     pub fn write(&mut self, data: &[u8]) -> Result<usize> {
-        // Step 1: Script engine hook (on_send)
+        // Script engine hook (on_send) — handles encoding and behavior
         let after_script = if let Some(ref engine) = self.script_engine {
             engine.on_send(data)?
         } else {
             data.to_vec()
         };
 
-        // If script returned nil or empty result, treat as intercepted — don't send
+        // If script returned nil or empty result, treat as intercepted
         if after_script.is_empty() {
             return Ok(0);
         }
 
-        // Step 2: Protocol encoding
-        let encoded = if let Some(ref mut proto) = self.protocol {
-            proto.encode(&after_script).map_err(|e| {
-                SerialError::Protocol(crate::error::ProtocolError::InvalidFrame(format!(
-                    "encode failed: {e}"
-                )))
-            })?
-        } else {
-            after_script
-        };
-
-        // Step 3: Write to serial port
         self.port
-            .write(&encoded)
+            .write(&after_script)
             .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
     }
 
@@ -1005,56 +931,11 @@ impl SerialPortHandle {
             return Ok(0);
         }
 
-        // Step 1: Protocol parsing with frame accumulation
-        let after_protocol = if let Some(ref mut proto) = self.protocol {
-            // Append new data to the frame buffer
-            self.frame_buffer.extend_from_slice(&buf[..n]);
-
-            // Safety limit: trim oldest bytes from buffer if it grows beyond 64 KB
-            if self.frame_buffer.len() > 65536 {
-                let trim = self.frame_buffer.len() - 32768;
-                tracing::warn!(
-                    "frame buffer overflow ({} bytes), trimming oldest {} bytes",
-                    self.frame_buffer.len(),
-                    trim
-                );
-                self.frame_buffer.drain(..trim);
-            }
-
-            match proto.parse(&self.frame_buffer) {
-                Ok(parsed) => {
-                    if parsed.is_empty() {
-                        // Incomplete frame — buffer retained for next read
-                        return Ok(0);
-                    }
-                    // Complete frame — clear buffer
-                    self.frame_buffer.clear();
-                    parsed
-                }
-                Err(e) => {
-                    // Parse error — discard first byte (likely corrupt/stale) and
-                    // retain remaining buffer for the next parse attempt.
-                    tracing::debug!(
-                        "protocol parse error ({} bytes buffered): {}",
-                        self.frame_buffer.len(),
-                        e
-                    );
-                    if !self.frame_buffer.is_empty() {
-                        self.frame_buffer.drain(..1);
-                    }
-                    // Return raw data from this read so caller still sees it
-                    buf[..n].to_vec()
-                }
-            }
+        // Script engine hook (on_recv) — handles framing and behavior
+        let after_script = if let Some(ref engine) = self.script_engine {
+            engine.on_recv(&buf[..n])
         } else {
             buf[..n].to_vec()
-        };
-
-        // Step 2: Script engine hook (on_recv) — can auto-reply via serial_send
-        let after_script = if let Some(ref engine) = self.script_engine {
-            engine.on_recv(&after_protocol)
-        } else {
-            after_protocol
         };
 
         // Copy result back to buffer, storing excess for the next call

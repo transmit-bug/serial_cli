@@ -142,6 +142,7 @@ impl Validator for SerialCompleter {}
 pub struct InteractiveShell {
     running: bool,
     manager: PortManager,
+    script_manager: crate::script::ScriptManager,
     current_port_id: Option<String>,
     editor: Editor<SerialCompleter, DefaultHistory>,
 }
@@ -162,6 +163,7 @@ impl InteractiveShell {
         Self {
             running: false,
             manager: PortManager::new(),
+            script_manager: crate::script::ScriptManager::new(),
             current_port_id: None,
             editor,
         }
@@ -510,10 +512,11 @@ impl InteractiveShell {
                     println!("  Parity: {:?}", handle.config().parity);
                     println!("  Flow control: {:?}", handle.config().flow_control);
 
-                    // Show protocol information
-                    match handle.protocol_name() {
-                        Some(protocol) => println!("  Protocol: {}", protocol),
-                        None => println!("  Protocol: (none - raw mode)"),
+                    // Show script information
+                    if handle.has_script() {
+                        println!("  Script: attached");
+                    } else {
+                        println!("  Script: (none - raw mode)");
                     }
                 }
                 Err(_) => {
@@ -567,29 +570,29 @@ impl InteractiveShell {
         Ok(())
     }
 
-    /// Show protocol status for current port
+    /// Show script status for current port
     async fn show_protocol_status(&self) -> Result<()> {
         if let Some(ref port_id) = self.current_port_id {
-            match self.manager.get_port_protocol_name(port_id).await {
-                Ok(Some(protocol)) => {
-                    println!("Current protocol: {}", protocol);
+            match self.manager.has_script(port_id).await {
+                Ok(true) => {
+                    println!("Current script: attached");
                     println!();
-                    println!("Protocol commands:");
-                    println!("  protocol list          - List all available protocols");
-                    println!("  protocol set <name>    - Set protocol for current port");
-                    println!("  protocol clear         - Clear protocol from current port");
-                    println!("  protocol show          - Show protocol status");
+                    println!("Script commands:");
+                    println!("  protocol list          - List all available scripts");
+                    println!("  protocol set <name>    - Set script for current port");
+                    println!("  protocol clear         - Clear script from current port");
+                    println!("  protocol show          - Show script status");
                 }
-                Ok(None) => {
-                    println!("Current protocol: (none)");
+                Ok(false) => {
+                    println!("Current script: (none)");
                     println!();
-                    println!("Available protocols:");
+                    println!("Available scripts:");
                     self.list_protocols().await?;
                     println!();
-                    println!("Use 'protocol set <name>' to attach a protocol to this port");
+                    println!("Use 'protocol set <name>' to attach a script to this port");
                 }
                 Err(e) => {
-                    println!("Error getting protocol: {}", e);
+                    println!("Error: {}", e);
                 }
             }
         } else {
@@ -600,54 +603,40 @@ impl InteractiveShell {
         Ok(())
     }
 
-    /// List all available protocols
+    /// List all available scripts
     async fn list_protocols(&self) -> Result<()> {
-        println!("Built-in protocols:");
-        println!("  - modbus_rtu      - Modbus RTU protocol");
-        println!("  - modbus_ascii    - Modbus ASCII protocol");
-        println!("  - at_command      - AT Command protocol");
-        println!("  - line            - Line-based protocol");
-        println!();
-        println!("Custom protocols can be loaded with 'protocol_load' in Lua scripts");
-
+        let scripts = self.script_manager.list();
+        println!("Available scripts:");
+        for s in &scripts {
+            let tag = if s.built_in { " (built-in)" } else { "" };
+            println!("  - {:15} - {}{}", s.name, s.description, tag);
+        }
         Ok(())
     }
 
-    /// Set protocol for current port
-    async fn set_port_protocol(&mut self, protocol_name: &str) -> Result<()> {
+    /// Set script for current port
+    async fn set_port_protocol(&mut self, script_name: &str) -> Result<()> {
         if self.current_port_id.is_none() {
             println!("No port is currently open");
             println!("Use 'open <port>' first");
             return Ok(());
         }
 
-        // Validate and create protocol instance
-        let protocol = match crate::protocol::built_in::create_builtin_protocol(protocol_name) {
-            Some(p) => p,
-            None => {
-                println!("Unknown protocol: {}", protocol_name);
-                println!();
-                println!("Available protocols:");
-                self.list_protocols().await?;
-                return Ok(());
-            }
-        };
+        if !self.script_manager.has(script_name) {
+            println!("Unknown script: {}", script_name);
+            println!();
+            println!("Available scripts:");
+            self.list_protocols().await?;
+            return Ok(());
+        }
 
         let port_id = self.current_port_id.as_ref().unwrap();
-        match self
-            .manager
-            .set_port_protocol_instance(port_id, Some(protocol))
-            .await
-        {
+        match self.manager.attach_script_by_name(port_id, &self.script_manager, script_name).await {
             Ok(_) => {
-                println!("Protocol '{}' set for port", protocol_name);
-                println!(
-                    "Data will now be processed using the {} protocol",
-                    protocol_name
-                );
+                println!("Script '{}' set for port", script_name);
             }
             Err(e) => {
-                println!("Failed to set protocol: {}", e);
+                println!("Failed to set script: {}", e);
             }
         }
 
@@ -663,13 +652,12 @@ impl InteractiveShell {
         }
 
         let port_id = self.current_port_id.as_ref().unwrap();
-        match self.manager.set_port_protocol_instance(port_id, None).await {
+        match self.manager.detach_script(port_id).await {
             Ok(_) => {
-                println!("Protocol cleared from port");
-                println!("Data will be processed as raw bytes");
+                println!("Script cleared from port");
             }
             Err(e) => {
-                println!("Failed to clear protocol: {}", e);
+                println!("Failed to clear script: {}", e);
             }
         }
 

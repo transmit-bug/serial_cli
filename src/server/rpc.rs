@@ -233,17 +233,17 @@ impl RpcDispatcher {
             .await
             .map_err(|e| (-32603, e.to_string(), None))?;
 
-        // Attach protocol instance to the port handle if one was requested
-        if let Some(ref proto_name) = params.protocol {
-            let registry = self.state.protocol_registry.lock().await;
+        // Attach script to the port handle if one was requested
+        if let Some(ref script_name) = params.protocol {
+            let script_mgr = self.state.script_manager.lock().await;
             let port_manager = self.state.port_manager.lock().await;
             if let Err(e) = port_manager
-                .set_port_protocol_by_name(&port_id, &registry, proto_name)
+                .attach_script_by_name(&port_id, &script_mgr, script_name)
                 .await
             {
                 tracing::warn!(
-                    "Failed to attach protocol '{}' to port {}: {}",
-                    proto_name,
+                    "Failed to attach script '{}' to port {}: {}",
+                    script_name,
                     port_id,
                     e
                 );
