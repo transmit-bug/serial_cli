@@ -3,6 +3,7 @@
 //! Provides the global server state shared across all RPC connections.
 
 use crate::protocol::{ProtocolManager, ProtocolRegistry};
+use crate::script::ScriptManager;
 use crate::serial_core::PortManager;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -23,6 +24,9 @@ pub struct ServerState {
 
     /// Protocol manager for custom protocols (shared with CLI)
     pub protocol_manager: Arc<Mutex<ProtocolManager>>,
+
+    /// Unified script manager (replaces protocol lifecycle)
+    pub script_manager: Arc<Mutex<ScriptManager>>,
 
     /// Active connections (connection_id -> ConnectionContext)
     pub connections: Arc<RwLock<HashMap<String, ConnectionContext>>>,
@@ -84,11 +88,13 @@ impl ServerState {
         let protocol_registry = Arc::new(Mutex::new(ProtocolRegistry::new()));
         let protocol_manager =
             Arc::new(Mutex::new(ProtocolManager::new(protocol_registry.clone())));
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
 
         Self {
             port_manager: Arc::new(Mutex::new(PortManager::new())),
             protocol_registry,
             protocol_manager,
+            script_manager,
             connections: Arc::new(RwLock::new(HashMap::new())),
             config,
             total_requests: Arc::new(AtomicU64::new(0)),

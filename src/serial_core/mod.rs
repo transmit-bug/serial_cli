@@ -17,7 +17,7 @@ pub mod windows_signals;
 pub use backends::BackendType;
 pub use factory::BackendFactory;
 pub use io_loop::IoLoop;
-pub use port::{FlowControl, Parity, PortManager, SerialConfig, SerialPortHandle};
+pub use port::{FlowControl, Parity, PortManager, SerialConfig, SerialPortHandle, SerialPortInfo};
 pub use serial_script::SerialScriptEngine;
 pub use signals::{create_signal_controller, PlatformSignals, SignalState};
 pub use sniffer::{CapturedPacket, PacketDirection, SerialSniffer, SnifferConfig, SnifferSession};

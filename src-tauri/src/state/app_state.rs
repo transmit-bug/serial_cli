@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use serial_cli::protocol::{ProtocolManager, ProtocolRegistry};
+use serial_cli::script::ScriptManager;
 use serial_cli::serial_core::{PortManager, VirtualSerialPair};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -79,6 +80,8 @@ pub struct AppState {
     pub protocol_registry: Arc<Mutex<ProtocolRegistry>>,
     /// Protocol manager for custom protocols
     pub protocol_manager: Arc<Mutex<ProtocolManager>>,
+    /// Unified script manager (replaces protocol lifecycle)
+    pub script_manager: Arc<Mutex<ScriptManager>>,
     /// Active data sniffers per port (port_id -> DataSniffer)
     pub active_sniffers: Arc<Mutex<HashMap<String, DataSniffer>>>,
     /// Port statistics (port_id -> Arc<PortStatsTracker>) — survives sniffer stop
@@ -95,6 +98,7 @@ impl AppState {
         let protocol_registry = Arc::new(Mutex::new(ProtocolRegistry::new()));
         let protocol_manager =
             Arc::new(Mutex::new(ProtocolManager::new(protocol_registry.clone())));
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
 
         // Set up protocols directory
         let protocols_dir = dirs::data_local_dir().map(|mut p| {
@@ -107,6 +111,7 @@ impl AppState {
             port_manager: Arc::new(Mutex::new(PortManager::new())),
             protocol_registry,
             protocol_manager,
+            script_manager,
             active_sniffers: Arc::new(Mutex::new(HashMap::new())),
             port_stats: Arc::new(Mutex::new(HashMap::new())),
             virtual_port_registry: Arc::new(RwLock::new(HashMap::new())),

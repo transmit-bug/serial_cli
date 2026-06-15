@@ -568,6 +568,26 @@ impl PortManager {
         unsafe { handle.attach_script(engine) }
     }
 
+    /// Attach a script by name from the ScriptManager.
+    ///
+    /// Looks up the script in the ScriptManager, creates a SerialScriptEngine,
+    /// and attaches it to the port. This is the unified way to attach scripts
+    /// (replaces `set_port_protocol_by_name`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the script is not found, the port is not found,
+    /// or a script is already attached.
+    pub async fn attach_script_by_name(
+        &self,
+        port_id: &str,
+        script_manager: &crate::script::ScriptManager,
+        script_name: &str,
+    ) -> Result<()> {
+        let engine = script_manager.create_engine(script_name)?;
+        self.attach_script(port_id, engine).await
+    }
+
     /// Detach the script engine from an open port.
     /// Calls `on_close` and stops the timer before detaching.
     pub async fn detach_script(&self, port_id: &str) -> Result<()> {
