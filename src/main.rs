@@ -29,6 +29,9 @@ use serial_cli::cli::commands::{
 use serial_cli::cli::interactive::InteractiveShell;
 use serial_cli::cli::sniff_session;
 use serial_cli::error::Result;
+use serial_cli::script::ScriptManager;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Application entry point. Parses arguments, initializes subsystems, and
 /// dispatches to the requested command handler.
@@ -52,6 +55,9 @@ async fn main() -> Result<()> {
     let config_manager = serial_cli::config::ConfigManager::load_with_fallback();
     let _config = config_manager.get();
 
+    // Create ScriptManager
+    let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+
     // Validate configuration
     if let Err(e) = config_manager.validate() {
         tracing::info!("Warning: Configuration validation failed: {}", e);
@@ -71,7 +77,7 @@ async fn main() -> Result<()> {
             script::run_lua_script(PathBuf::from(script), args).await?;
         }
         Some(Commands::Protocol { protocol_command }) => {
-            protocol_cmd::handle_protocol_command(protocol_command, json_output)?;
+            protocol_cmd::handle_protocol_command(protocol_command, json_output, script_manager).await?;
         }
         Some(Commands::Sniff { sniff_command }) => {
             sniff_cmd::handle_sniff_command(sniff_command, json_output).await?;

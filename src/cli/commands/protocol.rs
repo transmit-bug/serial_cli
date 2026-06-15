@@ -1,294 +1,207 @@
 //! Protocol command handler
 //!
 //! Handles listing, loading, unloading, validating, and hot-reloading
-//! custom protocol scripts.
+//! custom protocol scripts. Uses ScriptManager (unified script system).
 
 use crate::cli::types::ProtocolCommand;
-use crate::config::ConfigManager;
-use crate::error::{Result, SerialError};
+use crate::error::{Result, ScriptError, SerialError};
+use crate::script::ScriptManager;
 use std::path::Path;
-
-/// Built-in protocol name → description pairs.
-const BUILT_IN_PROTOCOLS: &[(&str, &str)] = &[
-    (
-        "modbus_rtu",
-        "Modbus RTU protocol (Industrial communication)",
-    ),
-    (
-        "modbus_ascii",
-        "Modbus ASCII protocol (Industrial communication)",
-    ),
-    ("at_command", "AT Command protocol (Modem control)"),
-    ("line", "Line-based protocol (Text-based communication)"),
-];
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Dispatch a [`ProtocolCommand`] to the appropriate handler.
 ///
 /// # Errors
 ///
 /// Propagates validation errors, config errors, and I/O errors from
-/// the underlying protocol operations.
-pub fn handle_protocol_command(cmd: ProtocolCommand, json_output: bool) -> Result<()> {
+/// the underlying script operations.
+pub async fn handle_protocol_command(
+    cmd: ProtocolCommand,
+    json_output: bool,
+    script_manager: Arc<Mutex<ScriptManager>>,
+) -> Result<()> {
     match cmd {
-        ProtocolCommand::List { detailed } => list_protocols(detailed, json_output),
-        ProtocolCommand::Info { name } => show_protocol_info(&name, json_output),
-        ProtocolCommand::Validate { path } => validate_protocol(&path, json_output),
-        ProtocolCommand::Load { path, name } => load_protocol(&path, name, json_output),
-        ProtocolCommand::Unload { name } => unload_protocol(&name, json_output),
-        ProtocolCommand::Reload { name } => reload_protocol(&name, json_output),
+        ProtocolCommand::List { detailed } => list_scripts(detailed, json_output, script_manager).await,
+        ProtocolCommand::Info { name } => show_script_info(&name, json_output, script_manager).await,
+        ProtocolCommand::Validate { path } => validate_script(&path, json_output),
+        ProtocolCommand::Load { path, .. } => load_script(&path, json_output, script_manager).await,
+        ProtocolCommand::Unload { name } => unload_script(&name, json_output, script_manager).await,
+        ProtocolCommand::Reload { name } => reload_script(&name, json_output, script_manager).await,
         ProtocolCommand::HotReload { action } => handle_hot_reload(&action, json_output),
     }
 }
 
-fn list_protocols(detailed: bool, json_output: bool) -> Result<()> {
+async fn list_scripts(
+    detailed: bool,
+    json_output: bool,
+    script_manager: Arc<Mutex<ScriptManager>>,
+) -> Result<()> {
     use serde_json::json;
 
-    let config_manager = ConfigManager::load_with_fallback();
-    let config = config_manager.get();
-    let custom = &config.protocols.custom;
+    let manager = script_manager.lock().await;
+    let scripts = manager.list();
 
     if json_output {
-        let mut protocols = Vec::new();
-
-        // Built-in protocols
-        for (name, desc) in BUILT_IN_PROTOCOLS {
-            protocols.push(json!({
-                "name": name,
-                "description": desc,
-                "type": "built-in"
-            }));
-        }
-
-        // Custom protocols
-        for proto in custom.values() {
-            protocols.push(json!({
-                "name": proto.name,
-                "description": format!("{:?}", proto.path),
-                "type": "custom",
-                "loaded_at": proto.loaded_at
-            }));
-        }
+        let items: Vec<serde_json::Value> = scripts
+            .iter()
+            .map(|s| {
+                json!({
+                    "name": s.name,
+                    "description": s.description,
+                    "type": if s.built_in { "built-in" } else { "custom" }
+                })
+            })
+            .collect();
 
         let result = json!({
-            "protocols": protocols,
-            "count": protocols.len()
+            "scripts": items,
+            "count": items.len()
         });
 
         println!("{}", serde_json::to_string_pretty(&result).unwrap());
     } else {
-        println!("Available protocols:");
+        println!("Available scripts:");
         println!();
 
-        // Built-in protocols
+        let built_in: Vec<_> = scripts.iter().filter(|s| s.built_in).collect();
+        let custom: Vec<_> = scripts.iter().filter(|s| !s.built_in).collect();
+
         if detailed {
-            println!("Built-in protocols:");
-            for (name, desc) in BUILT_IN_PROTOCOLS {
-                println!("  {:15} - {}", name, desc);
+            println!("Built-in scripts:");
+            for s in &built_in {
+                println!("  {:15} - {}", s.name, s.description);
             }
         } else {
-            for (name, _) in BUILT_IN_PROTOCOLS {
-                println!("  {}", name);
+            for s in &built_in {
+                println!("  {}", s.name);
             }
         }
 
-        // Custom protocols from config
         if !custom.is_empty() {
             println!();
-            println!("Custom protocols:");
-            if detailed {
-                for proto in custom.values() {
-                    println!(
-                        "  {:15} - {} ({})",
-                        proto.name,
-                        proto.path.display(),
-                        proto.loaded_at.as_deref().unwrap_or("unknown")
-                    );
-                }
-            } else {
-                for proto in custom.values() {
-                    println!("  {}", proto.name);
+            println!("Custom scripts:");
+            for s in &custom {
+                if detailed {
+                    println!("  {:15} - {}", s.name, s.description);
+                } else {
+                    println!("  {}", s.name);
                 }
             }
         } else if !detailed {
             println!();
-            println!("Custom protocols: (none loaded)");
-            println!("Use 'serial-cli protocol load <script.lua>' to add custom protocols");
+            println!("Custom scripts: (none loaded)");
+            println!("Use 'serial-cli protocol load <script.lua>' to add custom scripts");
         }
     }
 
     Ok(())
 }
 
-fn show_protocol_info(name: &str, _json_output: bool) -> Result<()> {
-    println!("Protocol: {}", name);
+async fn show_script_info(
+    name: &str,
+    _json_output: bool,
+    script_manager: Arc<Mutex<ScriptManager>>,
+) -> Result<()> {
+    let manager = script_manager.lock().await;
+    let meta = manager.get_meta(name)?;
 
-    // Check built-in
-    if let Some((_, desc)) = BUILT_IN_PROTOCOLS.iter().find(|(n, _)| *n == name) {
-        println!("Type: Built-in");
-        println!("Description: {}", desc);
-        return Ok(());
+    println!("Script: {}", meta.name);
+    println!("Type: {}", if meta.built_in { "Built-in" } else { "Custom" });
+    println!("Description: {}", meta.description);
+    if let Some(ref path) = meta.path {
+        println!("Path: {}", path.display());
     }
+    println!("Version: {}", meta.version);
 
-    // Check custom protocols in config
-    let config_manager = ConfigManager::load_with_fallback();
-    if let Some(proto) = config_manager.get_custom_protocol(name) {
-        println!("Type: Custom");
-        println!("Script: {}", proto.path.display());
-        println!("Version: {}", proto.version);
-        println!(
-            "Loaded: {}",
-            proto.loaded_at.as_deref().unwrap_or("unknown")
-        );
-        return Ok(());
-    }
-
-    Err(SerialError::Config(format!(
-        "Protocol '{}' not found in built-in or custom protocols",
-        name
-    )))
+    Ok(())
 }
 
-fn validate_protocol(path: &Path, _json_output: bool) -> Result<()> {
-    use crate::protocol::ProtocolValidator;
+fn validate_script(path: &Path, _json_output: bool) -> Result<()> {
+    println!("Validating script: {}", path.display());
 
-    println!("Validating protocol script: {}", path.display());
-    match ProtocolValidator::validate_script(path) {
-        Ok(_) => println!("\u{2713} Protocol script is valid"),
+    // Read the file
+    let source = std::fs::read_to_string(path).map_err(SerialError::Io)?;
+
+    // Validate Lua syntax
+    let lua = mlua::Lua::new();
+    match lua.load(&source).exec() {
+        Ok(_) => {
+            println!("\u{2713} Script is valid");
+            Ok(())
+        }
         Err(e) => {
             println!("\u{2717} Validation failed: {}", e);
-            return Err(e);
+            Err(SerialError::Script(ScriptError::Syntax {
+                script: path.to_path_buf(),
+                line: 0,
+                message: e.to_string(),
+            }))
         }
     }
+}
+
+async fn load_script(
+    path: &Path,
+    _json_output: bool,
+    script_manager: Arc<Mutex<ScriptManager>>,
+) -> Result<()> {
+    let mut manager = script_manager.lock().await;
+
+    // Validate syntax first
+    validate_script(path, false)?;
+
+    let info = manager.load(path)?;
+
+    println!("\u{2713} Script loaded: {}", info.name);
+    println!("  Path: {}", path.display());
     Ok(())
 }
 
-fn load_protocol(path: &Path, name: Option<String>, _json_output: bool) -> Result<()> {
-    use crate::protocol::ProtocolValidator;
+async fn unload_script(
+    name: &str,
+    _json_output: bool,
+    script_manager: Arc<Mutex<ScriptManager>>,
+) -> Result<()> {
+    let mut manager = script_manager.lock().await;
+    manager.unload(name)?;
 
-    // Validate script first
-    if let Err(e) = ProtocolValidator::validate_script(path) {
-        println!("\u{2717} Script validation failed: {}", e);
-        return Err(e);
-    }
-
-    // Determine protocol name
-    let proto_name = name.unwrap_or_else(|| {
-        path.file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("unknown")
-            .to_string()
-    });
-
-    // Check it's not a built-in name
-    if BUILT_IN_PROTOCOLS.iter().any(|(n, _)| *n == proto_name) {
-        return Err(SerialError::Config(format!(
-            "Cannot load: '{}' is a reserved built-in protocol name",
-            proto_name
-        )));
-    }
-
-    // Resolve to absolute path so reload works from any directory
-    let abs_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-
-    // Save to config (add_custom_protocol returns error if already exists)
-    let config_manager = ConfigManager::load_with_fallback();
-    config_manager.add_custom_protocol(proto_name.clone(), abs_path)?;
-    config_manager.save(None)?;
-
-    println!("\u{2713} Protocol loaded: {}", proto_name);
-    println!("  Script: {}", path.display());
-    println!("  Saved to configuration");
-    println!();
-    println!("The protocol will be available in interactive mode after restart.");
+    println!("\u{2713} Script unloaded: {}", name);
     Ok(())
 }
 
-fn unload_protocol(name: &str, _json_output: bool) -> Result<()> {
-    // Check it's not a built-in
-    if BUILT_IN_PROTOCOLS.iter().any(|(n, _)| *n == name) {
-        return Err(SerialError::Config(format!(
-            "Cannot unload built-in protocol: {}",
-            name
-        )));
-    }
+async fn reload_script(
+    name: &str,
+    _json_output: bool,
+    script_manager: Arc<Mutex<ScriptManager>>,
+) -> Result<()> {
+    let mut manager = script_manager.lock().await;
+    manager.reload(name)?;
 
-    let config_manager = ConfigManager::load_with_fallback();
-
-    // remove_custom_protocol returns error if not found
-    config_manager.remove_custom_protocol(name)?;
-    config_manager.save(None)?;
-
-    println!("\u{2713} Protocol unloaded: {}", name);
-    println!("  Removed from configuration");
-    Ok(())
-}
-
-fn reload_protocol(name: &str, _json_output: bool) -> Result<()> {
-    use crate::protocol::ProtocolValidator;
-
-    let config_manager = ConfigManager::load_with_fallback();
-
-    // Get existing protocol path
-    let existing = config_manager.get_custom_protocol(name).ok_or_else(|| {
-        SerialError::Config(format!(
-            "Custom protocol not found: {}. Use 'protocol list' to see loaded protocols.",
-            name
-        ))
-    })?;
-
-    let script_path = existing.path.clone();
-
-    // Validate the script still exists and is valid
-    if !script_path.exists() {
-        return Err(SerialError::Config(format!(
-            "Script file not found: {}. The protocol may have been moved or deleted.",
-            script_path.display()
-        )));
-    }
-
-    if let Err(e) = ProtocolValidator::validate_script(&script_path) {
-        println!("\u{2717} Script validation failed: {}", e);
-        return Err(e);
-    }
-
-    // Update in single atomic operation (avoids gap between remove+add)
-    config_manager.update_custom_protocol(name.to_string(), script_path.clone())?;
-    config_manager.save(None)?;
-
-    println!("\u{2713} Protocol reloaded: {}", name);
-    println!("  Script: {}", script_path.display());
+    println!("\u{2713} Script reloaded: {}", name);
     Ok(())
 }
 
 fn handle_hot_reload(action: &str, _json_output: bool) -> Result<()> {
-    let config_manager = ConfigManager::load_with_fallback();
+    // Hot-reload config is still managed via ConfigManager for now
+    let config_manager = crate::config::ConfigManager::load_with_fallback();
 
     match action {
         "enable" => {
-            println!("Enabling protocol hot-reload...");
+            println!("Enabling script hot-reload...");
             config_manager.set("protocols.hot_reload", "true")?;
             config_manager.save(None)?;
-            println!("\u{2713} Protocol hot-reload enabled");
-            println!();
-            println!("Custom protocols will now be automatically reloaded when modified.");
+            println!("\u{2713} Script hot-reload enabled");
         }
         "disable" => {
-            println!("Disabling protocol hot-reload...");
+            println!("Disabling script hot-reload...");
             config_manager.set("protocols.hot_reload", "false")?;
             config_manager.save(None)?;
-            println!("\u{2713} Protocol hot-reload disabled");
+            println!("\u{2713} Script hot-reload disabled");
         }
         "status" => {
             let enabled = config_manager.is_hot_reload_enabled();
-            println!("Protocol hot-reload status:");
-            println!();
-            if enabled {
-                println!("  Status: \u{1F7E2} Enabled");
-                println!("  Custom protocols will be automatically reloaded when modified.");
-            } else {
-                println!("  Status: \u{1F6AB} Disabled");
-                println!("  Use 'protocol hot-reload enable' to enable automatic reloading.");
-            }
+            println!("Script hot-reload status: {}", if enabled { "Enabled" } else { "Disabled" });
         }
         _ => {
             return Err(SerialError::InvalidInput(format!(

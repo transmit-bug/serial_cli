@@ -179,6 +179,14 @@ impl ScriptManager {
         self.scripts.contains_key(name)
     }
 
+    /// Validate Lua source code syntax without loading it.
+    pub fn validate_source(source: &str) -> std::result::Result<(), String> {
+        let lua = mlua::Lua::new();
+        lua.load(source)
+            .exec()
+            .map_err(|e| e.to_string())
+    }
+
     /// Create a SerialScriptEngine from a named script.
     ///
     /// This is the bridge between ScriptManager and the port-level
@@ -263,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_load_custom_script_from_file() {
-        let dir = std::env::temp_dir().join("serial_cli_test_scripts");
+        let dir = std::env::temp_dir().join("serial_cli_test_load_custom");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("my_custom.lua");
         std::fs::write(&path, "function on_recv(data)\n    return data\nend\n").unwrap();
@@ -282,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_load_rejects_invalid_lua() {
-        let dir = std::env::temp_dir().join("serial_cli_test_scripts");
+        let dir = std::env::temp_dir().join("serial_cli_test_rejects_invalid");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("bad_syntax.lua");
         std::fs::write(&path, "this is not valid lua {{{").unwrap();
@@ -298,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_unload_custom_script() {
-        let dir = std::env::temp_dir().join("serial_cli_test_scripts");
+        let dir = std::env::temp_dir().join("serial_cli_test_unload");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("temp_script.lua");
         std::fs::write(&path, "function on_recv(data) return data end").unwrap();
@@ -332,7 +340,7 @@ mod tests {
 
     #[test]
     fn test_reload_custom_script() {
-        let dir = std::env::temp_dir().join("serial_cli_test_scripts");
+        let dir = std::env::temp_dir().join("serial_cli_test_reload");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("reloadable.lua");
         std::fs::write(&path, "function on_recv(data) return data end").unwrap();
@@ -361,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_create_engine_from_custom_script() {
-        let dir = std::env::temp_dir().join("serial_cli_test_scripts");
+        let dir = std::env::temp_dir().join("serial_cli_test_engine");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("engine_test.lua");
         std::fs::write(&path, "function on_recv(data) return data end").unwrap();

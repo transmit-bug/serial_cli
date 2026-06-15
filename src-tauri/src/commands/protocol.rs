@@ -7,7 +7,7 @@
 // except according to those terms.
 
 use crate::state::app_state::AppState;
-use serial_cli::protocol::ProtocolInfo;
+use serial_cli::script::ScriptInfo;
 use std::path::PathBuf;
 use tauri::State;
 
@@ -21,19 +21,19 @@ fn sanitize_name(name: &str) -> Result<String, String> {
     Ok(name.to_string())
 }
 
-/// List available protocols
+/// List available scripts (replaces list_protocols)
 #[tauri::command]
-pub async fn list_protocols(state: State<'_, AppState>) -> Result<Vec<ProtocolInfo>, String> {
-    let manager = state.protocol_manager.lock().await;
-    Ok(manager.list_protocols().await)
+pub async fn list_protocols(state: State<'_, AppState>) -> Result<Vec<ScriptInfo>, String> {
+    let manager = state.script_manager.lock().await;
+    Ok(manager.list())
 }
 
-/// Load a custom protocol
+/// Load a custom script (replaces load_protocol)
 #[tauri::command]
 pub async fn load_protocol(
     path: String,
     state: State<'_, AppState>,
-) -> Result<ProtocolInfo, String> {
+) -> Result<ScriptInfo, String> {
     let path_buf = PathBuf::from(&path);
     let canonical = path_buf
         .canonicalize()
@@ -51,60 +51,49 @@ pub async fn load_protocol(
         return Err("Path must be within the protocols directory".to_string());
     }
 
-    let mut manager = state.protocol_manager.lock().await;
+    let mut manager = state.script_manager.lock().await;
     manager
-        .load_protocol(&canonical)
-        .await
-        .map_err(|e| format!("Failed to load protocol: {}", e))
+        .load(&canonical)
+        .map_err(|e| format!("Failed to load script: {}", e))
 }
 
-/// Unload a custom protocol
+/// Unload a custom script
 #[tauri::command]
 pub async fn unload_protocol(name: String, state: State<'_, AppState>) -> Result<(), String> {
-    let mut manager = state.protocol_manager.lock().await;
+    let mut manager = state.script_manager.lock().await;
     manager
-        .unload_protocol(&name)
-        .await
-        .map_err(|e| format!("Failed to unload protocol: {}", e))
+        .unload(&name)
+        .map_err(|e| format!("Failed to unload script: {}", e))
 }
 
-/// Reload a custom protocol
+/// Reload a custom script
 #[tauri::command]
 pub async fn reload_protocol(name: String, state: State<'_, AppState>) -> Result<(), String> {
-    let mut manager = state.protocol_manager.lock().await;
+    let mut manager = state.script_manager.lock().await;
     manager
-        .reload_protocol(&name)
-        .await
-        .map_err(|e| format!("Failed to reload protocol: {}", e))
+        .reload(&name)
+        .map_err(|e| format!("Failed to reload script: {}", e))
 }
 
-/// Get protocol information
+/// Get script information
 #[tauri::command]
 pub async fn get_protocol_info(
     name: String,
     state: State<'_, AppState>,
-) -> Result<ProtocolInfo, String> {
-    let manager = state.protocol_manager.lock().await;
+) -> Result<ScriptInfo, String> {
+    let manager = state.script_manager.lock().await;
+    let meta = manager
+        .get_meta(&name)
+        .map_err(|e| format!("Script not found: {}", e))?;
 
-    // Check if it's a custom protocol
-    if let Some(_custom) = manager.get_custom_protocol(&name) {
-        return Ok(ProtocolInfo {
-            name: name.clone(),
-            description: "Custom Lua protocol".to_string(),
-        });
-    }
-
-    // Check built-in protocols
-    let registry = state.protocol_registry.lock().await;
-    let protocols = registry.list_protocols().await;
-
-    protocols
-        .into_iter()
-        .find(|p| p.name == name)
-        .ok_or_else(|| format!("Protocol not found: {}", name))
+    Ok(ScriptInfo {
+        name: meta.name.clone(),
+        description: meta.description.clone(),
+        built_in: meta.built_in,
+    })
 }
 
-/// Validate a protocol script without loading
+/// Validate a script without loading
 #[tauri::command]
 pub async fn validate_protocol(path: String) -> Result<(), String> {
     let path_buf = PathBuf::from(&path);
@@ -112,103 +101,79 @@ pub async fn validate_protocol(path: String) -> Result<(), String> {
         .canonicalize()
         .map_err(|e| format!("Cannot resolve path: {}", e))?;
 
-    // Reject paths outside expected directories (e.g., /etc/passwd)
     let file_name = canonical
         .file_name()
         .ok_or("Invalid protocol file path")?
         .to_str()
         .ok_or("Non-UTF8 path")?;
     if !file_name.ends_with(".lua") {
-        return Err("Protocol files must have .lua extension".to_string());
+        return Err("Script files must have .lua extension".to_string());
     }
 
-    serial_cli::protocol::ProtocolManager::validate_protocol(&canonical)
-        .map_err(|e| format!("Protocol validation failed: {}", e))
+    let source = std::fs::read_to_string(&canonical)
+        .map_err(|e| format!("Failed to read script: {}", e))?;
+
+    serial_cli::script::ScriptManager::validate_source(&source)
+        .map_err(|e| format!("Script validation failed: {}", e))
 }
 
-/// Encode data using protocol
-#[tauri::command]
-pub async fn protocol_encode(
-    protocol: String,
-    data: Vec<u8>,
-    state: State<'_, AppState>,
-) -> Result<Vec<u8>, String> {
-    let registry = state.protocol_registry.lock().await;
-
-    // Get protocol instance
-    let mut protocol_instance = registry
-        .get_protocol(&protocol)
-        .await
-        .map_err(|e| format!("Failed to get protocol: {}", e))?;
-
-    // Encode data
-    protocol_instance
-        .encode(&data)
-        .map_err(|e| format!("Encode failed: {}", e))
-}
-
-/// Decode data using protocol
-#[tauri::command]
-pub async fn protocol_decode(
-    protocol: String,
-    data: Vec<u8>,
-    state: State<'_, AppState>,
-) -> Result<Vec<u8>, String> {
-    let registry = state.protocol_registry.lock().await;
-
-    // Get protocol instance
-    let mut protocol_instance = registry
-        .get_protocol(&protocol)
-        .await
-        .map_err(|e| format!("Failed to get protocol: {}", e))?;
-
-    // Decode data
-    protocol_instance
-        .parse(&data)
-        .map_err(|e| format!("Decode failed: {}", e))
-}
-
-/// Set the active protocol for an open port.
-/// Resolves the protocol name via the registry and attaches a fresh
-/// protocol instance to the port handle for encode/parse in the I/O path.
+/// Attach a script to an open port (replaces set_port_protocol)
 #[tauri::command]
 pub async fn set_port_protocol(
     port_id: String,
     protocol_name: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // First verify the protocol exists in the registry
-    {
-        let registry = state.protocol_registry.lock().await;
-        registry
-            .get_protocol(&protocol_name)
-            .await
-            .map_err(|e| format!("Protocol not found '{}': {}", protocol_name, e))?;
-    }
+    let script_mgr = state.script_manager.lock().await;
+    let port_mgr = state.port_manager.lock().await;
 
-    // Set the protocol on the port (needs its own registry reference)
-    let registry = state.protocol_registry.lock().await;
-    let manager = state.port_manager.lock().await;
-    manager
-        .set_port_protocol_by_name(&port_id, &registry, &protocol_name)
+    port_mgr
+        .attach_script_by_name(&port_id, &script_mgr, &protocol_name)
         .await
         .map_err(|e| e.to_string())
 }
 
-/// Save a protocol file from frontend content and return its filesystem path.
-///
-/// The file is saved to the app data directory under `protocols/`.
-/// Returns the absolute path suitable for passing to `load_protocol`/`validate_protocol`.
+/// Encode data using a script (by name)
+#[tauri::command]
+pub async fn protocol_encode(
+    protocol: String,
+    data: Vec<u8>,
+    state: State<'_, AppState>,
+) -> Result<Vec<u8>, String> {
+    let manager = state.script_manager.lock().await;
+    let engine = manager
+        .create_engine(&protocol)
+        .map_err(|e| format!("Failed to create engine: {}", e))?;
+    engine.load().map_err(|e| format!("Failed to load script: {}", e))?;
+    engine
+        .on_send(&data)
+        .map_err(|e| format!("Encode failed: {}", e))
+}
+
+/// Decode data using a script (by name)
+#[tauri::command]
+pub async fn protocol_decode(
+    protocol: String,
+    data: Vec<u8>,
+    state: State<'_, AppState>,
+) -> Result<Vec<u8>, String> {
+    let manager = state.script_manager.lock().await;
+    let engine = manager
+        .create_engine(&protocol)
+        .map_err(|e| format!("Failed to create engine: {}", e))?;
+    engine.load().map_err(|e| format!("Failed to load script: {}", e))?;
+    Ok(engine.on_recv(&data))
+}
+
+/// Save a script file from frontend content and return its filesystem path.
 #[tauri::command]
 pub async fn save_protocol_file(
     name: String,
     content: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    // Sanitize: reject path components
     let safe_name = sanitize_name(&name)?;
 
-    // Ensure name ends with .lua
     let file_name = if safe_name.ends_with(".lua") {
         safe_name
     } else {
@@ -221,11 +186,11 @@ pub async fn save_protocol_file(
         .ok_or("Protocols directory not configured")?;
 
     std::fs::create_dir_all(&protocol_dir)
-        .map_err(|e| format!("Failed to create protocols directory: {}", e))?;
+        .map_err(|e| format!("Failed to create scripts directory: {}", e))?;
 
     let file_path = protocol_dir.join(&file_name);
     std::fs::write(&file_path, content)
-        .map_err(|e| format!("Failed to write protocol file: {}", e))?;
+        .map_err(|e| format!("Failed to write script file: {}", e))?;
 
     Ok(file_path.to_string_lossy().to_string())
 }

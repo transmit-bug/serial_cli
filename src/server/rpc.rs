@@ -454,52 +454,52 @@ impl RpcDispatcher {
         }))
     }
 
-    /// List available protocols
+    /// List available scripts
     async fn protocol_list(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let _ = params;
 
-        let registry = self.state.protocol_registry.lock().await;
-        let protocols = registry.list_protocols().await;
+        let manager = self.state.script_manager.lock().await;
+        let scripts = manager.list();
 
-        let protocol_list: Vec<Value> = protocols
+        let script_list: Vec<Value> = scripts
             .into_iter()
-            .map(|p| {
+            .map(|s| {
                 serde_json::json!({
-                    "name": p.name,
-                    "description": p.description,
+                    "name": s.name,
+                    "description": s.description,
+                    "built_in": s.built_in,
                 })
             })
             .collect();
 
-        Ok(serde_json::json!({ "protocols": protocol_list }))
+        Ok(serde_json::json!({ "scripts": script_list }))
     }
 
-    /// Load a custom protocol
+    /// Load a custom script
     async fn protocol_load(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let params: ProtocolLoadParams = parse_params(params)?;
 
         let path_buf = std::path::PathBuf::from(&params.path);
-        let mut manager = self.state.protocol_manager.lock().await;
+        let mut manager = self.state.script_manager.lock().await;
 
         let info = manager
-            .load_protocol(&path_buf)
-            .await
+            .load(&path_buf)
             .map_err(|e| (-32603, e.to_string(), None))?;
 
         Ok(serde_json::json!({
             "name": info.name,
             "description": info.description,
+            "built_in": info.built_in,
         }))
     }
 
-    /// Unload a custom protocol
+    /// Unload a custom script
     async fn protocol_unload(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let params: ProtocolUnloadParams = parse_params(params)?;
 
-        let mut manager = self.state.protocol_manager.lock().await;
+        let mut manager = self.state.script_manager.lock().await;
         manager
-            .unload_protocol(&params.name)
-            .await
+            .unload(&params.name)
             .map_err(|e| (-32603, e.to_string(), None))?;
 
         Ok(serde_json::json!({
