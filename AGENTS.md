@@ -17,6 +17,7 @@ just build        # cargo build --release
 just run <args>   # cargo run -- <args>
 just watch        # auto-rebuild on file changes
 just clean        # cargo clean
+just close        # kill dev processes, free ports
 
 # Testing
 just test         # cargo test

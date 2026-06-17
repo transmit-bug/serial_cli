@@ -29,6 +29,16 @@ watch:
 clean:
     cargo clean
 
+# Kill dev server and Tauri processes to free ports
+close:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Kill Vite dev server on port 1420
+    lsof -ti:1420 | xargs kill -9 2>/dev/null || true
+    # Kill serial-cli-tauri processes
+    pkill -9 -f serial-cli-tauri 2>/dev/null || true
+    echo "✓ Dev processes cleaned"
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Testing
 # ──────────────────────────────────────────────────────────────────────────────
@@ -69,7 +79,7 @@ gui-deps:
     cd frontend && pnpm install
 
 # Start Tauri dev (frontend + backend)
-gui-dev:
+gui-dev: close
     cargo tauri dev
 
 # Build Tauri app for production
