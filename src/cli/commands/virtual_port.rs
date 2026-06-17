@@ -33,8 +33,6 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, _json_output: bool) -> 
             output,
             max_packets,
         } => {
-            tracing::info!("Creating virtual serial port pair...");
-
             // Load configuration for defaults
             let config_manager = crate::config::ConfigManager::load_with_fallback();
 
@@ -48,14 +46,12 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, _json_output: bool) -> 
                 match backend.parse::<BackendType>() {
                     Ok(backend) => backend,
                     Err(e) => {
-                        tracing::error!("Invalid backend type: {}", e);
-                        tracing::info!("Available backends: auto, pty, namedpipe, socat");
+                        eprintln!("Error: Invalid backend type: {}", e);
+                        eprintln!("Available backends: auto, pty, namedpipe, socat");
                         return Err(e);
                     }
                 }
             };
-
-            tracing::info!("Using backend type: {:?}", backend_type);
 
             // Check if backend is available on this platform
             if !backend_type.is_available() {
@@ -103,7 +99,6 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, _json_output: bool) -> 
             let mut registry = VIRTUAL_REGISTRY.write().await;
             registry.insert(id.clone(), pair);
 
-            tracing::info!("Virtual port pair created successfully");
             println!("✓ Virtual port pair created");
             println!("  ID: {}", id);
             println!("  Port A: {}", port_a);
@@ -150,17 +145,16 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, _json_output: bool) -> 
             let mut registry = VIRTUAL_REGISTRY.write().await;
 
             if let Some(pair) = registry.remove(&id) {
-                tracing::info!("Stopping virtual pair: {}", id);
                 match pair.stop().await {
-                    Ok(_) => tracing::info!("\u{2713} Virtual pair stopped"),
+                    Ok(_) => println!("✓ Virtual pair stopped"),
                     Err(e) => {
-                        tracing::error!("\u{26A0} Error stopping virtual pair: {}", e);
+                        eprintln!("⚠ Error stopping virtual pair: {}", e);
                         return Err(e);
                     }
                 }
             } else {
-                tracing::error!("\u{2717} Virtual pair not found: {}", id);
-                tracing::info!("Use 'serial-cli virtual list' to see active pairs");
+                eprintln!("✗ Virtual pair not found: {}", id);
+                eprintln!("Use 'serial-cli virtual list' to see active pairs");
                 return Err(SerialError::VirtualPort(format!(
                     "Virtual pair not found: {}",
                     id

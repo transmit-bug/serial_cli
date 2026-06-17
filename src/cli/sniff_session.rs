@@ -331,7 +331,7 @@ pub async fn run_sniff_daemon(
 ) -> Result<()> {
     use crate::serial_core::{PortManager, SerialSniffer, SnifferConfig};
 
-    tracing::info!("[sniff-daemon] Starting on port: {}", port);
+    println!("Starting sniff on port: {}", port);
 
     let mut sniffer_config = SnifferConfig {
         max_packets,
@@ -356,12 +356,12 @@ pub async fn run_sniff_daemon(
         .open_port(port, crate::serial_core::SerialConfig::default())
         .await
         .map_err(|e| {
-            tracing::error!("[sniff-daemon] Failed to open port: {}", e);
+            eprintln!("Failed to open port: {}", e);
             e
         })?;
 
     let session = sniffer.start_sniffing(&port_id, port).await?;
-    tracing::info!("[sniff-daemon] Sniffing started on port: {}", port);
+    println!("Sniffing started on port: {}", port);
 
     // Spawn the read loop
     let port_id_clone = port_id.clone();
@@ -373,7 +373,6 @@ pub async fn run_sniff_daemon(
         loop {
             // Check if the session is still running
             if !session_clone.is_running().await {
-                tracing::info!("[sniff-daemon] Read loop: session stopped");
                 break;
             }
 
@@ -381,7 +380,7 @@ pub async fn run_sniff_daemon(
             let port_handle = match manager_clone.get_port(&port_id_clone).await {
                 Ok(h) => h,
                 Err(_) => {
-                    tracing::warn!("[sniff-daemon] Read loop: port handle lost");
+                    eprintln!("Warning: Port handle lost");
                     break;
                 }
             };
@@ -399,9 +398,9 @@ pub async fn run_sniff_daemon(
                 Ok(n) => {
                     // Captured data — feed into sniffer as RX
                     let data = &buffer[..n];
-                    tracing::debug!("[sniff-daemon] Captured {} bytes RX", n);
+                    tracing::debug!("Captured {} bytes RX", n);
                     if let Err(e) = session_clone.capture_rx(data).await {
-                        tracing::warn!("[sniff-daemon] Failed to capture packet: {}", e);
+                        eprintln!("Warning: Failed to capture packet: {}", e);
                     }
                 }
                 Err(_) => {
@@ -419,22 +418,22 @@ pub async fn run_sniff_daemon(
         }
     }
 
-    tracing::info!("[sniff-daemon] Stopping sniff...");
+    println!("Stopping sniff...");
     session.stop().await?;
 
     // Wait for read loop to exit
     let _ = read_handle.await;
 
     let packet_count = sniffer.packet_count().await;
-    tracing::info!("[sniff-daemon] Captured {} packets", packet_count);
+    println!("Captured {} packets", packet_count);
 
     // Save to file if configured
     if let Some(out_path) = output {
-        tracing::info!("[sniff-daemon] Saving to: {}", out_path.display());
+        println!("Saving to: {}", out_path.display());
         if let Err(e) = sniffer.save_to_file(&out_path.to_path_buf()).await {
-            tracing::warn!("[sniff-daemon] Failed to save: {}", e);
+            eprintln!("Failed to save: {}", e);
         } else {
-            tracing::info!("[sniff-daemon] Saved successfully");
+            println!("Saved successfully");
         }
     }
 

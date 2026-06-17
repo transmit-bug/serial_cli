@@ -49,7 +49,6 @@ pub async fn run_lua_script(path: PathBuf, args: Vec<String>) -> Result<()> {
     if args.is_empty() {
         engine.execute_file(&path)?;
     } else {
-        tracing::info!("Executing script with arguments: {:?}", args);
         engine.execute_with_args(&script_content, args)?;
     }
 

@@ -156,7 +156,7 @@ impl InteractiveShell {
         if let Some(dir) = Self::history_dir() {
             let history_path = dir.join("serial_cli_history.txt");
             if editor.load_history(&history_path).is_err() {
-                tracing::debug!("No previous command history found");
+                // No previous history - this is normal for first run
             }
         }
 
@@ -177,7 +177,6 @@ impl InteractiveShell {
     /// Run the interactive shell REPL.
     pub async fn run(&mut self) -> Result<()> {
         self.running = true;
-        tracing::info!("Starting interactive shell");
         println!("Serial CLI Interactive Shell");
         println!("Type 'help' for available commands, 'quit' to exit");
         println!();
@@ -253,7 +252,7 @@ impl InteractiveShell {
             let _ = std::fs::create_dir_all(&dir);
             let history_path = dir.join("serial_cli_history.txt");
             if let Err(e) = self.editor.save_history(&history_path) {
-                tracing::debug!("Failed to save history: {}", e);
+                eprintln!("Warning: Failed to save history: {}", e);
             }
         }
     }
@@ -327,8 +326,6 @@ impl InteractiveShell {
             self.manager.close_port(port_id).await?;
             self.current_port_id = None;
         }
-
-        tracing::info!("Opening serial port {}", port_name);
 
         // Use default configuration
         let config = SerialConfig::default();
@@ -426,8 +423,6 @@ impl InteractiveShell {
         };
 
         let port_id = self.current_port_id.as_ref().unwrap();
-
-        tracing::info!("Sending data to port {}", port_id);
 
         // Get the port handle
         let port_handle = self.manager.get_port(port_id).await?;

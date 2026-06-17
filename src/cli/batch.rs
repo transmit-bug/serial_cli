@@ -293,13 +293,13 @@ impl BatchRunner {
             match &batch_lines[i] {
                 BatchLine::Comment(msg) => {
                     if self.config.verbose {
-                        tracing::info!("  # {}", msg);
+                        println!("  # {}", msg);
                     }
                 }
                 BatchLine::Set { key, value } => {
                     let resolved = self.resolve_variables(value);
                     if self.config.verbose {
-                        tracing::info!("  set {} = {}", key, resolved);
+                        println!("  set {} = {}", key, resolved);
                     }
                     self.variables.insert(key.clone(), resolved);
                 }
@@ -309,7 +309,7 @@ impl BatchRunner {
                     let resolved_path = Path::new(&resolved);
 
                     if self.config.verbose {
-                        tracing::info!("Running: {}", resolved_path.display());
+                        println!("Running: {}", resolved_path.display());
                     }
 
                     match self.run_script(resolved_path).await {
@@ -331,11 +331,7 @@ impl BatchRunner {
                             });
 
                             if !self.config.continue_on_error {
-                                tracing::info!(
-                                    "Error executing {}: {}",
-                                    resolved_path.display(),
-                                    e
-                                );
+                                eprintln!("Error executing {}: {}", resolved_path.display(), e);
                                 break;
                             }
                         }
@@ -347,19 +343,19 @@ impl BatchRunner {
                 }
                 BatchLine::Sleep(duration) => {
                     if self.config.verbose {
-                        tracing::info!("Sleeping for {:?}", duration);
+                        println!("Sleeping for {:?}", duration);
                     }
                     tokio::time::sleep(*duration).await;
                 }
                 BatchLine::Loop { count, body } => {
                     let loop_count = *count;
                     if self.config.verbose {
-                        tracing::info!("Starting loop ({} iterations)", loop_count);
+                        println!("Starting loop ({} iterations)", loop_count);
                     }
 
                     for iteration in 0..loop_count {
                         if self.config.verbose {
-                            tracing::info!("  Loop iteration {}/{}", iteration + 1, loop_count);
+                            println!("  Loop iteration {}/{}", iteration + 1, loop_count);
                         }
 
                         let body_clone = body.clone();
@@ -370,7 +366,7 @@ impl BatchRunner {
 
                         for r in body_results.results {
                             if !r.success && !self.config.continue_on_error {
-                                tracing::info!(
+                                eprintln!(
                                     "Loop iteration {} failed: {}",
                                     iteration + 1,
                                     r.error.as_deref().unwrap_or("unknown error")
