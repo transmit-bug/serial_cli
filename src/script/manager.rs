@@ -26,6 +26,7 @@ pub struct LoadedScript {
 /// built-in scripts, unloading, reloading, and hot-reload watching.
 pub struct ScriptManager {
     scripts: HashMap<String, LoadedScript>,
+    #[allow(dead_code)]
     hot_reload_enabled: Arc<Mutex<bool>>,
 }
 

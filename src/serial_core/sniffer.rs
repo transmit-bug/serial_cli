@@ -3,7 +3,6 @@
 //! This module provides serial port monitoring/sniffing capabilities.
 
 use crate::error::{Result, SerialError};
-use crate::serial_core::{PortManager, SerialConfig};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
