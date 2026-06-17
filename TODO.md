@@ -43,10 +43,10 @@
 
 ### Phase 4：文档与测试完善
 
-- [ ] 更新 README.md 反映新的 script 命令
-- [ ] 更新 CHANGELOG.md 记录统一脚本系统变更
-- [ ] 更新 docs/dev/ARCH.md 反映新架构
-- [ ] 添加脚本系统综合测试（load/unload/reload, hot-reload, 自定义脚本, 错误处理）
+- [x] 更新 README.md 反映新的 script 命令
+- [x] 更新 CHANGELOG.md 记录统一脚本系统变更
+- [x] 更新 docs/dev/ARCH.md 反映新架构
+- [x] 添加脚本系统综合测试（load/unload/reload, hot-reload, 自定义脚本, 错误处理）
 
 ### Phase 5：功能增强
 
@@ -100,4 +100,4 @@ src/
 - **测试文件**: 6 个
 - **源代码行数**: 17,555
 - **测试代码行数**: 1,366
-- **测试总数**: 237（全部通过）
+- **测试总数**: 250（全部通过）

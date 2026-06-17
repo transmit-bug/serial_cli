@@ -26,8 +26,10 @@ pub struct LoadedScript {
 /// built-in scripts, unloading, reloading, and hot-reload watching.
 pub struct ScriptManager {
     scripts: HashMap<String, LoadedScript>,
-    #[allow(dead_code)]
     hot_reload_enabled: Arc<Mutex<bool>>,
+    /// Paths of custom scripts being tracked for changes
+    #[allow(dead_code)]
+    watched_paths: HashMap<PathBuf, String>,  // path -> script name
 }
 
 impl ScriptManager {
@@ -54,6 +56,7 @@ impl ScriptManager {
         Self {
             scripts,
             hot_reload_enabled: Arc::new(Mutex::new(false)),
+            watched_paths: HashMap::new(),
         }
     }
 
@@ -195,6 +198,89 @@ impl ScriptManager {
     pub fn create_engine(&self, name: &str) -> Result<crate::serial_core::serial_script::SerialScriptEngine> {
         let source = self.get_source(name)?;
         crate::serial_core::serial_script::SerialScriptEngine::new(&source)
+    }
+
+    // ── Hot-reload support ──────────────────────────────────────────
+
+    /// Enable hot-reload for custom scripts.
+    ///
+    /// When enabled, the manager will track which scripts are loaded from
+    /// files and can be notified when those files change.
+    pub async fn enable_hot_reload(&mut self) {
+        let mut enabled = self.hot_reload_enabled.lock().await;
+        *enabled = true;
+        tracing::info!("Script hot-reload enabled");
+    }
+
+    /// Disable hot-reload for custom scripts.
+    pub async fn disable_hot_reload(&mut self) {
+        let mut enabled = self.hot_reload_enabled.lock().await;
+        *enabled = false;
+        tracing::info!("Script hot-reload disabled");
+    }
+
+    /// Check if hot-reload is enabled.
+    pub async fn is_hot_reload_enabled(&self) -> bool {
+        *self.hot_reload_enabled.lock().await
+    }
+
+    /// Get the file path for a custom script.
+    pub fn get_script_path(&self, name: &str) -> Option<&PathBuf> {
+        self.scripts.get(name).and_then(|s| s.path.as_ref())
+    }
+
+    /// Check if a script file has been modified since it was loaded.
+    ///
+    /// Returns `true` if the file's modification time is newer than
+    /// the script's loaded_at time.
+    pub fn is_script_modified(&self, name: &str) -> Result<bool> {
+        let script = self.scripts.get(name)
+            .ok_or_else(|| SerialError::Script(ScriptError::NotFound(PathBuf::from(name))))?;
+
+        let path = match &script.path {
+            Some(p) => p,
+            None => return Ok(false),  // Built-in scripts have no path
+        };
+
+        let metadata = std::fs::metadata(path).map_err(SerialError::Io)?;
+        let modified = metadata.modified().map_err(SerialError::Io)?;
+
+        Ok(modified > script.loaded_at)
+    }
+
+    /// Reload all scripts that have been modified on disk.
+    ///
+    /// Returns a list of script names that were reloaded.
+    pub async fn reload_modified_scripts(&mut self) -> Result<Vec<String>> {
+        if !self.is_hot_reload_enabled().await {
+            return Ok(Vec::new());
+        }
+
+        let mut reloaded = Vec::new();
+        let script_names: Vec<String> = self.scripts.keys().cloned().collect();
+
+        for name in script_names {
+            if self.is_script_modified(&name).unwrap_or(false) {
+                match self.reload(&name) {
+                    Ok(_) => {
+                        tracing::info!("Hot-reloaded script: {}", name);
+                        reloaded.push(name);
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to hot-reload script {}: {}", name, e);
+                    }
+                }
+            }
+        }
+
+        Ok(reloaded)
+    }
+
+    /// Get list of all custom script paths being tracked.
+    pub fn tracked_paths(&self) -> Vec<&PathBuf> {
+        self.scripts.values()
+            .filter_map(|s| s.path.as_ref())
+            .collect()
     }
 }
 
@@ -637,6 +723,108 @@ mod tests {
 
         let loaded_source = manager.get_source("source_test").unwrap();
         assert_eq!(loaded_source, original_source, "Source should be preserved");
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    // ── Hot-reload tests ───────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_hot_reload_default_disabled() {
+        let manager = ScriptManager::new();
+        assert!(!manager.is_hot_reload_enabled().await);
+    }
+
+    #[tokio::test]
+    async fn test_enable_disable_hot_reload() {
+        let mut manager = ScriptManager::new();
+
+        manager.enable_hot_reload().await;
+        assert!(manager.is_hot_reload_enabled().await);
+
+        manager.disable_hot_reload().await;
+        assert!(!manager.is_hot_reload_enabled().await);
+    }
+
+    #[test]
+    fn test_get_script_path_custom() {
+        let dir = std::env::temp_dir().join("serial_cli_test_path");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("path_test.lua");
+        std::fs::write(&path, "function on_recv(data) return data end").unwrap();
+
+        let mut manager = ScriptManager::new();
+        manager.load(&path).unwrap();
+
+        let script_path = manager.get_script_path("path_test");
+        assert!(script_path.is_some());
+        assert_eq!(script_path.unwrap(), &path);
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    #[test]
+    fn test_get_script_path_builtin() {
+        let manager = ScriptManager::new();
+        let script_path = manager.get_script_path("line");
+        assert!(script_path.is_none(), "Built-in scripts have no path");
+    }
+
+    #[test]
+    fn test_get_script_path_not_found() {
+        let manager = ScriptManager::new();
+        let script_path = manager.get_script_path("nonexistent");
+        assert!(script_path.is_none());
+    }
+
+    #[test]
+    fn test_is_script_modified_not_found() {
+        let manager = ScriptManager::new();
+        let result = manager.is_script_modified("nonexistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_is_script_modified_builtin() {
+        let manager = ScriptManager::new();
+        // Built-in scripts have no path, so they're never modified
+        let result = manager.is_script_modified("line").unwrap();
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_scripts_disabled() {
+        let mut manager = ScriptManager::new();
+        // Hot-reload is disabled by default
+        let reloaded = manager.reload_modified_scripts().await.unwrap();
+        assert!(reloaded.is_empty());
+    }
+
+    #[test]
+    fn test_tracked_paths_empty() {
+        let manager = ScriptManager::new();
+        // Only built-in scripts, no paths tracked
+        let paths = manager.tracked_paths();
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn test_tracked_paths_with_custom() {
+        let dir = std::env::temp_dir().join("serial_cli_test_tracked");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tracked.lua");
+        std::fs::write(&path, "function on_recv(data) return data end").unwrap();
+
+        let mut manager = ScriptManager::new();
+        manager.load(&path).unwrap();
+
+        let paths = manager.tracked_paths();
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], &path);
 
         // Cleanup
         std::fs::remove_file(&path).ok();
