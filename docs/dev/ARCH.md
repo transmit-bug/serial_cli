@@ -1,8 +1,8 @@
 # Architecture Reference
 
-**Updated**: 2026-06-06
+**Updated**: 2026-06-17
 **Version**: 0.6.0
-**Status**: All core modules implemented and tested (260+ tests passing: 231 core + 29 Tauri)
+**Status**: Unified script system implemented, 237 tests passing
 
 ---
 
@@ -17,22 +17,22 @@ src/
 ├── config.rs               # ConfigManager — TOML-based, thread-safe
 ├── logging.rs              # tracing init (JSON / CLI format)
 ├── utils.rs                # Shared utility functions
+├── service.rs              # CommandService — shared orchestration layer
 │
 ├── cli/                    # CLI layer
 │   ├── args.rs             # Cli, Commands clap definitions
-│   ├── types.rs            # ProtocolCommand, SniffCommand, BatchCommand,
+│   ├── types.rs            # ScriptCommand, SniffCommand, BatchCommand,
 │   │                       # ConfigCommand, VirtualCommand enums
 │   ├── interactive.rs      # InteractiveShell REPL (rustyline)
 │   ├── json.rs             # JsonFormatter, JsonResponse
 │   ├── batch.rs            # BatchRunner, BatchConfig
 │   └── commands/           # Command handlers (one file per group)
-│       ├── protocol.rs     # protocol list/info/validate/load/unload/reload
+│       ├── script.rs       # script list/info/validate/load/unload/reload + run_lua_script
 │       ├── sniff.rs        # sniff start/stop/stats/save
 │       ├── batch.rs        # batch run/list
 │       ├── config.rs       # config show/set/save/reset
 │       ├── virtual_port.rs # virtual create/list/stop/stats + registry
 │       ├── ports.rs        # list_ports, send_data
-│       ├── script.rs       # run_lua_script
 │       └── parsers.rs      # hex/base64 parsing utilities
 │
 ├── serial_core/            # Serial port I/O
@@ -51,16 +51,14 @@ src/
 │   ├── serial_script.rs    # SerialScriptEngine (Hook mode Lua)
 │   └── windows_signals.rs  # Windows-specific signal impl
 │
-├── protocol/               # Protocol engine
-│   ├── mod.rs              # Protocol trait definition
-│   ├── registry.rs         # ProtocolRegistry, ProtocolFactory
-│   ├── registration.rs     # Built-in protocol registration
-│   ├── manager.rs          # ProtocolManager — load/unload/reload
-│   ├── loader.rs           # ProtocolLoader — Lua script loading
-│   ├── validator.rs        # ProtocolValidator — script validation
-│   ├── watcher.rs          # ProtocolWatcher — hot-reload via notify
-│   ├── lua_ext.rs          # LuaProtocol — custom protocol in Lua
-│   └── built_in/           # Modbus RTU/ASCII, AT Command, Line
+├── script/                 # Unified script system (replaces protocol/)
+│   ├── mod.rs              # ScriptInfo, module root
+│   ├── manager.rs          # ScriptManager — load/unload/reload/list
+│   └── built_in/           # Built-in Lua scripts
+│       ├── mod.rs          # Built-in registration
+│       ├── line.lua        # Line-based protocol
+│       ├── at_command.lua  # AT Command protocol
+│       └── modbus_rtu.lua  # Modbus RTU protocol
 │
 ├── lua/                    # LuaJIT integration
 │   ├── bindings.rs         # LuaBindings — Autonomous mode (CLI scripts)
@@ -85,10 +83,12 @@ src/
     └── windows.rs          # Windows-specific monitoring
 ```
 
-**Key changes from Task #10 (ScriptCore unification)**:
-- Removed `lua/pool.rs`, `lua/cache.rs`, and `lua/stdlib.rs` (dead code / superseded by ScriptRuntime)
-- Created `lua/runtime.rs` as unified ScriptRuntime for tool registration
-- SerialScriptEngine (Hook mode), LuaBindings (Autonomous mode), and LuaProtocol (Protocol mode) all use ScriptRuntime
+**Key changes from Unified Script System**:
+- Removed `src/protocol/` directory (12 files) — replaced by `src/script/`
+- Created `src/script/manager.rs` as ScriptManager for script lifecycle
+- Built-in protocols rewritten in Lua (line.lua, at_command.lua, modbus_rtu.lua)
+- Created `src/service.rs` as CommandService for shared orchestration
+- CLI command renamed from `protocol` to `script`
 
 ---
 
@@ -96,10 +96,11 @@ src/
 
 | Pattern | Location | Description |
 |---------|----------|-------------|
-| Protocol Trait | `protocol/mod.rs` | `parse()`, `encode()`, `reset()` — all protocols implement this |
+| ScriptManager | `script/manager.rs` | Load/unload/reload/list Lua scripts |
+| CommandService | `service.rs` | Shared orchestration for CLI, RPC, Tauri |
 | PortManager | `serial_core/port.rs` | UUID-based port handles, centralized open/close |
-| ProtocolFactory | `protocol/registry.rs` | Factory pattern for protocol instantiation |
-| LuaBindings | `lua/bindings.rs` | Registers Rust APIs into Lua globals |
+| SerialScriptEngine | `serial_core/serial_script.rs` | Hook mode Lua execution for port lifecycle |
+| LuaBindings | `lua/bindings.rs` | Autonomous mode Lua execution for CLI scripts |
 | ConfigManager | `config.rs` | `Arc<RwLock<Config>>` — thread-safe TOML config |
 | Command Dispatch | `cli/args.rs` + `cli/commands/*` | Clap parse → match on Commands → handler fn |
 
@@ -111,11 +112,11 @@ src/
 main.rs
   └→ cli/args (parse args)
   └→ cli/commands/* (dispatch)
-       ├→ serial_core (port I/O, sniffer, virtual ports)
-       ├→ protocol/* (registry, built-in, Lua protocols)
-       ├→ config (ConfigManager)
-       └→ lua/* (script execution, runtime)
-            └→ protocol/* (custom Lua protocols)
+       └→ service (CommandService — shared orchestration)
+            ├→ serial_core (port I/O, sniffer, virtual ports)
+            ├→ script/* (ScriptManager, built-in scripts)
+            ├→ config (ConfigManager)
+            └→ lua/* (script execution, runtime)
 ```
 
 ---

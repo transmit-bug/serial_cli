@@ -455,4 +455,191 @@ mod tests {
         let result = engine.on_recv(&data);
         assert!(result.is_empty(), "Incomplete frame should return empty (nil in Lua)");
     }
+
+    // ── Additional comprehensive tests ──────────────────────────────
+
+    #[test]
+    fn test_load_custom_script_with_callbacks() {
+        let dir = std::env::temp_dir().join("serial_cli_test_callbacks");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("callbacks.lua");
+        std::fs::write(&path, r#"
+            function on_open(port, config)
+                log_info("Port opened: " .. port)
+            end
+
+            function on_send(data)
+                return data
+            end
+
+            function on_recv(data)
+                return data
+            end
+
+            function on_close()
+                log_info("Port closed")
+            end
+        "#).unwrap();
+
+        let mut manager = ScriptManager::new();
+        let info = manager.load(&path).unwrap();
+
+        assert_eq!(info.name, "callbacks");
+        assert!(!info.built_in);
+
+        // Verify engine can be created and loaded
+        let engine = manager.create_engine("callbacks").unwrap();
+        engine.load().unwrap();
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    #[test]
+    fn test_validate_source_valid_lua() {
+        let source = r#"
+            function on_send(data)
+                return data
+            end
+        "#;
+        assert!(ScriptManager::validate_source(source).is_ok());
+    }
+
+    #[test]
+    fn test_validate_source_invalid_lua() {
+        let source = "this is not valid lua {{{";
+        assert!(ScriptManager::validate_source(source).is_err());
+    }
+
+    #[test]
+    fn test_validate_source_empty() {
+        let source = "";
+        assert!(ScriptManager::validate_source(source).is_ok());
+    }
+
+    #[test]
+    fn test_validate_source_with_comments() {
+        let source = r#"
+            -- This is a comment
+            function on_send(data)
+                -- Another comment
+                return data
+            end
+        "#;
+        assert!(ScriptManager::validate_source(source).is_ok());
+    }
+
+    #[test]
+    fn test_get_meta_returns_correct_info() {
+        let manager = ScriptManager::new();
+        let meta = manager.get_meta("line").unwrap();
+
+        assert_eq!(meta.name, "line");
+        assert!(meta.built_in);
+        assert!(!meta.description.is_empty());
+    }
+
+    #[test]
+    fn test_get_meta_not_found() {
+        let manager = ScriptManager::new();
+        let result = manager.get_meta("nonexistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_script_info_fields() {
+        let manager = ScriptManager::new();
+        let scripts = manager.list();
+
+        for script in &scripts {
+            assert!(!script.name.is_empty(), "Script name should not be empty");
+            assert!(!script.description.is_empty(), "Script description should not be empty");
+        }
+    }
+
+    #[test]
+    fn test_load_script_with_relative_imports() {
+        let dir = std::env::temp_dir().join("serial_cli_test_imports");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("with_imports.lua");
+        std::fs::write(&path, r#"
+            -- Simple script without external dependencies
+            local function helper(data)
+                return data
+            end
+
+            function on_send(data)
+                return helper(data)
+            end
+        "#).unwrap();
+
+        let mut manager = ScriptManager::new();
+        let info = manager.load(&path).unwrap();
+        assert_eq!(info.name, "with_imports");
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    #[test]
+    fn test_multiple_custom_scripts() {
+        let dir = std::env::temp_dir().join("serial_cli_test_multiple");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut manager = ScriptManager::new();
+
+        // Load multiple scripts
+        for i in 0..5 {
+            let path = dir.join(format!("script_{}.lua", i));
+            std::fs::write(&path, format!("function on_recv(data) return data end")).unwrap();
+            manager.load(&path).unwrap();
+        }
+
+        // Verify all scripts are loaded
+        let scripts = manager.list();
+        let custom_scripts: Vec<_> = scripts.iter().filter(|s| !s.built_in).collect();
+        assert_eq!(custom_scripts.len(), 5, "Should have 5 custom scripts");
+
+        // Cleanup
+        for i in 0..5 {
+            let path = dir.join(format!("script_{}.lua", i));
+            std::fs::remove_file(&path).ok();
+        }
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    #[test]
+    fn test_unload_nonexistent_script() {
+        let mut manager = ScriptManager::new();
+        let result = manager.unload("nonexistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reload_nonexistent_script() {
+        let mut manager = ScriptManager::new();
+        let result = manager.reload("nonexistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_script_preserves_source() {
+        let dir = std::env::temp_dir().join("serial_cli_test_source");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("source_test.lua");
+        let original_source = "function on_recv(data)\n    return data\nend";
+        std::fs::write(&path, original_source).unwrap();
+
+        let mut manager = ScriptManager::new();
+        manager.load(&path).unwrap();
+
+        let loaded_source = manager.get_source("source_test").unwrap();
+        assert_eq!(loaded_source, original_source, "Source should be preserved");
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
 }

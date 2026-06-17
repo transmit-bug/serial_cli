@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Unified Script System (2026-06-17)
+- **Merged Protocol and Hook Script** into a unified Script system
+  - Removed `src/protocol/` directory (12 files)
+  - Created `src/script/` module with ScriptManager
+  - Rewrote built-in protocols in Lua: line.lua, at_command.lua, modbus_rtu.lua
+- **CommandService layer** — Shared orchestration for CLI, RPC, and Tauri
+  - Extracted common port, script, and virtual port operations
+  - Surface adapters now delegate to CommandService
+- **CLI command rename** — `protocol` command renamed to `script`
+  - `serial-cli script list` (was `serial-cli protocol list`)
+  - `serial-cli script load` (was `serial-cli protocol load`)
+  - `serial-cli script info` (was `serial-cli protocol info`)
+- **Lua bindings migration** — `lua/bindings.rs` now uses ScriptManager
+  - `script_encode` / `script_decode` (backward compatible with `protocol_encode` / `protocol_decode`)
+  - `script_list` / `script_info` (backward compatible with `protocol_list` / `protocol_info`)
+- **Test coverage** — 237 tests passing (0 failures, 0 warnings)
+
 ### CI/CD Improvements
 - **pnpm migration** — CI frontend tests now use `pnpm install --frozen-lockfile` instead of `npm ci --force`, matching project's actual package manager
 - **Benchmark fix** — Fixed `--save-baseline` failure by running each Criterion bench explicitly

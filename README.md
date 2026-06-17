@@ -3,7 +3,7 @@
   ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.6.0-blue?style=for-the-badge&logo=rust)
   [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-  [![Tests](https://img.shields.io/badge/Tests-260%2B%20passing-success?style=for-the-badge)](https://github.com/zazac-zhang/serial_cli)
+  [![Tests](https://img.shields.io/badge/Tests-237%2B%20passing-success?style=for-the-badge)](https://github.com/zazac-zhang/serial_cli)
   [![GUI](https://img.shields.io/badge/GUI-Production%20Ready-brightgreen?style=for-the-badge&logo=react)](https://reactjs.org/)
 
   # 🚀 Serial CLI
@@ -20,7 +20,7 @@
 
 Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **CLI interface**, **structured JSON output**, **embedded LuaJIT scripting**, **support for multiple protocols**, and a **modern GUI application** - making it perfect for both human interaction and AI/automation workflows.
 
-**✨ CLI Production Ready** • **🖥️ GUI Production Ready** • **🔧 260+ Tests Passing** • **🌍 Linux • macOS • Windows**
+**✨ CLI Production Ready** • **🖥️ GUI Production Ready** • **🔧 237+ Tests Passing** • **🌍 Linux • macOS • Windows**
 
 ---
 
@@ -64,8 +64,8 @@ serial-cli interactive
 # Run Lua script
 serial-cli run script.lua
 
-# List available protocols
-serial-cli protocol list
+# List available scripts
+serial-cli script list
 
 # Create virtual serial port pair
 serial-cli virtual create --backend auto
@@ -130,8 +130,8 @@ serial> quit
 
 - **🔌 Serial Port Management** - List, open, configure, and manage serial ports
 - **📜 Lua Scripting** - Automate tasks with embedded LuaJIT (high-performance)
-- **📡 Protocol Support** - Built-in Modbus RTU/ASCII, AT Commands, line-based, and **custom Lua protocols**
-- **🎨 Custom Protocols** - Load custom protocols from Lua scripts with hot-reload support
+- **📡 Protocol Support** - Built-in Modbus RTU/ASCII, AT Commands, line-based, and **custom Lua scripts**
+- **🎨 Custom Scripts** - Load custom scripts from Lua files with hot-reload support
 - **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
 - **🔄 Batch Processing** - Execute multiple scripts with variable substitution, loops, and per-script error reporting
 - **🔍 Sniff Sessions** - Start/stop/stats/save serial traffic with background daemon and session management
@@ -441,20 +441,20 @@ sleep_ms(1000)
 local now = time_now()
 ```
 
-### Custom Protocol Extension
+### Custom Script Extension
 
-Load custom protocols from Lua scripts:
+Load custom scripts from Lua files:
 
 ```lua
--- Load custom protocol
-local ok, err = protocol_load("/path/to/my_protocol.lua")
+-- Load custom script
+local ok, err = script_load("/path/to/my_script.lua")
 if ok then
-    local encoded = protocol_encode("my_custom_protocol", "data")
-    local decoded = protocol_decode("my_custom_protocol", encoded)
+    local encoded = script_encode("my_custom_script", "data")
+    local decoded = script_decode("my_custom_script", encoded)
 end
 ```
 
-See `examples/` directory for complete protocol examples.
+See `examples/` directory for complete script examples.
 
 ---
 
@@ -576,7 +576,8 @@ serial_cli/
 │   ├── error.rs            # Error types
 │   ├── config.rs           # Configuration
 │   ├── serial_core/        # Serial port I/O
-│   ├── protocol/           # Protocol engine
+│   ├── script/             # Unified script system
+│   ├── service.rs          # CommandService (shared orchestration)
 │   ├── lua/                # LuaJIT integration
 │   ├── server/             # Server Mode daemon
 │   ├── task/               # Task scheduling (experimental)
