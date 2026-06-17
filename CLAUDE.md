@@ -92,7 +92,9 @@ just gui-test           # Run frontend tests (vitest)
 just gui-test-watch     # Run frontend tests in watch mode
 ```
 
-**Frontend stack:** pnpm, React 19, Vite 8, Tailwind CSS 4, Zustand 5, biome, vitest
+**Frontend stack:** pnpm, React 19, Vite 8, Tailwind CSS 4, Zustand 5, shadcn/ui, biome, vitest
+
+**Frontend 规范**：UI 组件优先使用 shadcn/ui（`npx shadcn@latest add <组件名>`），不要手写基础组件。
 
 ## Agent skills
 

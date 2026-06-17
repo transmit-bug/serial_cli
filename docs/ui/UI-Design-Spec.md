@@ -1,8 +1,8 @@
-# Serial CLI UI 设计规范 v2.1
+# Serial CLI UI 设计规范 v3.0
 
-**基于批判性审查的完善设计方案**
+**基于实现的完善设计方案**
 **创建日期：2026-05-11**
-**最后更新：2026-05-11**
+**最后更新：2026-06-18**
 **状态：最终版本**
 
 ---
@@ -41,6 +41,92 @@
 5. **性能优先**
    - 实时数据流不阻塞UI
    - 大数据量时自动降级显示
+
+6. **桌面端优先**
+   - 目标平台：macOS、Windows、Linux 桌面端
+   - 不需要响应式设计，固定布局即可
+   - 按钮大小、间距保持一致
+
+---
+
+## UI 组件库
+
+### 技术栈
+
+- **组件库**：shadcn/ui (New York style)
+- **基础**：Radix UI + class-variance-authority
+- **样式**：Tailwind CSS 4 + CSS 变量
+- **图标**：Lucide React
+
+### 已安装组件
+
+```bash
+frontend/src/components/ui/
+├── badge.tsx       # 标签
+├── button.tsx      # 按钮
+├── card.tsx        # 卡片
+├── dialog.tsx      # 对话框
+├── input.tsx       # 输入框
+├── label.tsx       # 标签
+├── select.tsx      # 选择框
+├── separator.tsx   # 分隔线
+├── switch.tsx      # 开关
+├── tabs.tsx        # 标签页
+├── toggle.tsx      # 切换按钮
+└── tooltip.tsx     # 提示框
+```
+
+### 使用规范
+
+**导入方式**：
+```tsx
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+```
+
+**按钮变体**：
+```tsx
+// 主要操作
+<Button variant="default">连接</Button>
+
+// 次要操作
+<Button variant="secondary">取消</Button>
+
+// 危险操作
+<Button variant="destructive">断开</Button>
+
+// 幽灵按钮
+<Button variant="ghost">编辑</Button>
+
+// 链接样式
+<Button variant="link">查看详情</Button>
+```
+
+**按钮尺寸**：
+```tsx
+// 默认尺寸（用于主要操作）
+<Button size="default">发送</Button>
+
+// 小尺寸（用于工具栏）
+<Button size="sm">清空</Button>
+
+// 大尺寸（用于重要操作）
+<Button size="lg">连接</Button>
+
+// 图标按钮
+<Button size="icon"><Trash2 className="h-4 w-4" /></Button>
+```
+
+### 组件规范
+
+| 组件 | 推荐尺寸 | 使用场景 |
+|------|----------|----------|
+| Button | `size="sm"` 或 `size="default"` | 工具栏、表单 |
+| Input | `className="h-8"` | 表单输入 |
+| Select | `className="h-8"` | 下拉选择 |
+| Badge | `variant="secondary"` | 状态标签 |
+| Card | 默认 | 面板容器 |
 
 ---
 
@@ -500,61 +586,87 @@ ASCII模式：
 
 ### 颜色系统
 
-**主题色：**
+**主题色（Catppuccin Mocha）**：
 ```css
-/* 信号色 - 主要操作 */
---signal-primary: #00ff41;
---signal-dim: rgba(0, 255, 65, 0.08);
---signal-glow: rgba(0, 255, 65, 0.15);
+/* 深色主题（默认） */
+--color-base: #1e1e2e;          /* 基础背景 */
+--color-base-deep: #181825;     /* 深层背景 */
+--color-surface: #313244;       /* 抬升背景 */
+--color-surface-hover: #3b3b54; /* 悬停背景 */
+--color-overlay: #45475a;       /* 遮罩层 */
+--color-border: #45475a;        /* 边框 */
+--color-border-subtle: #585b70; /* 次要边框 */
 
-/* 信息色 - 次要操作 */
---info-primary: #53a0fd;
---info-dim: rgba(83, 160, 253, 0.08);
+/* 文字色 */
+--color-text: #cdd6f4;          /* 主要文字 */
+--color-text-secondary: #a6adc8; /* 次要文字 */
+--color-text-muted: #6c7086;    /* 辅助文字 */
 
-/* 警告色 - 注意事项 */
---warning-primary: #ffb142;
---warning-dim: rgba(255, 177, 66, 0.08);
-
-/* 错误色 - 危险操作 */
---error-primary: #ff4757;
---error-dim: rgba(255, 71, 87, 0.08);
+/* 功能色 */
+--color-accent: #89b4fa;        /* 主色调（蓝） */
+--color-accent-hover: #74c7ec;  /* 主色调悬停 */
+--color-success: #a6e3a1;       /* 成功（绿） */
+--color-danger: #f38ba8;        /* 危险（红） */
+--color-warning: #f9e2af;       /* 警告（黄） */
 ```
 
-**背景色：**
+**浅色主题（Catppuccin Latte）**：
 ```css
---bg-deepest: #0d0d0f;   /* 最深层背景 */
---bg-deep: #121214;      /* 深层背景 */
---bg-base: #18181b;      /* 基础背景 */
---bg-elevated: #1c1c1f;  /* 抬升背景 */
---bg-floating: #222226;  /* 浮动层背景 */
+[data-theme="light"] {
+  --color-base: #eff1f5;
+  --color-base-deep: #e6e9ef;
+  --color-surface: #ccd0da;
+  --color-surface-hover: #bcc0cc;
+  --color-overlay: #9ca0b0;
+  --color-border: #9ca0b0;
+  --color-border-subtle: #8c8fa1;
+
+  --color-text: #4c4f69;
+  --color-text-secondary: #5c5f77;
+  --color-text-muted: #7c7f93;
+
+  --color-accent: #1e66f5;
+  --color-accent-hover: #2a6ef5;
+  --color-success: #40a02b;
+  --color-danger: #d20f39;
+  --color-warning: #df8e1d;
+}
 ```
 
-**文字色：**
-```css
---text-primary: #fafafa;    /* 主要文字 */
---text-secondary: #a0a0a8;  /* 次要文字 */
---text-tertiary: #5a5a60;   /* 辅助文字 */
-```
+**使用 Tailwind 类名**：
+```tsx
+// 背景色
+<div className="bg-base">...</div>
+<div className="bg-surface">...</div>
 
-**边框色：**
-```css
---border-default: rgba(255, 255, 255, 0.1);
---border-subtle: rgba(255, 255, 255, 0.06);
---border-strong: rgba(255, 255, 255, 0.15);
+// 文字色
+<p className="text-text">...</p>
+<p className="text-text-muted">...</p>
+
+// 功能色
+<Button className="bg-accent text-accent-foreground">连接</Button>
+<Button className="bg-danger text-danger-foreground">断开</Button>
 ```
 
 ### 字体系统
 
-**字体家族：**
+**字体家族**：
 ```css
---font-sans: system-ui, -apple-system, sans-serif;
---font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
---font-display: system-ui, sans-serif;
+/* 界面文字 */
+--font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+
+/* 代码/数据显示 */
+--font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
 ```
 
-**使用场景：**
-- `font-mono`: 数据显示、脚本编辑器、终端输出
-- `font-sans`: 界面文字、按钮、标签
+**使用场景**：
+- `font-mono`：数据显示、脚本编辑器、终端输出、端口名称
+- `font-sans`：界面文字、按钮、标签、说明文字
+
+**字体大小**：
+- 界面文字：`text-sm` (14px) 或 `text-xs` (12px)
+- 代码/数据：`text-xs` (12px) 或 `font-mono` (12px)
+- 标签/辅助：`text-[10px]` (10px)
 
 ---
 
@@ -562,76 +674,80 @@ ASCII模式：
 
 ### 推荐技术栈
 
-#### 组件库（选择其一）
+#### 组件库（已集成）
 
-**1. shadcn/ui（强烈推荐）**
+**shadcn/ui (New York style)**
 - **优势**：基于 Radix UI，代码可复制到项目，完全可控
-- **组件**：Dialog, Sheet, Dropdown Menu, Toast, Alert 等
+- **组件**：Button, Input, Select, Dialog, Tabs, Badge 等
 - **官网**：https://ui.shadcn.com/
+- **配置文件**：`frontend/components.json`
 
-**2. Chakra UI**
-- **优势**：完整的组件系统，开箱即用
-- **组件**：Modal, Drawer, Menu, Toast, Alert 等
-- **官网**：https://chakra-ui.com/
-
-**3. Radix UI + Headless UI**
-- **优势**：无样式组件，完全自定义
-- **适合**：需要高度定制化的场景
+**添加新组件**：
+```bash
+cd frontend
+npx shadcn@latest add <component-name>
+```
 
 #### 工具库
 
 **通知/Toast：**
-- Sonner（推荐）：https://sonner.emilkowal.ski/
-- react-hot-toast：https://react-hot-toast.com/
+- Sonner（已集成）：https://sonner.emilkowal.ski/
 
 **表单处理：**
-- React Hook Form：https://react-hook-form.com/
-- Zod（验证）：https://zod.dev/
+- React Hook Form（已集成）：https://react-hook-form.com/
+- @hookform/resolvers（已集成）
 
 **数据可视化：**
-- Recharts：https://recharts.org/
-- Visx（Instagram）：https://airbnb.io/visx
+- @tanstack/react-virtual（已集成）：用于虚拟滚动
 
 **编辑器：**
-- Monaco Editor（VS Code 同款）：https://microsoft.github.io/monaco-editor/
+- Monaco Editor（已集成）：https://microsoft.github.io/monaco-editor/
+
+**图标：**
+- Lucide React（已集成）：https://lucide.dev/
 
 ### Tailwind 配置
 
-**tailwind.config.js：**
-```javascript
-module.exports = {
-  darkMode: ['class'],
-  theme: {
-    extend: {
-      colors: {
-        // 信号色主题
-        signal: {
-          primary: '#00ff41',
-          dim: 'rgba(0, 255, 65, 0.08)',
-          glow: 'rgba(0, 255, 65, 0.15)',
-        },
-        // 背景色
-        bg: {
-          deepest: '#0d0d0f',
-          deep: '#121214',
-          base: '#18181b',
-          elevated: '#1c1c1f',
-          floating: '#222226',
-        },
-        // 文字色
-        text: {
-          primary: '#fafafa',
-          secondary: '#a0a0a8',
-          tertiary: '#5a5a60',
-        },
-      },
-      fontFamily: {
-        sans: ['system-ui', '-apple-system', 'sans-serif'],
-        mono: ['"JetBrains Mono"', '"SF Mono"', '"Cascadia Code"', 'monospace'],
-      },
-    },
-  },
+当前项目使用 Tailwind CSS 4，配置在 `frontend/src/index.css` 中：
+
+```css
+@import "tailwindcss";
+
+/* Dark theme (Catppuccin Mocha) — default */
+@theme {
+  --color-base: #1e1e2e;
+  --color-base-deep: #181825;
+  --color-surface: #313244;
+  --color-surface-hover: #3b3b54;
+  --color-overlay: #45475a;
+  --color-border: #45475a;
+  --color-border-subtle: #585b70;
+
+  --color-text: #cdd6f4;
+  --color-text-secondary: #a6adc8;
+  --color-text-muted: #6c7086;
+
+  --color-accent: #89b4fa;
+  --color-accent-hover: #74c7ec;
+  --color-success: #a6e3a1;
+  --color-danger: #f38ba8;
+  --color-warning: #f9e2af;
 }
+```
+
+**使用方式**：
+```tsx
+// 背景色
+<div className="bg-base">...</div>
+<div className="bg-surface">...</div>
+
+// 文字色
+<p className="text-text">...</p>
+<p className="text-text-muted">...</p>
+
+// 功能色
+<Button className="bg-accent text-accent-foreground">连接</Button>
+<Button className="bg-danger text-danger-foreground">断开</Button>
 ```
 
 ### 主题定制示例
@@ -746,26 +862,22 @@ function handleError(error) {
 
 ### 响应式设计
 
-**使用 Tailwind 默认断点：**
-```tsx
-<div className="
-  /* 移动端：单列 */
-  flex-col gap-4
-  /* 平板+：双列 */
-  md:flex-row md:gap-6
-  /* 大屏：侧边栏固定 */
-  lg:grid lg:grid-cols-[220px_1fr]
-">
-  {/* 侧边栏 */}
-  <aside className="hidden lg:block">
-    <SidebarNav />
-  </aside>
+**当前策略**：桌面端固定布局，不需要响应式设计
 
-  {/* 主内容 */}
-  <main>
-    <Workspace />
-  </main>
-</div>
+**原因**：
+- 串口工具主要在桌面端使用
+- 移动端不是目标场景
+- 固定布局更简单、更可预测
+
+**断点使用**：
+- 仅在必要时使用 `lg:` 断点（如 RightPanel tabs 的文字显示）
+- 不需要 `sm:`、`md:`、`xl:` 等断点
+
+**示例**：
+```tsx
+// RightPanel tabs 的响应式文字
+<span className="hidden lg:inline">{t(labelKey)}</span>
+<span className="lg:hidden">{compactKey}</span>
 ```
 
 ---
@@ -775,7 +887,7 @@ function handleError(error) {
 ### 性能优化
 
 **虚拟滚动：**
-- 使用 `react-window` 或 `react-virtuoso`
+- 使用 `@tanstack/react-virtual`（已集成）
 - RX数据区超过100项时启用
 - 上下各预渲染20项
 
@@ -912,6 +1024,13 @@ function handleError(error: Error, context: string) {
 ---
 
 ## 文档版本历史
+
+**v3.0 (2026-06-18)**
+- 更新颜色方案为 Catppuccin（与实现一致）
+- 添加 shadcn/ui 组件库文档
+- 添加组件规范（按钮大小、间距标准）
+- 明确桌面端优先，不需要响应式设计
+- 更新技术栈信息
 
 **v2.1 (2026-05-11)**
 - 删除通用交互规范（使用成熟组件库）

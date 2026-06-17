@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCommandStore } from "@/stores/commands";
 import { useConnectionStore } from "@/stores/connection";
 import { useDataStore } from "@/stores/data";
@@ -7,7 +17,8 @@ import type { QuickCommand } from "@/types";
 
 export function RightPanelCommands() {
   const { t } = useTranslation();
-  const { portId, status } = useConnectionStore();
+  const activePortId = useConnectionStore((s) => s.activePortId);
+  const connections = useConnectionStore((s) => s.connections);
   const addPacket = useDataStore((s) => s.addPacket);
   const commands = useCommandStore((s) => s.commands);
   const updateCommand = useCommandStore((s) => s.updateCommand);
@@ -16,7 +27,10 @@ export function RightPanelCommands() {
   const reorderCommand = useCommandStore((s) => s.reorderCommand);
   const sendCommand = useCommandStore((s) => s.sendCommand);
 
-  const isConnected = status === "connected";
+  const portId = activePortId;
+  const isConnected =
+    !!activePortId &&
+    connections.find((c) => c.portId === activePortId)?.status === "connected";
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<QuickCommand>({
     label: "",
@@ -111,18 +125,15 @@ export function RightPanelCommands() {
     <div className="flex flex-col h-full">
       {/* Search + Add */}
       <div className="flex items-center gap-2 p-2 border-b border-border">
-        <input
-          className="flex-1 h-6 text-xs rounded border border-border bg-transparent px-2"
+        <Input
           placeholder={t("commands.search")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          className="flex-1"
         />
-        <button
-          className="px-2 py-0.5 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30"
-          onClick={handleAddCommand}
-        >
+        <Button variant="default" size="sm" onClick={handleAddCommand}>
           +
-        </button>
+        </Button>
       </div>
 
       {/* Edit form */}
@@ -131,56 +142,59 @@ export function RightPanelCommands() {
           <div className="text-xs font-medium text-text-secondary">
             {t("quickSend.editCommand")}
           </div>
-          <input
-            className="w-full h-6 text-xs rounded border border-border bg-transparent px-2"
+          <Input
             placeholder={t("quickSend.label")}
             value={editForm.label}
             onChange={(e) =>
               setEditForm({ ...editForm, label: e.target.value })
             }
           />
-          <input
-            className="w-full h-6 text-xs rounded border border-border bg-transparent px-2 font-mono"
+          <Input
             placeholder={t("quickSend.data")}
             value={editForm.data}
-            onChange={(e) => setEditForm({ ...editForm, data: e.target.value })}
+            onChange={(e) =>
+              setEditForm({ ...editForm, data: e.target.value })
+            }
+            className="font-mono"
           />
           <div className="flex gap-2">
-            <select
-              className="h-6 text-xs rounded border border-border bg-transparent px-2"
+            <Select
               value={editForm.format}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 setEditForm({
                   ...editForm,
-                  format: e.target.value as "hex" | "ascii",
+                  format: value as "hex" | "ascii",
                 })
               }
             >
-              <option value="ascii">ASCII</option>
-              <option value="hex">HEX</option>
-            </select>
-            <input
-              className="w-16 h-6 text-xs rounded border border-border bg-transparent px-2"
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ascii">ASCII</SelectItem>
+                <SelectItem value="hex">HEX</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
               placeholder="F1"
               value={editForm.hotkey || ""}
               onChange={(e) =>
                 setEditForm({ ...editForm, hotkey: e.target.value })
               }
+              className="w-16"
             />
           </div>
           <div className="flex gap-2">
-            <button
-              className="px-2 py-0.5 text-xs rounded bg-accent/20 text-accent hover:bg-accent/30"
-              onClick={saveEdit}
-            >
+            <Button variant="default" size="sm" onClick={saveEdit}>
               {t("common.save")}
-            </button>
-            <button
-              className="px-2 py-0.5 text-xs rounded text-text-muted hover:text-text"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setEditingIndex(null)}
             >
               {t("common.cancel")}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -202,25 +216,28 @@ export function RightPanelCommands() {
                 >
                   {/* Reorder arrows */}
                   <div className="flex flex-col gap-0.5 mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      className="text-[8px] text-text-muted leading-none"
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => moveUp(realIndex)}
                       disabled={realIndex === 0}
                     >
                       ▲
-                    </button>
-                    <button
-                      className="text-[8px] text-text-muted leading-none"
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => moveDown(realIndex)}
                       disabled={realIndex === commands.length - 1}
                     >
                       ▼
-                    </button>
+                    </Button>
                   </div>
 
                   {/* Send button / label */}
-                  <button
-                    className="flex-1 flex items-center justify-between text-left min-w-0"
+                  <Button
+                    variant="ghost"
+                    className="flex-1 flex items-center justify-between text-left min-w-0 h-auto py-1"
                     disabled={!isConnected}
                     onClick={() => handleSend(realIndex)}
                     title={cmd.data ?? ""}
@@ -230,30 +247,32 @@ export function RightPanelCommands() {
                     </span>
                     <div className="flex items-center gap-1 ml-2 shrink-0">
                       {cmd.hotkey && (
-                        <span className="text-[9px] text-text-muted bg-surface rounded px-1">
+                        <Badge variant="secondary" className="text-[9px]">
                           {cmd.hotkey}
-                        </span>
+                        </Badge>
                       )}
-                      <span className="text-[9px] text-text-muted uppercase">
+                      <Badge variant="outline" className="text-[9px] uppercase">
                         {cmd.format}
-                      </span>
+                      </Badge>
                     </div>
-                  </button>
+                  </Button>
 
                   {/* Edit / Delete */}
                   <div className="hidden group-hover:flex items-center gap-0.5 ml-1 shrink-0">
-                    <button
-                      className="text-[10px] text-text-muted hover:text-text px-1"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => startEdit(realIndex)}
                     >
                       {t("common.edit")}
-                    </button>
-                    <button
-                      className="text-[10px] text-danger hover:text-danger-hover px-1"
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => deleteCommand(realIndex)}
                     >
                       {t("common.delete")}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               );

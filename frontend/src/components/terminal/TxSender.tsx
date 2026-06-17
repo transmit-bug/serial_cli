@@ -1,6 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Toggle } from "@/components/ui/toggle";
 import { tauriApi } from "@/lib/tauri-api";
 import { hexToBytes } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
@@ -97,77 +101,73 @@ export function TxSender({ portId }: { portId?: string }) {
   );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-border px-2 shrink-0">
-        <button
-          className={`px-3 py-1.5 text-xs font-medium transition ${tab === "free" ? "text-accent border-b-2 border-accent" : "text-text-muted hover:text-text"}`}
-          onClick={() => setTab("free")}
-        >
-          {t("txSender.freeSend")}
-        </button>
-        <button
-          className={`px-3 py-1.5 text-xs font-medium transition ${tab === "quick" ? "text-accent border-b-2 border-accent" : "text-text-muted hover:text-text"}`}
-          onClick={() => setTab("quick")}
-        >
-          {t("txSender.quickSend")}
-        </button>
-        <button
-          className={`px-3 py-1.5 text-xs font-medium transition ${tab === "sequences" ? "text-accent border-b-2 border-accent" : "text-text-muted hover:text-text"}`}
-          onClick={() => setTab("sequences")}
-        >
-          {t("txSender.sequences")}
-        </button>
-      </div>
+    <Tabs
+      value={tab}
+      onValueChange={(value) => setTab(value as "free" | "quick" | "sequences")}
+      className="flex flex-col h-full"
+    >
+      <TabsList variant="line" className="shrink-0">
+        <TabsTrigger value="free">{t("txSender.freeSend")}</TabsTrigger>
+        <TabsTrigger value="quick">{t("txSender.quickSend")}</TabsTrigger>
+        <TabsTrigger value="sequences">{t("txSender.sequences")}</TabsTrigger>
+      </TabsList>
 
-      {tab === "free" && (
-        <>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t("terminal.inputPlaceholder")}
+      <TabsContent value="free" className="flex-1 flex flex-col mt-0">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={t("terminal.inputPlaceholder")}
+          disabled={!isConnected}
+          className="flex-1 resize-none p-2 font-mono text-xs border-b border-border rounded-none"
+          spellCheck={false}
+        />
+        <div className="flex items-center gap-2 px-3 py-1.5 shrink-0">
+          <Toggle
+            pressed={hexMode}
+            onPressedChange={setHexMode}
+            variant="outline"
+            size="sm"
+          >
+            {t("terminal.hexMode")}
+          </Toggle>
+
+          <Button
+            variant="default"
+            onClick={send}
+            disabled={!isConnected || !input.trim()}
+          >
+            {t("common.send")} ▶
+          </Button>
+
+          {loopActive && (
+            <Input
+              type="number"
+              value={loopInterval}
+              onChange={(e) => setLoopInterval(Number(e.target.value))}
+              className="w-20"
+              min={100}
+            />
+          )}
+          <Toggle
+            pressed={loopActive}
+            onPressedChange={toggleLoop}
             disabled={!isConnected}
-            className="flex-1 resize-none p-2 font-mono text-xs border-b border-border rounded-none"
-            spellCheck={false}
-          />
-          <div className="flex items-center gap-2 px-3 py-1.5 shrink-0">
-            <button
-              onClick={() => setHexMode(!hexMode)}
-              className={`px-2 py-0.5 rounded text-xs ${hexMode ? "bg-warning/20 text-warning" : "text-text-muted"}`}
-            >
-              {t("terminal.hexMode")}
-            </button>
+            variant={loopActive ? "outline" : "default"}
+            size="sm"
+          >
+            {t("terminal.sendLoop")} {loopActive ? "■" : "↻"}
+          </Toggle>
+        </div>
+      </TabsContent>
 
-            <button
-              onClick={send}
-              disabled={!isConnected || !input.trim()}
-              className="px-3 py-1 rounded text-xs bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
-            >
-              {t("common.send")} ▶
-            </button>
+      <TabsContent value="quick" className="flex-1 mt-0">
+        <QuickSendPanel onSent={handleQuickSend} />
+      </TabsContent>
 
-            {loopActive && (
-              <input
-                type="number"
-                value={loopInterval}
-                onChange={(e) => setLoopInterval(Number(e.target.value))}
-                className="w-20 h-6 text-xs"
-                min={100}
-              />
-            )}
-            <button
-              onClick={toggleLoop}
-              disabled={!isConnected}
-              className={`px-2 py-0.5 rounded text-xs ${loopActive ? "bg-danger/20 text-danger" : "text-text-muted hover:text-text"}`}
-            >
-              {t("terminal.sendLoop")} {loopActive ? "■" : "↻"}
-            </button>
-          </div>
-        </>
-      )}
-      {tab === "quick" && <QuickSendPanel onSent={handleQuickSend} />}
-      {tab === "sequences" && <SequenceList />}
-    </div>
+      <TabsContent value="sequences" className="flex-1 mt-0">
+        <SequenceList />
+      </TabsContent>
+    </Tabs>
   );
 }

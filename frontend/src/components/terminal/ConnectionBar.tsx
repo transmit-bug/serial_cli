@@ -1,5 +1,13 @@
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { tauriApi } from "@/lib/tauri-api";
 import { useConnectionStore } from "@/stores/connection";
 import { usePresetsStore } from "@/stores/presets";
@@ -72,177 +80,203 @@ export function ConnectionBar() {
     <div className="flex items-center gap-2 px-3 py-2 bg-base-deep border-b border-border flex-wrap">
       {/* Preset Quick Apply */}
       {presets.length > 0 && !hasAnyConnected && (
-        <select
-          className="w-36"
-          value=""
-          onChange={(e) => {
-            if (e.target.value) {
-              const idx = Number(e.target.value);
+        <Select
+          onValueChange={(value) => {
+            if (value) {
+              const idx = Number(value);
               handleApplyPreset(presets[idx]);
-              e.target.value = "";
             }
           }}
         >
-          <option value="">{t("presets.apply")}...</option>
-          {presets.map((p, i) => (
-            <option key={p.name} value={i}>
-              {p.name} ({p.baudrate})
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder={`${t("presets.apply")}...`} />
+          </SelectTrigger>
+          <SelectContent>
+            {presets.map((p, i) => (
+              <SelectItem key={p.name} value={String(i)}>
+                {p.name} ({p.baudrate})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
 
       {/* Port selector */}
       {!isConnected && (
-        <select
-          className="w-40"
+        <Select
           value={pendingPort ?? ""}
-          onChange={(e) => setPendingPort(e.target.value || null)}
-          onFocus={() => refreshPorts()}
+          onValueChange={(value) => setPendingPort(value || null)}
         >
-          <option value="">{t("common.port")}...</option>
-          {availablePorts
-            .filter(
-              (p) =>
-                !connections.some(
-                  (c) => c.portName === p.port_name && c.status === "connected",
-                ),
-            )
-            .map((p) => (
-              <option key={p.port_name} value={p.port_name}>
-                {p.port_name} {p.is_virtual ? "(virtual)" : ""}
-              </option>
-            ))}
-        </select>
+          <SelectTrigger className="w-40" onFocus={() => refreshPorts()}>
+            <SelectValue placeholder={`${t("common.port")}...`} />
+          </SelectTrigger>
+          <SelectContent>
+            {availablePorts
+              .filter(
+                (p) =>
+                  !connections.some(
+                    (c) =>
+                      c.portName === p.port_name && c.status === "connected",
+                  ),
+              )
+              .map((p) => (
+                <SelectItem key={p.port_name} value={p.port_name}>
+                  {p.port_name} {p.is_virtual ? "(virtual)" : ""}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
       )}
 
       {/* Config controls */}
       {!isConnected && (
         <>
-          <select
-            value={defaultConfig.baudrate}
-            onChange={(e) =>
-              setDefaultConfig({ baudrate: Number(e.target.value) })
+          <Select
+            value={String(defaultConfig.baudrate)}
+            onValueChange={(value) =>
+              setDefaultConfig({ baudrate: Number(value) })
             }
           >
-            {BAUD_RATES.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {BAUD_RATES.map((b) => (
+                <SelectItem key={b} value={String(b)}>
+                  {b}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
-            value={defaultConfig.databits}
-            onChange={(e) =>
-              setDefaultConfig({ databits: Number(e.target.value) })
+          <Select
+            value={String(defaultConfig.databits)}
+            onValueChange={(value) =>
+              setDefaultConfig({ databits: Number(value) })
             }
           >
-            {DATA_BITS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-16">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DATA_BITS.map((d) => (
+                <SelectItem key={d} value={String(d)}>
+                  {d}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
-            value={defaultConfig.stopbits}
-            onChange={(e) =>
-              setDefaultConfig({ stopbits: Number(e.target.value) })
+          <Select
+            value={String(defaultConfig.stopbits)}
+            onValueChange={(value) =>
+              setDefaultConfig({ stopbits: Number(value) })
             }
           >
-            {STOP_BITS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-16">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STOP_BITS.map((s) => (
+                <SelectItem key={s} value={String(s)}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
+          <Select
             value={defaultConfig.parity}
-            onChange={(e) => setDefaultConfig({ parity: e.target.value })}
+            onValueChange={(value) => setDefaultConfig({ parity: value })}
           >
-            {PARITY_OPTIONS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PARITY_OPTIONS.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
+          <Select
             value={defaultConfig.flow_control}
-            onChange={(e) => setDefaultConfig({ flow_control: e.target.value })}
+            onValueChange={(value) =>
+              setDefaultConfig({ flow_control: value })
+            }
           >
-            {FLOW_OPTIONS.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FLOW_OPTIONS.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {f}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </>
       )}
 
       {/* Connect/Disconnect */}
-      <button
+      <Button
+        variant={isConnected ? "destructive" : "default"}
         onClick={handleConnect}
         disabled={!pendingPort && !isConnected}
-        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-          isConnected
-            ? "bg-danger/20 text-danger hover:bg-danger/30"
-            : "bg-success/20 text-success hover:bg-success/30 disabled:opacity-50"
-        }`}
       >
         {isConnected ? t("common.disconnect") : t("common.connect")}
-      </button>
+      </Button>
 
       {/* Disconnect All */}
       {hasAnyConnected && connections.length > 1 && (
-        <button
-          onClick={disconnectAll}
-          className="px-2 py-1 rounded text-xs text-danger/70 hover:text-danger transition-colors"
-        >
+        <Button variant="ghost" onClick={disconnectAll}>
           {t("common.disconnect")} All
-        </button>
+        </Button>
       )}
 
       <div className="mx-2 w-px h-5 bg-border" />
 
       {/* Protocol */}
-      <select
+      <Select
         disabled={!isConnected}
         value={
           activeEntry ? (useProtocolStore.getState().activeProtocol ?? "") : ""
         }
-        onChange={async (e) => {
+        onValueChange={async (value) => {
           if (activePortId) {
             await useProtocolStore
               .getState()
-              .setActiveProtocol(activePortId, e.target.value || null);
+              .setActiveProtocol(activePortId, value || null);
           }
         }}
       >
-        <option value="">
-          {t("common.protocol")}: {t("common.none")}
-        </option>
-        {protocols.map((p) => (
-          <option key={p.name} value={p.name}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="w-32">
+          <SelectValue
+            placeholder={`${t("common.protocol")}: ${t("common.none")}`}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {protocols.map((p) => (
+            <SelectItem key={p.name} value={p.name}>
+              {p.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* Script */}
-      <select
+      <Select
         disabled={!isConnected}
-        value=""
-        onChange={async (e) => {
+        onValueChange={async (value) => {
           if (!activePortId) return;
-          const name = e.target.value;
-          if (!name) {
+          if (!value) {
             await tauriApi.detachScript(activePortId);
             return;
           }
-          const info = scripts.find((s) => s.name === name);
+          const info = scripts.find((s) => s.name === value);
           if (!info) return;
           try {
             const resp = await fetch(`file://${info.path}`);
@@ -255,15 +289,19 @@ export function ConnectionBar() {
           }
         }}
       >
-        <option value="">
-          {t("common.script")}: {t("common.none")}
-        </option>
-        {scripts.map((s) => (
-          <option key={s.name} value={s.name}>
-            {s.name}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="w-32">
+          <SelectValue
+            placeholder={`${t("common.script")}: ${t("common.none")}`}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {scripts.map((s) => (
+            <SelectItem key={s.name} value={s.name}>
+              {s.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

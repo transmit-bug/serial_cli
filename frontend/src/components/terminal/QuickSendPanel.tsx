@@ -3,7 +3,11 @@ import { tauriApi } from "@/lib/tauri-api";
 import { useConnectionStore } from "@/stores/connection";
 import { useDataStore } from "@/stores/data";
 
-export function QuickSendPanel() {
+interface QuickSendPanelProps {
+  onSent?: (data: string, format: "hex" | "ascii") => void;
+}
+
+export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
   const activePortId = useConnectionStore((s) => s.activePortId);
   const connections = useConnectionStore((s) => s.connections);
   const portId = activePortId;
@@ -26,5 +30,5 @@ export function QuickSendPanel() {
     addPacket(portId, "tx", bytes, Date.now());
   };
 
-  return <CommandSender enabled={isConnected} sendFn={sendFn} />;
+  return <CommandSender enabled={isConnected} sendFn={sendFn} onSent={onSent} />;
 }
