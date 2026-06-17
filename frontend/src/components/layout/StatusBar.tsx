@@ -16,11 +16,11 @@ export function StatusBar() {
   const activeProtocol = useProtocolStore((s) => s.activeProtocol);
 
   const rxBytes = packets.reduce(
-    (sum, p) => (p.direction === "rx" ? sum + p.data.length : sum),
+    (sum, p) => (p.direction === "rx" ? sum + (Array.isArray(p.data) ? p.data.length : 0) : sum),
     0,
   );
   const txBytes = packets.reduce(
-    (sum, p) => (p.direction === "tx" ? sum + p.data.length : sum),
+    (sum, p) => (p.direction === "tx" ? sum + (Array.isArray(p.data) ? p.data.length : 0) : sum),
     0,
   );
 

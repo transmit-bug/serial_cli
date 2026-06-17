@@ -99,7 +99,7 @@ export function RightPanel() {
       onValueChange={(value) => setActiveTab(value as RightPanelTab)}
       className="flex flex-col h-full"
     >
-      <TabsList variant="line" className="shrink-0 overflow-x-auto">
+      <TabsList variant="line" className="shrink-0 overflow-x-auto pb-1">
         {TABS.map(({ id, icon: Icon, labelKey, compactKey }) => (
           <TabsTrigger key={id} value={id} title={t(labelKey)}>
             <Icon size={12} />

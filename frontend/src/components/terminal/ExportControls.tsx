@@ -28,10 +28,11 @@ export function ExportControls() {
 
   const filteredCount = searchQuery
     ? packets.filter((p) => {
-        const hex = p.data
+        const data = Array.isArray(p.data) ? p.data : [];
+        const hex = data
           .map((b) => b.toString(16).padStart(2, "0"))
           .join(" ");
-        const ascii = p.data
+        const ascii = data
           .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : ""))
           .join("");
         const q = searchQuery.toLowerCase();

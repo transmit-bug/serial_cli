@@ -25,12 +25,14 @@ export function formatTimestamp(ms: number): string {
 }
 
 export function bytesToHex(data: number[]): string {
+  if (!Array.isArray(data)) return "";
   return data
     .map((b) => b.toString(16).padStart(2, " ").toUpperCase())
     .join("");
 }
 
 export function bytesToAscii(data: number[]): string {
+  if (!Array.isArray(data)) return "";
   return data
     .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : "."))
     .join("");

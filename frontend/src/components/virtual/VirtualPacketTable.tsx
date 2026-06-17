@@ -37,7 +37,7 @@ export function VirtualPacketTable({
     const rows = filteredPackets
       .map(
         (p) =>
-          `${p.timestamp_millis},${p.direction},"${p.data.map((b) => b.toString(16).padStart(2, "0")).join(" ")}"`,
+          `${p.timestamp_millis},${p.direction},"${Array.isArray(p.data) ? p.data.map((b) => b.toString(16).padStart(2, "0")).join(" ") : ""}"`,
       )
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
@@ -136,10 +136,12 @@ export function VirtualPacketTable({
                       {new Date(pkt.timestamp_millis).toLocaleTimeString()}
                     </td>
                     <td className="px-2 py-1 break-all">
-                      {pkt.data
-                        .map((b) => b.toString(16).padStart(2, "0"))
-                        .join(" ")
-                        .toUpperCase()}
+                      {Array.isArray(pkt.data)
+                        ? pkt.data
+                            .map((b) => b.toString(16).padStart(2, "0"))
+                            .join(" ")
+                            .toUpperCase()
+                        : "—"}
                     </td>
                   </tr>
                 ))

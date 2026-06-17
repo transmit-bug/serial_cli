@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatBytes, formatDuration } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
@@ -13,20 +13,40 @@ interface ThroughputSample {
 export function RightPanelMonitor() {
   const { t } = useTranslation();
   const activePortId = useConnectionStore((s) => s.activePortId);
-  const activeEntry = useConnectionStore((s) =>
-    s.connections.find((c) => c.portId === s.activePortId),
+  const connections = useConnectionStore((s) => s.connections);
+  const allPackets = useDataStore((s) => s.packets);
+
+  const activeEntry = useMemo(
+    () => connections.find((c) => c.portId === activePortId),
+    [connections, activePortId],
   );
   const isConnected = activeEntry?.status === "connected";
   const portStatus = activeEntry?.portStatus;
   const connectedAt = activeEntry?.connectedAt;
-  const packets = useDataStore((s) =>
-    activePortId ? s.packets.filter((p) => p.portId === activePortId) : [],
+
+  const packets = useMemo(
+    () =>
+      activePortId
+        ? allPackets.filter((p) => p.portId === activePortId)
+        : [],
+    [allPackets, activePortId],
   );
 
   const [throughput, setThroughput] = useState<ThroughputSample[]>([]);
+  const prevPortStatusRef = useRef(portStatus);
 
   useEffect(() => {
     if (!portStatus) return;
+    // Only update if values actually changed
+    if (
+      prevPortStatusRef.current &&
+      prevPortStatusRef.current.bytes_received === portStatus.bytes_received &&
+      prevPortStatusRef.current.bytes_sent === portStatus.bytes_sent
+    ) {
+      return;
+    }
+    prevPortStatusRef.current = portStatus;
+
     setThroughput((prev) => {
       const sample: ThroughputSample = {
         time: Date.now(),
@@ -34,7 +54,6 @@ export function RightPanelMonitor() {
         tx: portStatus.bytes_sent,
       };
       const updated = [...prev, sample];
-      // Keep last 60 samples (60 seconds)
       return updated.slice(-60);
     });
   }, [portStatus]);
@@ -187,11 +206,13 @@ export function RightPanelMonitor() {
                 </span>
                 <span className="text-text-muted">{p.data.length}B</span>
                 <span className="text-text-secondary truncate">
-                  {p.data
-                    .slice(0, 8)
-                    .map((b) => b.toString(16).padStart(2, "0"))
-                    .join(" ")
-                    .toUpperCase()}
+                  {Array.isArray(p.data)
+                    ? p.data
+                        .slice(0, 8)
+                        .map((b) => b.toString(16).padStart(2, "0"))
+                        .join(" ")
+                        .toUpperCase()
+                    : "—"}
                 </span>
               </div>
             ))}

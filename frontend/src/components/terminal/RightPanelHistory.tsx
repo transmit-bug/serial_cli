@@ -19,11 +19,12 @@ export function RightPanelHistory() {
       if (directionFilter !== "all" && p.direction !== directionFilter)
         return false;
       if (searchQuery) {
-        const hex = p.data
+        const data = Array.isArray(p.data) ? p.data : [];
+        const hex = data
           .map((b) => b.toString(16).padStart(2, "0"))
           .join(" ")
           .toLowerCase();
-        const ascii = p.data
+        const ascii = data
           .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : ""))
           .join("")
           .toLowerCase();
@@ -107,13 +108,15 @@ export function RightPanelHistory() {
                     {new Date(p.timestamp).toLocaleTimeString()}
                   </span>
                   <span className="text-[9px] text-text-muted shrink-0">
-                    {p.data.length}B
+                    {Array.isArray(p.data) ? p.data.length : 0}B
                   </span>
                   <span className="text-text truncate">
-                    {p.data
-                      .map((b) => b.toString(16).padStart(2, "0"))
-                      .join(" ")
-                      .toUpperCase()}
+                    {Array.isArray(p.data)
+                      ? p.data
+                          .map((b) => b.toString(16).padStart(2, "0"))
+                          .join(" ")
+                          .toUpperCase()
+                      : "—"}
                   </span>
                 </div>
               </div>
