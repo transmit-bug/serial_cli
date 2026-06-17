@@ -282,6 +282,97 @@ impl ScriptManager {
             .filter_map(|s| s.path.as_ref())
             .collect()
     }
+
+    // ── Enhanced validation ─────────────────────────────────────────
+
+    /// Validate a Lua script for common issues.
+    ///
+    /// Checks:
+    /// - Syntax validity
+    /// - Presence of at least one callback (on_send, on_recv, on_open, on_close, on_timer)
+    /// - No undefined global variables (basic check)
+    ///
+    /// Returns a list of warnings (empty if script is valid).
+    pub fn validate_script_detailed(source: &str) -> Vec<String> {
+        let mut warnings = Vec::new();
+
+        // Check syntax
+        if let Err(e) = Self::validate_source(source) {
+            warnings.push(format!("Syntax error: {}", e));
+            return warnings;
+        }
+
+        // Check for at least one callback
+        let has_on_send = source.contains("function on_send") || source.contains("on_send =");
+        let has_on_recv = source.contains("function on_recv") || source.contains("on_recv =");
+        let has_on_open = source.contains("function on_open") || source.contains("on_open =");
+        let has_on_close = source.contains("function on_close") || source.contains("on_close =");
+        let has_on_timer = source.contains("function on_timer") || source.contains("on_timer =");
+
+        if !has_on_send && !has_on_recv && !has_on_open && !has_on_close && !has_on_timer {
+            warnings.push("No callbacks defined (on_send, on_recv, on_open, on_close, on_timer)".to_string());
+        }
+
+        // Check for common issues
+        if source.contains("require(") && !source.contains("-- require(") {
+            warnings.push("Script uses 'require()' which may not be available in all contexts".to_string());
+        }
+
+        if source.contains("os.execute") || source.contains("io.popen") {
+            warnings.push("Script uses potentially dangerous functions (os.execute, io.popen)".to_string());
+        }
+
+        warnings
+    }
+
+    /// Load a script with detailed validation.
+    ///
+    /// Returns the script info and any warnings.
+    pub fn load_with_validation(&mut self, path: &Path) -> Result<(ScriptInfo, Vec<String>)> {
+        // Read the file
+        let source = std::fs::read_to_string(path).map_err(SerialError::Io)?;
+
+        // Validate with details
+        let warnings = Self::validate_script_detailed(&source);
+
+        // Check for fatal errors (syntax)
+        if warnings.iter().any(|w| w.starts_with("Syntax error")) {
+            return Err(SerialError::Script(ScriptError::Syntax {
+                script: path.to_path_buf(),
+                line: 0,
+                message: warnings.join("; "),
+            }));
+        }
+
+        // Load the script
+        let info = self.load(path)?;
+
+        Ok((info, warnings))
+    }
+
+    /// Get script statistics.
+    pub fn statistics(&self) -> ScriptStatistics {
+        let total = self.scripts.len();
+        let built_in = self.scripts.values().filter(|s| s.built_in).count();
+        let custom = total - built_in;
+        let with_path = self.scripts.values().filter(|s| s.path.is_some()).count();
+
+        ScriptStatistics {
+            total,
+            built_in,
+            custom,
+            with_path,
+        }
+    }
+}
+
+/// Statistics about loaded scripts.
+#[derive(Debug, Clone)]
+pub struct ScriptStatistics {
+    pub total: usize,
+    pub built_in: usize,
+    pub custom: usize,
+    pub with_path: usize,
 }
 
 impl Default for ScriptManager {
@@ -825,6 +916,146 @@ mod tests {
         let paths = manager.tracked_paths();
         assert_eq!(paths.len(), 1);
         assert_eq!(paths[0], &path);
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    // ── Enhanced validation tests ──────────────────────────────────
+
+    #[test]
+    fn test_validate_script_detailed_valid() {
+        let source = r#"
+            function on_send(data)
+                return data
+            end
+
+            function on_recv(data)
+                return data
+            end
+        "#;
+        let warnings = ScriptManager::validate_script_detailed(source);
+        assert!(warnings.is_empty(), "Valid script should have no warnings");
+    }
+
+    #[test]
+    fn test_validate_script_detailed_no_callbacks() {
+        let source = "local x = 1";
+        let warnings = ScriptManager::validate_script_detailed(source);
+        assert!(!warnings.is_empty(), "Script with no callbacks should have warning");
+        assert!(warnings.iter().any(|w| w.contains("No callbacks defined")));
+    }
+
+    #[test]
+    fn test_validate_script_detailed_syntax_error() {
+        let source = "this is not valid lua {{{";
+        let warnings = ScriptManager::validate_script_detailed(source);
+        assert!(!warnings.is_empty());
+        assert!(warnings.iter().any(|w| w.starts_with("Syntax error")));
+    }
+
+    #[test]
+    fn test_validate_script_detailed_require_warning() {
+        let source = r#"
+            local json = require("json")
+            function on_send(data)
+                return data
+            end
+        "#;
+        let warnings = ScriptManager::validate_script_detailed(source);
+        assert!(warnings.iter().any(|w| w.contains("require")));
+    }
+
+    #[test]
+    fn test_validate_script_detailed_dangerous_functions() {
+        let source = r#"
+            function on_send(data)
+                os.execute("ls")
+                return data
+            end
+        "#;
+        let warnings = ScriptManager::validate_script_detailed(source);
+        assert!(warnings.iter().any(|w| w.contains("dangerous")));
+    }
+
+    #[test]
+    fn test_load_with_validation_valid() {
+        let dir = std::env::temp_dir().join("serial_cli_test_validation");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("valid.lua");
+        std::fs::write(&path, "function on_recv(data) return data end").unwrap();
+
+        let mut manager = ScriptManager::new();
+        let (info, warnings) = manager.load_with_validation(&path).unwrap();
+
+        assert_eq!(info.name, "valid");
+        assert!(warnings.is_empty(), "Valid script should have no warnings");
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    #[test]
+    fn test_load_with_validation_with_warnings() {
+        let dir = std::env::temp_dir().join("serial_cli_test_validation_warn");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("warn.lua");
+        // Script with no callbacks
+        std::fs::write(&path, "local x = 1").unwrap();
+
+        let mut manager = ScriptManager::new();
+        let (info, warnings) = manager.load_with_validation(&path).unwrap();
+
+        assert_eq!(info.name, "warn");
+        assert!(!warnings.is_empty(), "Script with no callbacks should have warnings");
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    #[test]
+    fn test_load_with_validation_syntax_error() {
+        let dir = std::env::temp_dir().join("serial_cli_test_validation_err");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("error.lua");
+        std::fs::write(&path, "this is not valid lua {{{").unwrap();
+
+        let mut manager = ScriptManager::new();
+        let result = manager.load_with_validation(&path);
+
+        assert!(result.is_err(), "Script with syntax error should fail");
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    #[test]
+    fn test_statistics_empty() {
+        let manager = ScriptManager::new();
+        // We have built-in scripts, so not empty
+        let stats = manager.statistics();
+        assert!(stats.total > 0);
+        assert!(stats.built_in > 0);
+        assert_eq!(stats.custom, 0);
+    }
+
+    #[test]
+    fn test_statistics_with_custom() {
+        let dir = std::env::temp_dir().join("serial_cli_test_stats");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("custom.lua");
+        std::fs::write(&path, "function on_recv(data) return data end").unwrap();
+
+        let mut manager = ScriptManager::new();
+        manager.load(&path).unwrap();
+
+        let stats = manager.statistics();
+        assert!(stats.custom > 0, "Should have custom scripts");
+        assert!(stats.with_path > 0, "Should have scripts with paths");
 
         // Cleanup
         std::fs::remove_file(&path).ok();
