@@ -5,9 +5,9 @@
 //! manager references and calls these methods.
 
 use crate::error::Result;
-use crate::script::{ScriptInfo, ScriptManager};
-use crate::serial_core::PortManager;
-use std::path::Path;
+use crate::script::{ScriptInfo, ScriptManager, ScriptStatistics};
+use crate::serial_core::{PortManager, SerialSniffer, SnifferConfig, SnifferSession};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -19,6 +19,7 @@ use tokio::sync::Mutex;
 pub struct CommandService {
     pub port_manager: Arc<Mutex<PortManager>>,
     pub script_manager: Arc<Mutex<ScriptManager>>,
+    pub sniffer: Arc<Mutex<SerialSniffer>>,
 }
 
 impl CommandService {
@@ -27,9 +28,24 @@ impl CommandService {
         port_manager: Arc<Mutex<PortManager>>,
         script_manager: Arc<Mutex<ScriptManager>>,
     ) -> Self {
+        let sniffer_config = SnifferConfig::default();
         Self {
             port_manager,
             script_manager,
+            sniffer: Arc::new(Mutex::new(SerialSniffer::new(sniffer_config))),
+        }
+    }
+
+    /// Create a new CommandService with custom sniffer config.
+    pub fn with_sniffer_config(
+        port_manager: Arc<Mutex<PortManager>>,
+        script_manager: Arc<Mutex<ScriptManager>>,
+        sniffer_config: SnifferConfig,
+    ) -> Self {
+        Self {
+            port_manager,
+            script_manager,
+            sniffer: Arc::new(Mutex::new(SerialSniffer::new(sniffer_config))),
         }
     }
 
@@ -113,6 +129,57 @@ impl CommandService {
         let mut handle = port_handle.lock().await;
         handle.read(buf)
     }
+
+    // ── Sniff operations ───────────────────────────────────────────
+
+    /// Start sniffing on a port.
+    pub async fn start_sniffing(&self, port_id: &str, port_name: &str) -> Result<SnifferSession> {
+        let sniffer = self.sniffer.lock().await;
+        sniffer.start_sniffing(port_id, port_name).await
+    }
+
+    /// Get captured packets.
+    pub async fn get_captured_packets(&self) -> Vec<crate::serial_core::CapturedPacket> {
+        let sniffer = self.sniffer.lock().await;
+        sniffer.get_packets().await
+    }
+
+    /// Clear captured packets.
+    pub async fn clear_captured_packets(&self) {
+        let sniffer = self.sniffer.lock().await;
+        sniffer.clear_packets().await;
+    }
+
+    /// Get packet count.
+    pub async fn captured_packet_count(&self) -> usize {
+        let sniffer = self.sniffer.lock().await;
+        sniffer.packet_count().await
+    }
+
+    /// Save captured packets to file.
+    pub async fn save_captured_packets(&self, path: &PathBuf) -> Result<()> {
+        let sniffer = self.sniffer.lock().await;
+        sniffer.save_to_file(path).await
+    }
+
+    // ── Script validation operations ───────────────────────────────
+
+    /// Validate a script with detailed checks.
+    pub fn validate_script_detailed(source: &str) -> Vec<String> {
+        ScriptManager::validate_script_detailed(source)
+    }
+
+    /// Get script statistics.
+    pub async fn script_statistics(&self) -> ScriptStatistics {
+        let manager = self.script_manager.lock().await;
+        manager.statistics()
+    }
+
+    /// Load a script with validation warnings.
+    pub async fn load_script_with_validation(&self, path: &Path) -> Result<(ScriptInfo, Vec<String>)> {
+        let mut manager = self.script_manager.lock().await;
+        manager.load_with_validation(path)
+    }
 }
 
 impl Clone for CommandService {
@@ -120,6 +187,7 @@ impl Clone for CommandService {
         Self {
             port_manager: Arc::clone(&self.port_manager),
             script_manager: Arc::clone(&self.script_manager),
+            sniffer: Arc::clone(&self.sniffer),
         }
     }
 }
@@ -194,5 +262,74 @@ mod tests {
         let scripts1 = service1.list_scripts().await;
         let scripts2 = service2.list_scripts().await;
         assert_eq!(scripts1.len(), scripts2.len());
+    }
+
+    #[tokio::test]
+    async fn test_list_ports() {
+        let service = create_service();
+        let ports = service.list_ports().await.unwrap();
+        // May be empty in CI, but should not error
+        println!("Found {} ports", ports.len());
+    }
+
+    #[tokio::test]
+    async fn test_validate_script_detailed_valid() {
+        let source = r#"
+            function on_send(data)
+                return data
+            end
+        "#;
+        let warnings = CommandService::validate_script_detailed(source);
+        assert!(warnings.is_empty(), "Valid script should have no warnings");
+    }
+
+    #[tokio::test]
+    async fn test_validate_script_detailed_no_callbacks() {
+        let source = "local x = 1";
+        let warnings = CommandService::validate_script_detailed(source);
+        assert!(!warnings.is_empty(), "Script with no callbacks should have warning");
+    }
+
+    #[tokio::test]
+    async fn test_script_statistics() {
+        let service = create_service();
+        let stats = service.script_statistics().await;
+
+        assert!(stats.total > 0, "Should have built-in scripts");
+        assert!(stats.built_in > 0, "Should have built-in scripts");
+        assert_eq!(stats.custom, 0, "Should have no custom scripts");
+    }
+
+    #[tokio::test]
+    async fn test_load_script_with_validation() {
+        let dir = std::env::temp_dir().join("serial_cli_cmd_validation_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("validation_test.lua");
+        std::fs::write(&path, "function on_recv(data) return data end").unwrap();
+
+        let service = create_service();
+        let (info, warnings) = service.load_script_with_validation(&path).await.unwrap();
+
+        assert_eq!(info.name, "validation_test");
+        assert!(warnings.is_empty(), "Valid script should have no warnings");
+
+        // Cleanup
+        std::fs::remove_file(&path).ok();
+        std::fs::remove_dir(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_captured_packet_count_initial() {
+        let service = create_service();
+        let count = service.captured_packet_count().await;
+        assert_eq!(count, 0, "Should start with 0 captured packets");
+    }
+
+    #[tokio::test]
+    async fn test_clear_captured_packets() {
+        let service = create_service();
+        service.clear_captured_packets().await;
+        let count = service.captured_packet_count().await;
+        assert_eq!(count, 0, "Should have 0 packets after clear");
     }
 }

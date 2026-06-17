@@ -6,7 +6,7 @@
 pub mod built_in;
 pub mod manager;
 
-pub use manager::ScriptManager;
+pub use manager::{ScriptManager, ScriptStatistics};
 
 /// Metadata about a registered script.
 #[derive(Debug, Clone, serde::Serialize)]
