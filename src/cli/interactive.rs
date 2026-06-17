@@ -15,12 +15,12 @@ use std::borrow::Cow::{self, Owned};
 
 /// Command names available in the interactive shell.
 const COMMANDS: &[&str] = &[
-    "help", "list", "open", "close", "send", "recv", "status", "protocol", "dtr", "rts", "quit",
+    "help", "list", "open", "close", "send", "recv", "status", "script", "dtr", "rts", "quit",
     "exit",
 ];
 
 /// Sub-command completions for multi-word commands.
-const PROTOCOL_SUBCOMMANDS: &[&str] = &["list", "set", "clear", "show"];
+const SCRIPT_SUBCOMMANDS: &[&str] = &["list", "set", "clear", "show"];
 const SIGNAL_VALUES: &[&str] = &["on", "off"];
 const SEND_FLAGS: &[&str] = &["--hex", "--base64"];
 
@@ -60,10 +60,10 @@ impl Completer for SerialCompleter {
         let start = input.len() - input.trim_end().len();
 
         match cmd {
-            "protocol" => {
+            "script" => {
                 if parts.len() == 1 || (parts.len() == 2 && !trailing_space) {
                     let partial = parts.get(1).copied().unwrap_or("");
-                    let matches: Vec<String> = PROTOCOL_SUBCOMMANDS
+                    let matches: Vec<String> = SCRIPT_SUBCOMMANDS
                         .iter()
                         .filter(|s| s.starts_with(partial))
                         .map(|s| s.to_string())
@@ -71,13 +71,13 @@ impl Completer for SerialCompleter {
                     return Ok((start, matches));
                 }
                 if parts[1] == "set" && (trailing_space || parts.len() == 3) {
-                    let protocols = ["at_command", "line", "modbus_ascii", "modbus_rtu"];
+                    let scripts = ["at_command", "line", "modbus_ascii", "modbus_rtu"];
                     let partial = if trailing_space {
                         ""
                     } else {
                         parts.get(2).copied().unwrap_or("")
                     };
-                    let matches: Vec<String> = protocols
+                    let matches: Vec<String> = scripts
                         .iter()
                         .filter(|s| s.starts_with(partial))
                         .map(|s| s.to_string())
@@ -232,7 +232,7 @@ impl InteractiveShell {
             "send" => self.cmd_send(&parts[1..]).await?,
             "recv" => self.cmd_recv(&parts[1..]).await?,
             "status" => self.cmd_status().await?,
-            "protocol" => self.cmd_protocol(&parts[1..]).await?,
+            "script" => self.cmd_script(&parts[1..]).await?,
             "dtr" => self.cmd_dtr(&parts[1..]).await?,
             "rts" => self.cmd_rts(&parts[1..]).await?,
             "quit" | "exit" => {
@@ -276,12 +276,12 @@ impl InteractiveShell {
         println!("  recv [n]          - Receive data from the current port (default: 64 bytes)");
         println!("  status            - Show port status");
         println!();
-        println!("Protocol commands:");
-        println!("  protocol          - Show current protocol and available protocols");
-        println!("  protocol list     - List all available protocols");
-        println!("  protocol set <name>  - Set protocol for current port");
-        println!("  protocol clear    - Clear protocol from current port");
-        println!("  protocol show     - Show protocol status");
+        println!("Script commands:");
+        println!("  script            - Show current script and available scripts");
+        println!("  script list       - List all available scripts");
+        println!("  script set <name> - Set script for current port");
+        println!("  script clear      - Clear script from current port");
+        println!("  script show       - Show script status");
         println!();
         println!("Hardware control commands:");
         println!("  dtr [on|off]      - Get or set DTR signal state");
@@ -531,38 +531,38 @@ impl InteractiveShell {
         Ok(())
     }
 
-    /// Protocol command
-    async fn cmd_protocol(&mut self, args: &[&str]) -> Result<()> {
+    /// Script command
+    async fn cmd_script(&mut self, args: &[&str]) -> Result<()> {
         if args.is_empty() {
-            // Show current protocol and available protocols
-            self.show_protocol_status().await?;
+            // Show current script and available scripts
+            self.show_script_status().await?;
         } else {
             match args[0] {
                 "list" | "ls" => {
-                    // List all available protocols
-                    self.list_protocols().await?;
+                    // List all available scripts
+                    self.list_scripts().await?;
                 }
                 "set" => {
-                    // Set protocol for current port
+                    // Set script for current port
                     if args.len() < 2 {
-                        println!("Usage: protocol set <protocol_name>");
-                        println!("Available protocols:");
-                        self.list_protocols().await?;
+                        println!("Usage: script set <script_name>");
+                        println!("Available scripts:");
+                        self.list_scripts().await?;
                     } else {
-                        self.set_port_protocol(args[1]).await?;
+                        self.set_port_script(args[1]).await?;
                     }
                 }
                 "show" | "status" => {
-                    // Show current protocol details
-                    self.show_protocol_status().await?;
+                    // Show current script details
+                    self.show_script_status().await?;
                 }
                 "clear" | "none" => {
-                    // Clear protocol from current port
-                    self.clear_port_protocol().await?;
+                    // Clear script from current port
+                    self.clear_port_script().await?;
                 }
                 _ => {
-                    // Try to set protocol directly (shorthand)
-                    self.set_port_protocol(args[0]).await?;
+                    // Try to set script directly (shorthand)
+                    self.set_port_script(args[0]).await?;
                 }
             }
         }
@@ -571,25 +571,25 @@ impl InteractiveShell {
     }
 
     /// Show script status for current port
-    async fn show_protocol_status(&self) -> Result<()> {
+    async fn show_script_status(&self) -> Result<()> {
         if let Some(ref port_id) = self.current_port_id {
             match self.manager.has_script(port_id).await {
                 Ok(true) => {
                     println!("Current script: attached");
                     println!();
                     println!("Script commands:");
-                    println!("  protocol list          - List all available scripts");
-                    println!("  protocol set <name>    - Set script for current port");
-                    println!("  protocol clear         - Clear script from current port");
-                    println!("  protocol show          - Show script status");
+                    println!("  script list          - List all available scripts");
+                    println!("  script set <name>    - Set script for current port");
+                    println!("  script clear         - Clear script from current port");
+                    println!("  script show          - Show script status");
                 }
                 Ok(false) => {
                     println!("Current script: (none)");
                     println!();
                     println!("Available scripts:");
-                    self.list_protocols().await?;
+                    self.list_scripts().await?;
                     println!();
-                    println!("Use 'protocol set <name>' to attach a script to this port");
+                    println!("Use 'script set <name>' to attach a script to this port");
                 }
                 Err(e) => {
                     println!("Error: {}", e);
@@ -604,7 +604,7 @@ impl InteractiveShell {
     }
 
     /// List all available scripts
-    async fn list_protocols(&self) -> Result<()> {
+    async fn list_scripts(&self) -> Result<()> {
         let scripts = self.script_manager.list();
         println!("Available scripts:");
         for s in &scripts {
@@ -615,7 +615,7 @@ impl InteractiveShell {
     }
 
     /// Set script for current port
-    async fn set_port_protocol(&mut self, script_name: &str) -> Result<()> {
+    async fn set_port_script(&mut self, script_name: &str) -> Result<()> {
         if self.current_port_id.is_none() {
             println!("No port is currently open");
             println!("Use 'open <port>' first");
@@ -626,7 +626,7 @@ impl InteractiveShell {
             println!("Unknown script: {}", script_name);
             println!();
             println!("Available scripts:");
-            self.list_protocols().await?;
+            self.list_scripts().await?;
             return Ok(());
         }
 
@@ -643,8 +643,8 @@ impl InteractiveShell {
         Ok(())
     }
 
-    /// Clear protocol from current port
-    async fn clear_port_protocol(&mut self) -> Result<()> {
+    /// Clear script from current port
+    async fn clear_port_script(&mut self) -> Result<()> {
         if self.current_port_id.is_none() {
             println!("No port is currently open");
             println!("Use 'open <port>' first");
@@ -787,9 +787,9 @@ mod tests {
     }
 
     #[test]
-    fn test_completer_protocol_subcommands() {
+    fn test_completer_script_subcommands() {
         let completer = SerialCompleter;
-        let (_pos, matches) = completer.complete("protocol se", 11, &test_ctx()).unwrap();
+        let (_pos, matches) = completer.complete("script se", 9, &test_ctx()).unwrap();
         assert!(matches.contains(&"set".to_string()));
     }
 
@@ -809,10 +809,10 @@ mod tests {
     }
 
     #[test]
-    fn test_completer_protocol_set_name() {
+    fn test_completer_script_set_name() {
         let completer = SerialCompleter;
         let (_, matches) = completer
-            .complete("protocol set mod", 16, &test_ctx())
+            .complete("script set mod", 14, &test_ctx())
             .unwrap();
         assert!(matches.contains(&"modbus_rtu".to_string()));
         assert!(matches.contains(&"modbus_ascii".to_string()));

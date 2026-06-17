@@ -73,47 +73,47 @@ pub enum VirtualCommand {
     },
 }
 
-/// Protocol subcommands
+/// Script management subcommands
 #[derive(clap::Subcommand)]
-pub enum ProtocolCommand {
-    /// List all available protocols
+pub enum ScriptCommand {
+    /// List all available scripts
     List {
         /// Show verbose information including descriptions
         #[arg(long)]
         detailed: bool,
     },
 
-    /// Show protocol information
+    /// Show script information
     Info {
-        /// Protocol name
+        /// Script name
         name: String,
     },
 
-    /// Load a custom protocol from Lua script
+    /// Load a custom script from Lua file
     Load {
-        /// Path to protocol script
+        /// Path to script file
         path: PathBuf,
 
-        /// Custom protocol name (default: filename without extension)
+        /// Custom script name (default: filename without extension)
         #[arg(long)]
         name: Option<String>,
     },
 
-    /// Unload a custom protocol
+    /// Unload a custom script
     Unload {
-        /// Protocol name
+        /// Script name
         name: String,
     },
 
-    /// Reload a custom protocol from disk
+    /// Reload a custom script from disk
     Reload {
-        /// Protocol name
+        /// Script name
         name: String,
     },
 
-    /// Validate a protocol script without loading
+    /// Validate a script without loading
     Validate {
-        /// Path to protocol script
+        /// Path to script file
         path: PathBuf,
     },
 

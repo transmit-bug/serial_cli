@@ -2,22 +2,31 @@
 
 use crate::error::{Result, SerialError};
 use crate::lua::bindings::LuaBindings;
+use crate::script::ScriptManager;
 use crate::serial_core::PortManager;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Script execution engine
 pub struct ScriptEngine {
     pub bindings: LuaBindings,
     port_manager: PortManager,
+    script_manager: Arc<Mutex<ScriptManager>>,
 }
 
 impl ScriptEngine {
     /// Create a new script engine
     pub fn new() -> Result<Self> {
+        let mut bindings = LuaBindings::new()?;
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        bindings.set_script_manager(script_manager.clone());
+        
         Ok(Self {
-            bindings: LuaBindings::new()?,
+            bindings,
             port_manager: PortManager::new(),
+            script_manager,
         })
     }
 
@@ -68,6 +77,11 @@ impl ScriptEngine {
     /// Get the port manager
     pub fn port_manager(&self) -> &PortManager {
         &self.port_manager
+    }
+
+    /// Get the script manager
+    pub fn script_manager(&self) -> &Arc<Mutex<ScriptManager>> {
+        &self.script_manager
     }
 }
 

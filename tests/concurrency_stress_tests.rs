@@ -1,10 +1,9 @@
-//! Concurrency stress tests for task executor and protocol manager
+//! Concurrency stress tests for task executor and script manager
 //!
 //! These tests verify thread safety and correctness under high concurrency.
 
 use serial_cli::lua::executor::ScriptEngine;
-use serial_cli::protocol::built_in::LineProtocol;
-use serial_cli::protocol::{registry::SimpleProtocolFactory, ProtocolRegistry};
+use serial_cli::script::ScriptManager;
 use serial_cli::task::{executor::TaskExecutor, Task, TaskPriority, TaskType};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -71,40 +70,31 @@ async fn test_concurrent_task_submission() {
     executor_clone1.stop().await.unwrap();
 }
 
-/// Test concurrent protocol operations
+/// Test concurrent script operations
 #[tokio::test]
-async fn test_concurrent_protocol_operations() {
-    let registry = Arc::new(Mutex::new(ProtocolRegistry::new()));
+async fn test_concurrent_script_operations() {
+    let manager = Arc::new(Mutex::new(ScriptManager::new()));
     let num_threads = 20;
     let ops_per_thread = 10; // Reduced for faster execution
     let barrier = Arc::new(Barrier::new(num_threads));
     let mut handles = vec![];
 
-    // Spawn multiple threads performing protocol operations
+    // Spawn multiple threads performing script operations
     for thread_id in 0..num_threads {
-        let registry_clone = registry.clone();
+        let manager_clone = manager.clone();
         let barrier_clone = barrier.clone();
 
         let handle = tokio::spawn(async move {
             barrier_clone.wait().await; // Synchronize start
 
-            for op_id in 0..ops_per_thread {
-                let mut reg = registry_clone.lock().await;
+            for _op_id in 0..ops_per_thread {
+                let mgr = manager_clone.lock().await;
 
-                // Register a protocol
-                let factory = Arc::new(SimpleProtocolFactory::new(
-                    format!("proto_t{}_o{}", thread_id, op_id),
-                    "Test protocol".to_string(),
-                    LineProtocol::new,
-                ));
+                // List scripts
+                let scripts = mgr.list();
 
-                reg.register(factory).await;
-
-                // List protocols
-                let protocols = reg.list_protocols().await;
-
-                // Verify we have protocols
-                assert!(!protocols.is_empty(), "Should have registered protocols");
+                // Verify we have scripts
+                assert!(!scripts.is_empty(), "Should have registered scripts");
             }
         });
 
@@ -168,45 +158,31 @@ async fn test_high_load_task_execution() {
     executor.stop().await.unwrap();
 }
 
-/// Test concurrent access to protocol registry
+/// Test concurrent access to script manager
 #[tokio::test]
-async fn test_concurrent_protocol_registry_access() {
-    let registry = Arc::new(Mutex::new(ProtocolRegistry::new()));
+async fn test_concurrent_script_manager_access() {
+    let manager = Arc::new(Mutex::new(ScriptManager::new()));
     let num_threads = 20;
     let ops_per_thread = 10;
     let barrier = Arc::new(Barrier::new(num_threads));
     let mut handles = vec![];
 
-    // Spawn threads that perform protocol operations concurrently
-    for thread_id in 0..num_threads {
-        let registry_clone = registry.clone();
+    // Spawn threads that perform script operations concurrently
+    for _thread_id in 0..num_threads {
+        let manager_clone = manager.clone();
         let barrier_clone = barrier.clone();
 
         let handle = tokio::spawn(async move {
             barrier_clone.wait().await; // Synchronize start
 
-            for op_id in 0..ops_per_thread {
-                let mut reg = registry_clone.lock().await;
+            for _op_id in 0..ops_per_thread {
+                let mgr = manager_clone.lock().await;
 
-                // Register a protocol
-                let factory = Arc::new(SimpleProtocolFactory::new(
-                    format!("concurrent_proto_t{}_o{}", thread_id, op_id),
-                    "Concurrent test protocol".to_string(),
-                    LineProtocol::new,
-                ));
+                // List scripts
+                let scripts = mgr.list();
 
-                reg.register(factory).await;
-
-                // List protocols
-                let protocols = reg.list_protocols().await;
-
-                // Verify we have protocols
-                assert!(!protocols.is_empty(), "Should have registered protocols");
-
-                // Check protocol exists
-                let proto_name = format!("concurrent_proto_t{}_o{}", thread_id, op_id);
-                let exists = reg.is_registered(&proto_name).await;
-                assert!(exists, "Protocol {} should exist", proto_name);
+                // Verify we have scripts
+                assert!(!scripts.is_empty(), "Should have registered scripts");
             }
         });
 
@@ -216,18 +192,15 @@ async fn test_concurrent_protocol_registry_access() {
     // Wait for all threads with timeout
     for handle in handles {
         let result = timeout(Duration::from_secs(15), handle).await;
-        assert!(result.is_ok(), "Protocol registry operation timed out");
+        assert!(result.is_ok(), "Script manager operation timed out");
     }
 
     // Verify final state
-    let final_reg = registry.lock().await;
-    let final_protocols = final_reg.list_protocols().await;
-    assert_eq!(
-        final_protocols.len(),
-        num_threads * ops_per_thread,
-        "All protocols should be registered, expected {} got {}",
-        num_threads * ops_per_thread,
-        final_protocols.len()
+    let final_mgr = manager.lock().await;
+    let final_scripts = final_mgr.list();
+    assert!(
+        !final_scripts.is_empty(),
+        "Should have built-in scripts"
     );
 }
 

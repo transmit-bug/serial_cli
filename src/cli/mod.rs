@@ -14,4 +14,4 @@ pub use args::{Cli, Commands};
 pub use batch::BatchRunner;
 pub use interactive::InteractiveShell;
 pub use json::JsonFormatter;
-pub use types::{BatchCommand, ConfigCommand, ProtocolCommand, SniffCommand, VirtualCommand};
+pub use types::{BatchCommand, ConfigCommand, ScriptCommand, SniffCommand, VirtualCommand};

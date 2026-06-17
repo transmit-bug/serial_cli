@@ -23,7 +23,7 @@ use clap::Parser;
 
 use serial_cli::cli::args::{Cli, Commands};
 use serial_cli::cli::commands::{
-    batch as batch_cmd, config as config_cmd, port as port_cmd, protocol as protocol_cmd, script,
+    batch as batch_cmd, config as config_cmd, port as port_cmd, script as script_cmd,
     server as server_cmd, sniff as sniff_cmd, virtual_port,
 };
 use serial_cli::cli::interactive::InteractiveShell;
@@ -74,10 +74,10 @@ async fn main() -> Result<()> {
             shell.run().await?;
         }
         Some(Commands::Run { script, args }) => {
-            script::run_lua_script(PathBuf::from(script), args).await?;
+            script_cmd::run_lua_script(PathBuf::from(script), args).await?;
         }
-        Some(Commands::Protocol { protocol_command }) => {
-            protocol_cmd::handle_protocol_command(protocol_command, json_output, script_manager).await?;
+        Some(Commands::Script { script_command }) => {
+            script_cmd::handle_script_command(script_command, json_output, script_manager).await?;
         }
         Some(Commands::Sniff { sniff_command }) => {
             sniff_cmd::handle_sniff_command(sniff_command, json_output).await?;

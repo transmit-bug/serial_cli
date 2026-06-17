@@ -6,7 +6,7 @@
 use clap::{Parser, Subcommand};
 
 use super::types::{
-    BatchCommand, ConfigCommand, PortCommand, ProtocolCommand, ServerCommand, SniffCommand,
+    BatchCommand, ConfigCommand, PortCommand, ScriptCommand, ServerCommand, SniffCommand,
     VirtualCommand,
 };
 
@@ -59,10 +59,10 @@ pub enum Commands {
         args: Vec<String>,
     },
 
-    /// Protocol management (list, load, unload, validate protocols).
-    Protocol {
+    /// Script management (list, load, unload, validate scripts).
+    Script {
         #[command(subcommand)]
-        protocol_command: ProtocolCommand,
+        script_command: ScriptCommand,
     },
 
     /// Sniff and monitor serial port traffic.

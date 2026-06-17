@@ -183,61 +183,19 @@ mod signal_control_tests {
 }
 
 #[cfg(test)]
-mod protocol_lifecycle_tests {
-    use serial_cli::protocol::built_in::LineProtocol;
-    use serial_cli::protocol::registry::SimpleProtocolFactory;
-    use serial_cli::protocol::ProtocolRegistry;
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
+mod script_lifecycle_tests {
+    use serial_cli::script::ScriptManager;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
-    #[tokio::test]
-    async fn test_protocol_unregister() {
-        let mut registry = ProtocolRegistry::new();
+    #[test]
+    fn test_script_load_unload() {
+        let mut manager = ScriptManager::new();
 
-        // Register a protocol
-        let factory = Arc::new(SimpleProtocolFactory::new(
-            "test_proto".to_string(),
-            "Test protocol".to_string(),
-            LineProtocol::new,
-        ));
-        registry.register(factory).await;
-
-        // Verify it's registered
-        assert!(registry.is_registered("test_proto").await);
-
-        // Unregister it
-        let result = registry.unregister("test_proto").await;
-        assert!(result.is_ok());
-
-        // Verify it's gone
-        assert!(!registry.is_registered("test_proto").await);
-    }
-
-    #[tokio::test]
-    async fn test_unregister_nonexistent_protocol() {
-        let mut registry = ProtocolRegistry::new();
-
-        let result = registry.unregister("nonexistent").await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_protocol_manager_load_unload() {
-        use serial_cli::protocol::manager::ProtocolManager;
-        use std::io::Write;
-        use tempfile::NamedTempFile;
-
-        let registry = ProtocolRegistry::new();
-        let mut manager = ProtocolManager::new(Arc::new(Mutex::new(registry)));
-
-        // Create a test protocol script
+        // Create a test script with a specific name
         let script = r#"
-            -- Protocol: test_unload
-            function on_frame(data)
-                return data
-            end
-
-            function on_encode(data)
+            -- Script: test_unload
+            function on_recv(data)
                 return data
             end
         "#;
@@ -246,14 +204,31 @@ mod protocol_lifecycle_tests {
         temp_file.write_all(script.as_bytes()).unwrap();
         temp_file.flush().unwrap();
 
-        // Load the protocol
-        let load_result = manager.load_protocol(temp_file.path()).await;
-        assert!(load_result.is_ok());
-        assert!(manager.custom_protocols_len() == 1);
+        // Get the file name (without extension) as the script name
+        let file_name = temp_file.path()
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
 
-        // Unload the protocol
-        let unload_result = manager.unload_protocol("test_unload").await;
+        // Load the script
+        let load_result = manager.load(temp_file.path());
+        assert!(load_result.is_ok());
+        assert!(manager.has(&file_name));
+
+        // Unload the script
+        let unload_result = manager.unload(&file_name);
         assert!(unload_result.is_ok());
-        assert!(manager.custom_protocols_len() == 0);
+        assert!(!manager.has(&file_name));
+    }
+
+    #[test]
+    fn test_cannot_unload_built_in() {
+        let mut manager = ScriptManager::new();
+
+        let result = manager.unload("line");
+        assert!(result.is_err());
+        assert!(manager.has("line"));
     }
 }
