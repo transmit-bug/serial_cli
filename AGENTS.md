@@ -11,28 +11,28 @@ Includes a Tauri-based GUI application (`src-tauri/` + `frontend/`).
 ## Build & Development Commands
 
 ```bash
-# Development build
-just dev          # cargo build
-
-# Release build
+# Development
+just dev          # cargo build (debug)
 just build        # cargo build --release
+just run <args>   # cargo run -- <args>
+just watch        # auto-rebuild on file changes
+just clean        # cargo clean
 
-# Run tests
+# Testing
 just test         # cargo test
-just test-verbose # cargo test -- --nocapture
+just test-one <name>  # run specific test
+just test-watch   # auto-run tests on file changes
 
 # Code quality
-just check        # fmt-check + lint + test (all checks)
+just check        # fmt + lint + test (all checks)
 just fmt          # cargo fmt
 just lint         # cargo clippy -- -D warnings
-
-# Run application
-just run <args>   # cargo run -- <args>
 
 # Cross-compilation
 just build-all    # Linux + macOS + Windows
 just build-linux  # x86_64 + aarch64
 just build-macos  # x86_64 + arm64
+just release      # clean + build all platforms
 ```
 
 **Requirements:** Rust 1.75+, just task runner
@@ -80,16 +80,18 @@ For complete documentation structure, see [`docs/README.md`](docs/README.md).
 Tauri 2.0 GUI in `src-tauri/` (workspace member) with React 19 + TypeScript frontend in `frontend/`:
 
 ```bash
-just gui-deps           # Install frontend dependencies (pnpm)
-just gui-dev            # Start Tauri dev server (frontend + backend)
-just gui-build          # Build GUI application for production
-just gui-check          # Check all (Rust workspace + frontend biome)
-just gui-check-frontend # Check frontend with biome only
-just gui-type-check     # TypeScript type check
-just gui-fmt            # Format all code (cargo fmt + biome)
-just gui-lint           # Lint frontend with biome
-just gui-test           # Run frontend tests (vitest)
-just gui-test-watch     # Run frontend tests in watch mode
+just gui-deps    # Install frontend dependencies (pnpm)
+just gui-dev     # Start Tauri dev server (frontend + backend)
+just gui-build   # Build GUI application for production
+just gui-check   # Check all (Rust workspace + frontend biome)
+just gui-fmt     # Format all code (cargo fmt + biome)
+```
+
+For frontend-only tasks, run directly in `frontend/`:
+```bash
+cd frontend && pnpm test        # run tests (vitest)
+cd frontend && pnpm lint        # lint with biome
+cd frontend && pnpm type-check  # TypeScript type check
 ```
 
 **Frontend stack:** pnpm, React 19, Vite 8, Tailwind CSS 4, Zustand 5, biome, vitest
