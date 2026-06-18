@@ -110,18 +110,6 @@ impl ConfigManager {
                     .map_err(|_| SerialError::Config(format!("Invalid boolean: {}", value)))?;
                 config.lua.enable_sandbox = enable;
             }
-            ["task", "max_concurrent"] => {
-                let max = value.parse::<usize>().map_err(|_| {
-                    SerialError::Config(format!("Invalid max concurrent: {}", value))
-                })?;
-                config.task.max_concurrent = max;
-            }
-            ["task", "default_timeout_seconds"] => {
-                let timeout = value
-                    .parse::<u64>()
-                    .map_err(|_| SerialError::Config(format!("Invalid timeout: {}", value)))?;
-                config.task.default_timeout_seconds = timeout;
-            }
             ["output", "json_pretty"] => {
                 let pretty = value
                     .parse::<bool>()
@@ -322,13 +310,6 @@ impl ConfigManager {
             _ => return Err(SerialError::Config("Invalid logging level".to_string())),
         }
 
-        // Validate task configuration
-        if config.task.max_concurrent == 0 {
-            return Err(SerialError::Config(
-                "Max concurrent tasks cannot be zero".to_string(),
-            ));
-        }
-
         Ok(())
     }
 }
@@ -375,8 +356,6 @@ pub struct Config {
     pub logging: LoggingConfig,
     /// Lua runtime configuration
     pub lua: LuaConfig,
-    /// Task scheduler configuration
-    pub task: TaskConfig,
     /// Output configuration
     pub output: OutputConfig,
     /// Protocol configuration
@@ -458,24 +437,6 @@ impl Default for LuaConfig {
             memory_limit_mb: 128,
             timeout_seconds: 300,
             enable_sandbox: true,
-        }
-    }
-}
-
-/// Task scheduler configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskConfig {
-    /// Maximum concurrent tasks
-    pub max_concurrent: usize,
-    /// Default timeout in seconds
-    pub default_timeout_seconds: u64,
-}
-
-impl Default for TaskConfig {
-    fn default() -> Self {
-        Self {
-            max_concurrent: 10,
-            default_timeout_seconds: 60,
         }
     }
 }
@@ -676,10 +637,6 @@ mod tests {
             timeout_seconds = 60
             enable_sandbox = false
 
-            [task]
-            max_concurrent = 5
-            default_timeout_seconds = 30
-
             [output]
             json_pretty = false
             show_timestamp = false
@@ -800,13 +757,6 @@ mod tests {
     fn test_config_validate_invalid_log_level() {
         let manager = ConfigManager::new();
         manager.set("logging.level", "verbose").unwrap();
-        assert!(manager.validate().is_err());
-    }
-
-    #[test]
-    fn test_config_validate_zero_max_concurrent() {
-        let manager = ConfigManager::new();
-        manager.set("task.max_concurrent", "0").unwrap();
         assert!(manager.validate().is_err());
     }
 }

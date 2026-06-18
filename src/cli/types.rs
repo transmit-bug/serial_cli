@@ -164,31 +164,6 @@ pub enum SniffCommand {
     },
 }
 
-/// Batch subcommands
-#[derive(clap::Subcommand)]
-pub enum BatchCommand {
-    /// Run batch processing
-    Run {
-        /// Script or batch file path
-        script: PathBuf,
-
-        /// Maximum concurrent tasks
-        #[arg(long, default_value = "5")]
-        concurrent: usize,
-
-        /// Continue on error
-        #[arg(long)]
-        continue_on_error: bool,
-
-        /// Task timeout in seconds
-        #[arg(long, default_value = "60")]
-        timeout: u64,
-    },
-
-    /// List batch files
-    List,
-}
-
 /// Config subcommands
 #[derive(clap::Subcommand)]
 pub enum ConfigCommand {

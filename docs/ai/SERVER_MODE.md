@@ -56,7 +56,7 @@ serial-cli server status
 serial-cli server call port_list '{}'
 
 # List protocols
-serial-cli server call protocol_list '{}'
+serial-cli server call script_list '{}'
 
 # Get server statistics
 serial-cli server call server_stats '{}'
@@ -196,31 +196,31 @@ serial-cli server call port_close '{
 
 ### Protocol Management
 
-#### protocol_list
+#### script_list
 
 List all available scripts (protocols).
 
 ```bash
-serial-cli server call protocol_list '{}'
+serial-cli server call script_list '{}'
 ```
 
-#### protocol_load
+#### script_load
 
 Load a custom script (protocol) from Lua file.
 
 ```bash
-serial-cli server call protocol_load '{
+serial-cli server call script_load '{
   "path": "/path/to/custom.lua",
   "name": "my_protocol"
 }'
 ```
 
-#### protocol_unload
+#### script_unload
 
 Unload a custom script (protocol).
 
 ```bash
-serial-cli server call protocol_unload '{
+serial-cli server call script_unload '{
   "name": "my_protocol"
 }'
 ```

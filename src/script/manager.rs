@@ -27,9 +27,6 @@ pub struct LoadedScript {
 pub struct ScriptManager {
     scripts: HashMap<String, LoadedScript>,
     hot_reload_enabled: Arc<Mutex<bool>>,
-    /// Paths of custom scripts being tracked for changes
-    #[allow(dead_code)]
-    watched_paths: HashMap<PathBuf, String>,  // path -> script name
 }
 
 impl ScriptManager {
@@ -56,7 +53,6 @@ impl ScriptManager {
         Self {
             scripts,
             hot_reload_enabled: Arc::new(Mutex::new(false)),
-            watched_paths: HashMap::new(),
         }
     }
 

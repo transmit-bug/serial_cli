@@ -7,7 +7,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { tauriApi } from "@/lib/tauri-api";
 import { hexToBytes } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
-import { useProtocolStore } from "@/stores/protocol";
 import { useScriptStore } from "@/stores/script";
 import { useStandaloneScriptStore } from "@/stores/serialScript";
 import { ProtocolList } from "./ProtocolList";
@@ -26,34 +25,36 @@ export function EditorPage() {
   );
   const { availablePorts } = useConnectionStore();
   const isConnected = activeEntry?.status === "connected";
+
+  // User script files (for editing)
   const {
-    scripts,
+    userScripts,
     currentScript,
     isDirty,
-    output,
-    loadScriptList,
-    openScript,
-    saveScript,
-    deleteScript,
-    executeScript,
-    validateScript,
-    newScript,
+    loadUserScripts,
+    openUserScript,
+    saveUserScript,
+    deleteUserScript,
+    newUserScript,
     updateContent,
-    clearOutput,
   } = useScriptStore();
+
+  // Registered scripts (built-in + custom, for protocol list)
+  const {
+    scripts: registeredScripts,
+    scriptsLoading,
+    loadScripts,
+    loadCustomScript,
+    unloadScript,
+    reloadScript,
+  } = useScriptStore();
+
+  // Standalone script actions
   const {
     actions: standaloneActions,
     loadActions: loadStandaloneActions,
     callAction: callStandaloneAction,
   } = useStandaloneScriptStore();
-  const {
-    protocols,
-    loading: protocolsLoading,
-    loadProtocols,
-    loadCustomProtocol,
-    unloadProtocol,
-    reloadProtocol,
-  } = useProtocolStore();
 
   const [fileType, setFileType] = useState<FileType | null>(null);
   const [scriptNameInput, setScriptNameInput] = useState("");
@@ -104,7 +105,7 @@ export function EditorPage() {
       const baseName = name.replace(/\.(lua|json)$/, "");
 
       if (name.endsWith(".lua")) {
-        newScript();
+        newUserScript();
         setScriptNameInput(baseName);
         updateContent(content);
         setFileType("script");
@@ -118,15 +119,15 @@ export function EditorPage() {
         toast.error(t("editor.dropUnsupported"));
       }
     },
-    [newScript, updateContent, t],
+    [newUserScript, updateContent, t],
   );
 
   useEffect(() => {
-    loadScriptList();
-    loadProtocols();
-  }, [loadScriptList, loadProtocols]);
+    loadUserScripts();
+    loadScripts();
+  }, [loadUserScripts, loadScripts]);
 
-  const customProtocols = protocols.filter(
+  const customProtocols = registeredScripts.filter(
     (p) => !BUILT_IN_PROTOCOLS.includes(p.name),
   );
 
@@ -135,7 +136,7 @@ export function EditorPage() {
   const handleNew = useCallback(
     (type: FileType = "script") => {
       if (type === "script") {
-        newScript();
+        newUserScript();
         setScriptNameInput("");
       } else {
         setProtocolNameInput("my_protocol");
@@ -145,7 +146,7 @@ export function EditorPage() {
       }
       setFileType(type);
     },
-    [newScript, updateContent],
+    [newUserScript, updateContent],
   );
 
   const handleLoadTemplate = useCallback(
@@ -158,15 +159,15 @@ export function EditorPage() {
 
   const handleOpenScript = useCallback(
     async (name: string) => {
-      await openScript(name);
+      await openUserScript(name);
       setFileType("script");
     },
-    [openScript],
+    [openUserScript],
   );
 
   const handleOpenProtocol = useCallback(
     async (name: string) => {
-      const proto = protocols.find((p) => p.name === name);
+      const proto = registeredScripts.find((p) => p.name === name);
       if (!proto) return;
       setProtocolNameInput(name);
       setFileType("protocol");
@@ -174,18 +175,18 @@ export function EditorPage() {
         "function on_frame(data)\n  return data\nend\n\nfunction on_encode(data)\n  return data\nend\n",
       );
     },
-    [protocols, updateContent],
+    [registeredScripts, updateContent],
   );
 
   // Auto-open first script when list loads and no file is open
   const autoOpenedRef = useRef(false);
   useEffect(() => {
     if (autoOpenedRef.current) return;
-    if (scripts.length === 0 || currentScript) return;
+    if (userScripts.length === 0 || currentScript) return;
     autoOpenedRef.current = true;
-    openScript(scripts[0].name);
+    openUserScript(userScripts[0].name);
     setFileType("script");
-  }, [scripts, currentScript, openScript]);
+  }, [userScripts, currentScript, openUserScript]);
 
   // ─── Actions ───
 
@@ -197,7 +198,7 @@ export function EditorPage() {
         return;
       }
       try {
-        await saveScript(name, currentScript.content);
+        await saveUserScript(name, currentScript.content);
         toast.success(t("scripts.saveSuccess"));
       } catch (e) {
         toast.error(String(e));
@@ -209,14 +210,14 @@ export function EditorPage() {
         return;
       }
       try {
-        const path = await tauriApi.saveProtocolFile(
+        const path = await tauriApi.saveScriptFile(
           name,
           currentScript?.content ?? "",
         );
-        await loadCustomProtocol(path);
-        await tauriApi.validateProtocol(path);
+        await loadCustomScript(path);
+        await tauriApi.validateScriptFile(path);
         toast.success(t("protocols.saveSuccess"));
-        await loadProtocols();
+        await loadScripts();
       } catch (e) {
         toast.error(String(e));
       }
@@ -226,9 +227,9 @@ export function EditorPage() {
     currentScript,
     scriptNameInput,
     protocolNameInput,
-    saveScript,
-    loadCustomProtocol,
-    loadProtocols,
+    saveUserScript,
+    loadCustomScript,
+    loadScripts,
     t,
   ]);
 
@@ -236,44 +237,41 @@ export function EditorPage() {
     if (!currentScript) return;
     try {
       if (fileType === "script") {
-        const errors = await validateScript(currentScript.content);
-        if (errors.length === 0) {
-          toast.success(t("scripts.validateSuccess"));
-        } else {
-          errors.forEach((e) => toast.error(`Line ${e.line}: ${e.message}`));
-        }
+        // For user scripts, we need to save to a temp file first
+        // or use a different validation approach
+        toast.info(t("scripts.validateScriptInfo"));
       } else {
-        const path = await tauriApi.saveProtocolFile(
+        const path = await tauriApi.saveScriptFile(
           protocolNameInput,
           currentScript.content,
         );
-        await tauriApi.validateProtocol(path);
+        await tauriApi.validateScriptFile(path);
         toast.success(t("scripts.validateSuccess"));
       }
     } catch (e) {
       toast.error(String(e));
     }
-  }, [currentScript, fileType, protocolNameInput, validateScript, t]);
+  }, [currentScript, fileType, protocolNameInput, t]);
 
   const handleRun = useCallback(async () => {
     if (!currentScript) return;
     try {
-      await executeScript(currentScript.content);
+      await tauriApi.executeScript(currentScript.content);
       toast.success(t("scripts.executeSuccess"));
       // Load standalone UI actions for this script
       await loadStandaloneActions(currentScript.content);
     } catch (e) {
       toast.error(String(e));
     }
-  }, [currentScript, executeScript, loadStandaloneActions, t]);
+  }, [currentScript, loadStandaloneActions, t]);
 
   const handleDelete = useCallback(
     async (name: string) => {
       try {
         if (fileType === "script") {
-          await deleteScript(name);
+          await deleteUserScript(name);
         } else {
-          await unloadProtocol(name);
+          await unloadScript(name);
         }
         toast.success(t("scripts.deleteSuccess"));
         setFileType(null);
@@ -281,14 +279,14 @@ export function EditorPage() {
         toast.error(String(e));
       }
     },
-    [fileType, deleteScript, unloadProtocol, t],
+    [fileType, deleteUserScript, unloadScript, t],
   );
 
   const handleAttachToPort = useCallback(
     async (targetPortId: string) => {
       if (!currentScript) return;
       try {
-        await executeScript(currentScript.content);
+        await tauriApi.executeScript(currentScript.content);
         setAttachedPort(targetPortId);
         toast.success(t("scripts.attached"));
       } catch (e) {
@@ -296,7 +294,7 @@ export function EditorPage() {
       }
       setAttachDropdown(false);
     },
-    [currentScript, executeScript, t],
+    [currentScript, t],
   );
 
   const handleDetach = useCallback(() => {
@@ -321,10 +319,10 @@ export function EditorPage() {
     try {
       const bytes = hexToBytes(testerInput);
       if (testerMode === "encode") {
-        const encoded = await tauriApi.protocolEncode(testerProtocol, bytes);
+        const encoded = await tauriApi.scriptEncode(testerProtocol, bytes);
         setTesterResult(JSON.stringify(encoded, null, 2));
       } else {
-        const decoded = await tauriApi.protocolDecode(testerProtocol, bytes);
+        const decoded = await tauriApi.scriptDecode(testerProtocol, bytes);
         setTesterResult(JSON.stringify(decoded, null, 2));
       }
     } catch (e) {
@@ -445,13 +443,13 @@ export function EditorPage() {
           <div className="h-full overflow-y-auto">
             {/* Protocol list */}
             <ProtocolList
-              protocols={protocols}
+              protocols={registeredScripts}
               customProtocols={customProtocols}
-              loading={protocolsLoading}
+              loading={scriptsLoading}
               onOpenProtocol={handleOpenProtocol}
               onReloadProtocol={async (name) => {
                 try {
-                  await reloadProtocol(name);
+                  await reloadScript(name);
                   toast.success(t("protocols.reload"));
                 } catch (e) {
                   toast.error(String(e));
@@ -459,7 +457,7 @@ export function EditorPage() {
               }}
               onUnloadProtocol={async (name) => {
                 try {
-                  await unloadProtocol(name);
+                  await unloadScript(name);
                   toast.success(t("protocols.deleteSuccess"));
                   if (protocolNameInput === name) setFileType(null);
                 } catch (e) {
@@ -474,9 +472,9 @@ export function EditorPage() {
                     multiple: false,
                   });
                   if (selected) {
-                    await loadCustomProtocol(selected);
+                    await loadCustomScript(selected);
                     toast.success(t("protocols.importSuccess"));
-                    await loadProtocols();
+                    await loadScripts();
                   }
                 } catch (e) {
                   toast.error(String(e));
@@ -490,12 +488,12 @@ export function EditorPage() {
                 {t("scripts.title")}
               </span>
             </div>
-            {scripts.length === 0 ? (
+            {userScripts.length === 0 ? (
               <div className="px-3 py-2 text-text-muted text-xs">
                 {t("scripts.noScripts")}
               </div>
             ) : (
-              scripts.map((s) => (
+              userScripts.map((s) => (
                 <button
                   key={s.name}
                   onClick={() => handleOpenScript(s.name)}
@@ -619,32 +617,10 @@ export function EditorPage() {
                 </div>
               ) : fileType === "script" ? (
                 <div className="flex flex-col h-full">
-                  <div className="flex items-center justify-between px-3 py-1 border-b border-border">
-                    <span className="text-xs text-text-secondary">
-                      {t("scripts.output")}
-                    </span>
-                    <button
-                      onClick={clearOutput}
-                      className="text-xs text-text-muted hover:text-text"
-                    >
-                      {t("common.clear")}
-                    </button>
-                  </div>
                   <div className="flex-1 overflow-y-auto p-2 font-mono text-xs">
-                    {output.map((line, i) => (
-                      <div
-                        key={i}
-                        className={`py-0.5 ${
-                          line.type === "error"
-                            ? "text-danger"
-                            : line.type === "success"
-                              ? "text-green-500"
-                              : "text-text"
-                        }`}
-                      >
-                        {line.text}
-                      </div>
-                    ))}
+                    <div className="text-text-muted text-center py-4">
+                      {t("scripts.noOutputYet")}
+                    </div>
                   </div>
                   {standaloneActions.length > 0 && (
                     <StandaloneActions

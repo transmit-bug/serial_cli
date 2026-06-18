@@ -40,13 +40,6 @@ pub fn handle_config_command(cmd: ConfigCommand, json_output: bool) -> Result<()
                 println!("  timeout_seconds = {}", config.lua.timeout_seconds);
                 println!("  enable_sandbox = {}", config.lua.enable_sandbox);
                 println!();
-                println!("[task]");
-                println!("  max_concurrent = {}", config.task.max_concurrent);
-                println!(
-                    "  default_timeout_seconds = {}",
-                    config.task.default_timeout_seconds
-                );
-                println!();
                 println!("[output]");
                 println!("  json_pretty = {}", config.output.json_pretty);
                 println!("  show_timestamp = {}", config.output.show_timestamp);
@@ -102,8 +95,6 @@ pub fn handle_config_command(cmd: ConfigCommand, json_output: bool) -> Result<()
                     println!("  lua.memory_limit_mb          - Lua memory limit");
                     println!("  lua.timeout_seconds          - Lua timeout");
                     println!("  lua.enable_sandbox           - Enable Lua sandbox");
-                    println!("  task.max_concurrent          - Max concurrent tasks");
-                    println!("  task.default_timeout_seconds - Default task timeout");
                     println!("  output.json_pretty           - Pretty print JSON");
                     println!("  output.show_timestamp        - Show timestamps");
                     println!("  virtual.backend              - Virtual port backend (pty/socat/namedpipe)");

@@ -1,11 +1,11 @@
 import { useTranslation } from "react-i18next";
-import type { ProtocolInfo } from "@/types";
+import type { Script } from "@/types";
 
 const BUILT_IN_PROTOCOLS = ["ModbusRTU", "Modbus ASCII", "AT Commands", "Line"];
 
 interface ProtocolListProps {
-  protocols: ProtocolInfo[];
-  customProtocols: ProtocolInfo[];
+  protocols: Script[];
+  customProtocols: Script[];
   loading: boolean;
   onOpenProtocol: (name: string) => void;
   onReloadProtocol: (name: string) => void;

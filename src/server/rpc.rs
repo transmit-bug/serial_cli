@@ -139,9 +139,9 @@ impl RpcDispatcher {
             "port_recv" => self.port_recv(req.params).await,
             "port_subscribe" => self.port_subscribe(req.params).await,
             "port_unsubscribe" => self.port_unsubscribe(req.params).await,
-            "protocol_list" => self.protocol_list(req.params).await,
-            "protocol_load" => self.protocol_load(req.params).await,
-            "protocol_unload" => self.protocol_unload(req.params).await,
+            "script_list" => self.script_list(req.params).await,
+            "script_load" => self.script_load(req.params).await,
+            "script_unload" => self.script_unload(req.params).await,
             "connection_list" => self.connection_list(req.params).await,
             "server_stats" => self.server_stats(req.params).await,
             _ => Err((-32601, "Method not found".to_string(), None)),
@@ -455,7 +455,7 @@ impl RpcDispatcher {
     }
 
     /// List available scripts
-    async fn protocol_list(&self, params: Option<Value>) -> Result<Value, MethodError> {
+    async fn script_list(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let _ = params;
 
         let manager = self.state.script_manager.lock().await;
@@ -476,7 +476,7 @@ impl RpcDispatcher {
     }
 
     /// Load a custom script
-    async fn protocol_load(&self, params: Option<Value>) -> Result<Value, MethodError> {
+    async fn script_load(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let params: ProtocolLoadParams = parse_params(params)?;
 
         let path_buf = std::path::PathBuf::from(&params.path);
@@ -494,7 +494,7 @@ impl RpcDispatcher {
     }
 
     /// Unload a custom script
-    async fn protocol_unload(&self, params: Option<Value>) -> Result<Value, MethodError> {
+    async fn script_unload(&self, params: Option<Value>) -> Result<Value, MethodError> {
         let params: ProtocolUnloadParams = parse_params(params)?;
 
         let mut manager = self.state.script_manager.lock().await;

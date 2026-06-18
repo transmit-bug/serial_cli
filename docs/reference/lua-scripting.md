@@ -161,12 +161,12 @@ Decodes data according to the specified protocol. Returns the decoded string.
 local decoded = protocol_decode("lines", "Hello\n")
 ```
 
-#### `protocol_list()`
+#### `script_list()`
 
 Returns a table of all available protocols.
 
 ```lua
-local protocols = protocol_list()
+local protocols = script_list()
 for i, proto in ipairs(protocols) do
     print(proto.name, proto.description, proto.type)
 end
@@ -183,12 +183,12 @@ print(info.description) -- "Modbus RTU protocol"
 print(info.type)        -- "built-in"
 ```
 
-#### `protocol_load(path)`
+#### `script_load(path)`
 
 Loads a custom protocol script from a file path. Returns `(success, message)`.
 
 ```lua
-local ok, msg = protocol_load("/path/to/my_protocol.lua")
+local ok, msg = script_load("/path/to/my_protocol.lua")
 if ok then
     print(msg)  -- "Protocol loaded: my_protocol (from /path/to/my_protocol.lua)"
 end
@@ -196,12 +196,12 @@ end
 
 The protocol name is derived from the filename stem.
 
-#### `protocol_unload(name)`
+#### `script_unload(name)`
 
 Unloads a custom protocol by name. Returns `(success, message)`.
 
 ```lua
-local ok, msg = protocol_unload("my_protocol")
+local ok, msg = script_unload("my_protocol")
 ```
 
 #### `protocol_reload(name)`
@@ -466,7 +466,7 @@ If a callback errors or returns an unexpected type, the protocol engine falls ba
    ```
 3. Or load it programmatically from another script:
    ```lua
-   local ok, msg = protocol_load("/path/to/my_protocol.lua")
+   local ok, msg = script_load("/path/to/my_protocol.lua")
    ```
 
 The protocol name is automatically derived from the filename stem (e.g., `my_protocol.lua` becomes `my_protocol`).
@@ -636,7 +636,7 @@ List all available protocols and their details:
 
 ```lua
 -- list_protocols.lua
-local protocols = protocol_list()
+local protocols = script_list()
 
 log_info("Available protocols:")
 for i, proto in ipairs(protocols) do

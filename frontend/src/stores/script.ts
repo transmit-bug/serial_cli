@@ -1,45 +1,104 @@
 import { create } from "zustand";
 import { tauriApi } from "@/lib/tauri-api";
-import type { OutputLine, ScriptInfo, ValidationError } from "@/types";
+import type { Script, UserScriptInfo } from "@/types";
 
 interface ScriptStore {
-  scripts: ScriptInfo[];
+  // Registered scripts (built-in + custom)
+  scripts: Script[];
+  scriptsLoading: boolean;
+
+  // User script files
+  userScripts: UserScriptInfo[];
+  userScriptsLoading: boolean;
   currentScript: { name: string; content: string } | null;
   isDirty: boolean;
-  output: OutputLine[];
-  loading: boolean;
 
-  loadScriptList: () => Promise<void>;
-  openScript: (name: string) => Promise<void>;
-  saveScript: (name: string, content: string) => Promise<void>;
-  deleteScript: (name: string) => Promise<void>;
-  executeScript: (content: string) => Promise<void>;
-  validateScript: (content: string) => Promise<ValidationError[]>;
-  newScript: () => void;
+  // Active script attached to port
+  activeScript: string | null;
+
+  // Registered scripts actions
+  loadScripts: () => Promise<void>;
+  loadCustomScript: (path: string) => Promise<void>;
+  unloadScript: (name: string) => Promise<void>;
+  reloadScript: (name: string) => Promise<void>;
+  setActiveScript: (portId: string, scriptName: string | null) => Promise<void>;
+
+  // User script files actions
+  loadUserScripts: () => Promise<void>;
+  openUserScript: (name: string) => Promise<void>;
+  saveUserScript: (name: string, content: string) => Promise<void>;
+  deleteUserScript: (name: string) => Promise<void>;
+  newUserScript: () => void;
   updateContent: (content: string) => void;
-  clearOutput: () => void;
 }
 
 export const useScriptStore = create<ScriptStore>()((set, get) => ({
+  // Registered scripts
   scripts: [],
+  scriptsLoading: false,
+
+  // User script files
+  userScripts: [],
+  userScriptsLoading: false,
   currentScript: null,
   isDirty: false,
-  output: [],
-  loading: false,
 
-  loadScriptList: async () => {
-    set({ loading: true });
+  // Active script
+  activeScript: null,
+
+  // ─── Registered Scripts Actions ───
+
+  loadScripts: async () => {
+    set({ scriptsLoading: true });
     try {
       const scripts = await tauriApi.listScripts();
-      set({ scripts, loading: false });
+      set({ scripts, scriptsLoading: false });
     } catch {
-      set({ loading: false });
+      set({ scriptsLoading: false });
     }
   },
 
-  openScript: async (name) => {
-    const { scripts } = get();
-    const info = scripts.find((s) => s.name === name);
+  loadCustomScript: async (path) => {
+    await tauriApi.loadScript(path);
+    await get().loadScripts();
+  },
+
+  unloadScript: async (name) => {
+    await tauriApi.unloadScript(name);
+    set((s) => ({
+      scripts: s.scripts.filter((p) => p.name !== name),
+      activeScript: s.activeScript === name ? null : s.activeScript,
+    }));
+  },
+
+  reloadScript: async (name) => {
+    await tauriApi.reloadScript(name);
+  },
+
+  setActiveScript: async (portId, scriptName) => {
+    if (!scriptName) {
+      set({ activeScript: null });
+      return;
+    }
+    await tauriApi.bindScript(portId, scriptName);
+    set({ activeScript: scriptName });
+  },
+
+  // ─── User Script Files Actions ───
+
+  loadUserScripts: async () => {
+    set({ userScriptsLoading: true });
+    try {
+      const userScripts = await tauriApi.listUserScripts();
+      set({ userScripts, userScriptsLoading: false });
+    } catch {
+      set({ userScriptsLoading: false });
+    }
+  },
+
+  openUserScript: async (name) => {
+    const { userScripts } = get();
+    const info = userScripts.find((s) => s.name === name);
     if (!info) return;
 
     try {
@@ -51,46 +110,22 @@ export const useScriptStore = create<ScriptStore>()((set, get) => ({
     }
   },
 
-  saveScript: async (name, content) => {
-    await tauriApi.saveScript(name, content);
+  saveUserScript: async (name, content) => {
+    await tauriApi.saveUserScript(name, content);
     set({ isDirty: false });
-    await get().loadScriptList();
+    await get().loadUserScripts();
   },
 
-  deleteScript: async (name) => {
-    await tauriApi.deleteScript(name);
+  deleteUserScript: async (name) => {
+    await tauriApi.deleteUserScript(name);
     const { currentScript } = get();
     if (currentScript?.name === name) {
       set({ currentScript: null, isDirty: false });
     }
-    await get().loadScriptList();
+    await get().loadUserScripts();
   },
 
-  executeScript: async (content) => {
-    const ts = Date.now();
-    try {
-      const result = await tauriApi.executeScript(content);
-      set((s) => ({
-        output: [
-          ...s.output,
-          { text: result, timestamp: ts, type: "success" as const },
-        ],
-      }));
-    } catch (e) {
-      set((s) => ({
-        output: [
-          ...s.output,
-          { text: String(e), timestamp: ts, type: "error" as const },
-        ],
-      }));
-    }
-  },
-
-  validateScript: async (content) => {
-    return await tauriApi.validateScript(content);
-  },
-
-  newScript: () => {
+  newUserScript: () => {
     set({ currentScript: { name: "", content: "" }, isDirty: false });
   },
 
@@ -100,6 +135,4 @@ export const useScriptStore = create<ScriptStore>()((set, get) => ({
       isDirty: true,
     }));
   },
-
-  clearOutput: () => set({ output: [] }),
 }));

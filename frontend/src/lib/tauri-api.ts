@@ -6,8 +6,8 @@ import type {
   CreateVirtualPortConfig,
   PortInfo,
   PortStatus,
-  ProtocolInfo,
-  ScriptInfo,
+  Script,
+  UserScriptInfo,
   ScriptStatus,
   SerialConfig,
   UiAction,
@@ -33,32 +33,33 @@ export const tauriApi = {
   startSniffing: (portId: string) => invoke<void>("start_sniffing", { portId }),
   stopSniffing: (portId: string) => invoke<void>("stop_sniffing", { portId }),
 
-  // Protocol commands
-  listProtocols: () => invoke<ProtocolInfo[]>("list_protocols"),
-  loadProtocol: (path: string) =>
-    invoke<ProtocolInfo>("load_protocol", { path }),
-  unloadProtocol: (name: string) => invoke<void>("unload_protocol", { name }),
-  reloadProtocol: (name: string) => invoke<void>("reload_protocol", { name }),
-  validateProtocol: (path: string) =>
-    invoke<void>("validate_protocol", { path }),
-  protocolEncode: (protocol: string, data: number[]) =>
-    invoke<number[]>("protocol_encode", { protocol, data }),
-  protocolDecode: (protocol: string, data: number[]) =>
-    invoke<number[]>("protocol_decode", { protocol, data }),
-  setPortProtocol: (portId: string, protocolName: string) =>
-    invoke<void>("set_port_protocol", { portId, protocolName }),
-  saveProtocolFile: (name: string, content: string) =>
-    invoke<string>("save_protocol_file", { name, content }),
-
-  // Script commands
+  // Script commands (unified protocol + script management)
+  listScripts: () => invoke<Script[]>("list_scripts"),
+  loadScript: (path: string) =>
+    invoke<Script>("load_script", { path }),
+  unloadScript: (name: string) => invoke<void>("unload_script", { name }),
+  reloadScript: (name: string) => invoke<void>("reload_script", { name }),
+  getScriptInfo: (name: string) =>
+    invoke<Script>("get_script_info", { name }),
   executeScript: (script: string) =>
     invoke<string>("execute_script", { script }),
   validateScript: (script: string) =>
     invoke<ValidationError[]>("validate_script", { script }),
-  listScripts: () => invoke<ScriptInfo[]>("list_scripts"),
-  saveScript: (name: string, content: string) =>
-    invoke<void>("save_script", { name, content }),
-  deleteScript: (name: string) => invoke<void>("delete_script", { name }),
+  validateScriptFile: (path: string) =>
+    invoke<void>("validate_script_file", { path }),
+  listUserScripts: () => invoke<UserScriptInfo[]>("list_user_scripts"),
+  saveUserScript: (name: string, content: string) =>
+    invoke<void>("save_user_script", { name, content }),
+  deleteUserScript: (name: string) =>
+    invoke<void>("delete_user_script", { name }),
+  bindScript: (portId: string, scriptName: string) =>
+    invoke<void>("bind_script", { portId, scriptName }),
+  scriptEncode: (script: string, data: number[]) =>
+    invoke<number[]>("script_encode", { script, data }),
+  scriptDecode: (script: string, data: number[]) =>
+    invoke<number[]>("script_decode", { script, data }),
+  saveScriptFile: (name: string, content: string) =>
+    invoke<string>("save_script_file", { name, content }),
 
   // Serial script commands
   attachScript: (portId: string, scriptSource: string) =>

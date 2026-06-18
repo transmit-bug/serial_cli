@@ -20,7 +20,6 @@ const sampleConfig = {
   },
   logging: { level: "info", format: "text", file: "serial-cli.log" },
   lua: { memory_limit_mb: 64, timeout_seconds: 30, enable_sandbox: true },
-  task: { max_concurrent: 4, default_timeout_seconds: 60 },
   output: { json_pretty: true, show_timestamp: true },
   protocols: { hotReload: true, customDir: "" },
   virtual_ports: { backend: "pty", monitor: false },

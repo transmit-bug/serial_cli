@@ -87,10 +87,6 @@ pub async fn get_config(_state: State<'_, AppState>) -> Result<ConfigData, Strin
             timeout_seconds: config.lua.timeout_seconds,
             enable_sandbox: config.lua.enable_sandbox,
         },
-        task: TaskConfigData {
-            max_concurrent: config.task.max_concurrent,
-            default_timeout_seconds: config.task.default_timeout_seconds,
-        },
         output: OutputConfigData {
             json_pretty: config.output.json_pretty,
             show_timestamp: config.output.show_timestamp,
@@ -147,9 +143,6 @@ pub async fn update_config(config: ConfigData, _state: State<'_, AppState>) -> R
     existing_config.lua.memory_limit_mb = config.lua.memory_limit_mb;
     existing_config.lua.timeout_seconds = config.lua.timeout_seconds;
     existing_config.lua.enable_sandbox = config.lua.enable_sandbox;
-
-    existing_config.task.max_concurrent = config.task.max_concurrent;
-    existing_config.task.default_timeout_seconds = config.task.default_timeout_seconds;
 
     existing_config.output.json_pretty = config.output.json_pretty;
     existing_config.output.show_timestamp = config.output.show_timestamp;
@@ -289,7 +282,6 @@ pub struct ConfigData {
     pub serial: SerialConfigData,
     pub logging: LoggingConfigData,
     pub lua: LuaConfigData,
-    pub task: TaskConfigData,
     pub output: OutputConfigData,
     pub protocols: ProtocolsConfigData,
     pub virtual_ports: VirtualPortsConfigData,
@@ -319,12 +311,6 @@ pub struct LuaConfigData {
     pub memory_limit_mb: usize,
     pub timeout_seconds: u64,
     pub enable_sandbox: bool,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct TaskConfigData {
-    pub max_concurrent: usize,
-    pub default_timeout_seconds: u64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

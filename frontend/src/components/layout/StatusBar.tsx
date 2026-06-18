@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { formatBytes } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/connection";
 import { useDataStore } from "@/stores/data";
-import { useProtocolStore } from "@/stores/protocol";
+import { useScriptStore } from "@/stores/script";
 
 export function StatusBar() {
   const { t } = useTranslation();
@@ -13,7 +13,7 @@ export function StatusBar() {
   const portName = activeEntry?.portName;
   const config = activeEntry?.config;
   const packets = useDataStore((s) => s.packets);
-  const activeProtocol = useProtocolStore((s) => s.activeProtocol);
+  const activeScript = useScriptStore((s) => s.activeScript);
 
   const rxBytes = packets.reduce(
     (sum, p) => (p.direction === "rx" ? sum + (Array.isArray(p.data) ? p.data.length : 0) : sum),
@@ -40,14 +40,14 @@ export function StatusBar() {
           {status === "connected" && portName
             ? t("statusbar.connectedInfo", {
                 port: portName,
-                baud: config.baudrate,
+                baud: config?.baudrate,
               })
             : t("statusbar.noConnection")}
         </span>
       </div>
-      {activeProtocol && (
+      {activeScript && (
         <div className="flex items-center gap-2 px-4">
-          <span className="text-accent">{activeProtocol}</span>
+          <span className="text-accent">{activeScript}</span>
         </div>
       )}
       <div className="flex items-center gap-3">

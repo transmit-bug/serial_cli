@@ -6,7 +6,7 @@
 use clap::{Parser, Subcommand};
 
 use super::types::{
-    BatchCommand, ConfigCommand, PortCommand, ScriptCommand, ServerCommand, SniffCommand,
+    ConfigCommand, PortCommand, ScriptCommand, ServerCommand, SniffCommand,
     VirtualCommand,
 };
 
@@ -69,12 +69,6 @@ pub enum Commands {
     Sniff {
         #[command(subcommand)]
         sniff_command: SniffCommand,
-    },
-
-    /// Batch execution of scripts or batch files.
-    Batch {
-        #[command(subcommand)]
-        batch_command: BatchCommand,
     },
 
     /// Configuration management (show, set, save, reset).

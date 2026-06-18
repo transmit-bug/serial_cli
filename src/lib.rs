@@ -9,12 +9,10 @@ pub mod error;
 pub mod error_handling;
 pub mod logging;
 pub mod lua;
-pub mod monitoring;
 pub mod script;
 pub mod serial_core;
 pub mod service;
 pub mod server;
-pub mod task;
 pub mod utils;
 
 // Re-exports for convenience

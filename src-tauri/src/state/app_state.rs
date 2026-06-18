@@ -83,8 +83,8 @@ pub struct AppState {
     pub port_stats: Arc<Mutex<HashMap<String, Arc<PortStatsTracker>>>>,
     /// Virtual port registry (id -> VirtualSerialPair)
     pub virtual_port_registry: Arc<RwLock<HashMap<String, VirtualSerialPair>>>,
-    /// Directory for storing custom protocol files
-    pub protocols_dir: Option<PathBuf>,
+    /// Directory for storing custom script files
+    pub scripts_dir: Option<PathBuf>,
 }
 
 impl AppState {
@@ -92,10 +92,10 @@ impl AppState {
     pub async fn new() -> Self {
         let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
 
-        // Set up protocols directory
-        let protocols_dir = dirs::data_local_dir().map(|mut p| {
+        // Set up scripts directory
+        let scripts_dir = dirs::data_local_dir().map(|mut p| {
             p.push("serial-cli");
-            p.push("protocols");
+            p.push("scripts");
             p
         });
 
@@ -105,7 +105,7 @@ impl AppState {
             active_sniffers: Arc::new(Mutex::new(HashMap::new())),
             port_stats: Arc::new(Mutex::new(HashMap::new())),
             virtual_port_registry: Arc::new(RwLock::new(HashMap::new())),
-            protocols_dir,
+            scripts_dir,
         }
     }
 }

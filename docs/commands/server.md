@@ -109,9 +109,9 @@ echo '{"port": "/dev/ttyUSB0"}' | serial-cli server call port_open --stdin
 | `port_close` | Close a serial port connection |
 | `port_send` | Send data to an open port |
 | `port_recv` | Receive data from an open port |
-| `protocol_list` | List available protocols |
-| `protocol_load` | Load a custom protocol from Lua script |
-| `protocol_unload` | Unload a custom protocol |
+| `script_list` | List available protocols |
+| `script_load` | Load a custom protocol from Lua script |
+| `script_unload` | Unload a custom protocol |
 | `connection_list` | List active connections |
 | `server_stats` | Get server statistics |
 

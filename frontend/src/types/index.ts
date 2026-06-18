@@ -30,12 +30,13 @@ export interface PortStats {
   last_activity: number | null;
 }
 
-export interface ProtocolInfo {
+export interface Script {
   name: string;
   description: string;
+  built_in: boolean;
 }
 
-export interface ScriptInfo {
+export interface UserScriptInfo {
   name: string;
   path: string;
   size: number;
@@ -104,7 +105,6 @@ export interface ConfigData {
   serial: SerialConfigData;
   logging: LoggingConfigData;
   lua: LuaConfigData;
-  task: TaskConfigData;
   output: OutputConfigData;
   protocols: ProtocolsConfigData;
   virtual_ports: VirtualPortsConfigData;
@@ -129,11 +129,6 @@ export interface LuaConfigData {
   memory_limit_mb: number;
   timeout_seconds: number;
   enable_sandbox: boolean;
-}
-
-export interface TaskConfigData {
-  max_concurrent: number;
-  default_timeout_seconds: number;
 }
 
 export interface OutputConfigData {

@@ -8,10 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { tauriApi } from "@/lib/tauri-api";
 import { useConnectionStore } from "@/stores/connection";
 import { usePresetsStore } from "@/stores/presets";
-import { useProtocolStore } from "@/stores/protocol";
 import { useScriptStore } from "@/stores/script";
 import type { ConnectionPreset } from "@/types";
 
@@ -36,16 +34,14 @@ export function ConnectionBar() {
     setPendingPort,
     setDefaultConfig,
   } = useConnectionStore();
-  const { protocols, loadProtocols } = useProtocolStore();
-  const { scripts, loadScriptList } = useScriptStore();
+  const { scripts, loadScripts } = useScriptStore();
   const { presets, loadPresets } = usePresetsStore();
 
   useEffect(() => {
     refreshPorts();
-    loadProtocols();
-    loadScriptList();
+    loadScripts();
     loadPresets();
-  }, [refreshPorts, loadProtocols, loadScriptList, loadPresets]);
+  }, [refreshPorts, loadScripts, loadPresets]);
 
   const activeEntry = connections.find((c) => c.portId === activePortId);
   const isConnected = activeEntry?.status === "connected";
@@ -239,53 +235,17 @@ export function ConnectionBar() {
 
       <div className="mx-2 w-px h-5 bg-border" />
 
-      {/* Protocol */}
+      {/* Script/Protocol selector */}
       <Select
         disabled={!isConnected}
         value={
-          activeEntry ? (useProtocolStore.getState().activeProtocol ?? "") : ""
+          activeEntry ? (useScriptStore.getState().activeScript ?? "") : ""
         }
         onValueChange={async (value) => {
           if (activePortId) {
-            await useProtocolStore
+            await useScriptStore
               .getState()
-              .setActiveProtocol(activePortId, value || null);
-          }
-        }}
-      >
-        <SelectTrigger className="w-32">
-          <SelectValue
-            placeholder={`${t("common.protocol")}: ${t("common.none")}`}
-          />
-        </SelectTrigger>
-        <SelectContent>
-          {protocols.map((p) => (
-            <SelectItem key={p.name} value={p.name}>
-              {p.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Script */}
-      <Select
-        disabled={!isConnected}
-        onValueChange={async (value) => {
-          if (!activePortId) return;
-          if (!value) {
-            await tauriApi.detachScript(activePortId);
-            return;
-          }
-          const info = scripts.find((s) => s.name === value);
-          if (!info) return;
-          try {
-            const resp = await fetch(`file://${info.path}`);
-            const source = await resp.text();
-            await tauriApi.attachScript(activePortId, source);
-          } catch (err) {
-            useConnectionStore
-              .getState()
-              .setPortError(activePortId, String(err));
+              .setActiveScript(activePortId, value || null);
           }
         }}
       >

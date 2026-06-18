@@ -1,6 +1,6 @@
 # Serial CLI TODO List
 
-**Updated**: 2026-06-17
+**Updated**: 2026-06-18
 
 ---
 
@@ -10,11 +10,12 @@
 - ✅ 全面更新项目文档（CHANGELOG、README、SERVER_MODE、ARCH、FRONTEND-REWRITE-DESIGN、events）
 - ✅ CI 前端改用 pnpm（替换 npm ci --force，添加 pnpm store 缓存）
 - ✅ 修复 GitHub Actions：cargo fmt 格式违规（benches + src 共 12 文件）
-- ✅ 修复 GitHub Actions：benchmarks 传递 --save-baseline 给 lib target 导致失败，改为逐个 bench 运行
+- ✅ 修复 GitHub Actions：benchmarks 传 --save-baseline 给 lib target 导致失败，改为逐个 bench 运行
 - ✅ 修复 GitHub Actions：release.yml 中 generate_release_notes 与自定义 body 冲突，prev_tag 引用不存在的变量
 - ✅ 修复 GitHub Actions：release.yml 无法被 Dependabot 解析（YAML body 中模板语法问题）
 - ✅ 添加 RUSTSEC-2025-0069（daemonize unmaintained）advisory skip，暂无安全替代方案
 - ✅ 添加 AGENTS.md 指导文件
+- ✅ 精简文档结构，删除 CLAUDE.md 并整合内容到 AGENTS.md
 
 ### 测试
 - ✅ Tauri 后端补充 29 个单元测试（port_state、port 解析、virtual_port、config、export 5 个模块）
@@ -37,35 +38,65 @@
 ### 跨平台
 - ✅ monitoring 模块 macOS 支持（libc proc_pidinfo 获取内存/FD，windows crate 按平台条件编译）
 
+### 文档完善
+- ✅ 更新 README.md 反映新的 script 命令
+- ✅ 更新 CHANGELOG.md 记录统一脚本系统变更
+- ✅ 更新 docs/dev/ARCH.md 反映新架构
+- ✅ 添加脚本系统综合测试（load/unload/reload, hot-reload, 自定义脚本, 错误处理）
+
+### 功能增强
+- ✅ 实现脚本热重载（文件监控，自动重载变更的脚本）
+- ✅ 增强脚本验证（检查必需回调、验证返回类型、添加 linting）
+- ✅ 扩展 CommandService 覆盖范围（sniff, batch, virtual port 管理）
+- ✅ 添加脚本示例库（更多协议实现示例）
+
 ---
 
-## 待办
+## Phase 6：技术债务 + 性能体验（2026-06-18 规划）
 
-### Phase 4：文档与测试完善
+### P0：技术债务清理
 
-- [x] 更新 README.md 反映新的 script 命令
-- [x] 更新 CHANGELOG.md 记录统一脚本系统变更
-- [x] 更新 docs/dev/ARCH.md 反映新架构
-- [x] 添加脚本系统综合测试（load/unload/reload, hot-reload, 自定义脚本, 错误处理）
+- [ ] **统一 `protocol` → `script` 命名**
+  - Tauri 命令：`src-tauri/src/commands/protocol.rs` → 重命名为 `script.rs`，函数改为 `script_*`
+  - 前端 API 层：`frontend/src/lib/tauri-api.ts` 合并 protocol/script 两节
+  - 前端 Store：合并 `protocol.ts` 到 `script.ts`，统一类型定义
+  - RPC 方法：`protocol_list/load/unload` → `script_list/load/unload`
+  - 前端类型：合并 `ProtocolInfo` 到 `ScriptInfo`
 
-### Phase 5：功能增强
+- [ ] **清理死代码**
+  - 移除 `src/task/` 模块（3 文件，全部 `allow(dead_code)`，无消费者）
+  - 移除 `src/lua/engine.rs`（`#[allow(dead_code)]`，已被 `ScriptRuntime` 取代）
+  - 移除 `ScriptManager.watched_paths` 字段（未使用的 `#[allow(dead_code)]`）
+  - 清理 `monitoring/mod.rs` 空壳模块
 
-- [x] 实现脚本热重载（文件监控，自动重载变更的脚本）
-- [x] 增强脚本验证（检查必需回调、验证返回类型、添加 linting）
-- [x] 扩展 CommandService 覆盖范围（sniff, batch, virtual port 管理）
-- [x] 添加脚本示例库（更多协议实现示例）
+- [ ] **补全 Server Mode 数据推送**
+  - 实现 `port_subscribe` 的实际事件推送（当前仅设置布尔标志）
+  - 客户端通过 Unix socket 接收 `data-received` 事件流
 
-### Phase 6：性能与体验
+### P1：性能与体验提升
 
-- [ ] 脚本执行性能优化（Lua 状态池、预编译）
-- [ ] 添加脚本调试支持（断点、单步执行、变量检查）
-- [ ] 改进错误消息和诊断信息
-- [ ] 添加脚本文档生成工具
+- [ ] **Lua 状态池 & 预编译**
+  - 将 `ScriptRuntime` 改为池化复用（避免每次创建/销毁 Lua state）
+  - 支持 Lua 字节码预编译（`string.dump`）缓存已编译脚本
+  - 添加 benchmark 对比优化前后性能
+
+- [ ] **改进错误消息和诊断**
+  - 为 `SerialError` 添加上下文信息（端口名、操作名、建议操作）
+  - Lua 脚本错误时显示行号 + 调用栈
+  - 添加 `--verbose` 模式下的详细诊断输出
+
+- [ ] **脚本调试支持（分阶段）**
+  - Phase 6a：添加 `debug.traceback` 集成，脚本错误时输出完整调用栈
+  - Phase 6b：实现 `debug.sethook` 断点/单步（可选，复杂度高）
+
+- [ ] **脚本文档生成工具**
+  - 解析 Lua 脚本头部注释和函数签名
+  - 生成 Markdown 格式 API 文档（`serial-cli script doc <script.lua>`）
 
 ---
 
 ## 统计
 
-- **测试总数**: 277（全部通过）
+- **测试总数**: 277+（全部通过）
 - **源代码行数**: ~17,500
 - **测试代码行数**: ~1,400

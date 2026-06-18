@@ -6,11 +6,96 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Unified script management commands
+//!
+//! This module handles all script-related operations:
+//! - Script lifecycle (load/unload/reload/list)
+//! - Script execution and validation
+//! - Port-script binding
+//! - Data encoding/decoding
+
 use crate::state::app_state::AppState;
 use serial_cli::lua::LuaBindings;
+use serial_cli::script::ScriptInfo;
 use std::fs;
 use std::path::PathBuf;
 use tauri::State;
+
+// ── Script Lifecycle (ScriptManager-backed) ─────────────────────────────────
+
+/// List all registered scripts (built-in + custom)
+#[tauri::command]
+pub async fn list_scripts(state: State<'_, AppState>) -> Result<Vec<ScriptInfo>, String> {
+    let manager = state.script_manager.lock().await;
+    Ok(manager.list())
+}
+
+/// Load a custom script from a file path
+#[tauri::command]
+pub async fn load_script(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<ScriptInfo, String> {
+    let path_buf = PathBuf::from(&path);
+    let canonical = path_buf
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve path: {}", e))?;
+
+    let scripts_dir = state
+        .scripts_dir
+        .as_ref()
+        .ok_or("Scripts directory not configured")?;
+    let canonical_dir = scripts_dir
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve scripts directory: {}", e))?;
+
+    if !canonical.starts_with(&canonical_dir) {
+        return Err("Path must be within the scripts directory".to_string());
+    }
+
+    let mut manager = state.script_manager.lock().await;
+    manager
+        .load(&canonical)
+        .map_err(|e| format!("Failed to load script: {}", e))
+}
+
+/// Unload a custom script by name
+#[tauri::command]
+pub async fn unload_script(name: String, state: State<'_, AppState>) -> Result<(), String> {
+    let mut manager = state.script_manager.lock().await;
+    manager
+        .unload(&name)
+        .map_err(|e| format!("Failed to unload script: {}", e))
+}
+
+/// Reload a custom script from its original file path
+#[tauri::command]
+pub async fn reload_script(name: String, state: State<'_, AppState>) -> Result<(), String> {
+    let mut manager = state.script_manager.lock().await;
+    manager
+        .reload(&name)
+        .map_err(|e| format!("Failed to reload script: {}", e))
+}
+
+/// Get script metadata
+#[tauri::command]
+pub async fn get_script_info(
+    name: String,
+    state: State<'_, AppState>,
+) -> Result<ScriptInfo, String> {
+    let manager = state.script_manager.lock().await;
+    let meta = manager
+        .get_meta(&name)
+        .map_err(|e| format!("Script not found: {}", e))?;
+
+    Ok(ScriptInfo {
+        name: meta.name.clone(),
+        description: meta.description.clone(),
+        built_in: meta.built_in,
+    })
+}
+
+// ── Script Execution & Validation ────────────────────────────────────────────
 
 /// Execute a Lua script (runs in spawn_blocking to avoid blocking async runtime)
 #[tauri::command]
@@ -32,16 +117,14 @@ pub async fn execute_script(script: String, _state: State<'_, AppState>) -> Resu
     .map_err(|e| format!("Script task failed: {}", e))?
 }
 
-/// Validate a Lua script
+/// Validate Lua source code syntax
 #[tauri::command]
 pub async fn validate_script(
     script: String,
     _state: State<'_, AppState>,
 ) -> Result<Vec<ValidationError>, String> {
-    // Create Lua bindings
     let bindings = LuaBindings::new().map_err(|e| format!("Failed to create Lua engine: {}", e))?;
 
-    // Try to load the script (without executing)
     match bindings.lua().load(script).exec() {
         Ok(_) => Ok(vec![]),
         Err(e) => {
@@ -58,10 +141,36 @@ pub async fn validate_script(
     }
 }
 
-/// List available scripts
+/// Validate a script file at the given path
 #[tauri::command]
-pub async fn list_scripts(_state: State<'_, AppState>) -> Result<Vec<ScriptInfo>, String> {
-    let scripts_dir = get_scripts_dir()?;
+pub async fn validate_script_file(path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    let canonical = path_buf
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve path: {}", e))?;
+
+    let file_name = canonical
+        .file_name()
+        .ok_or("Invalid script file path")?
+        .to_str()
+        .ok_or("Non-UTF8 path")?;
+    if !file_name.ends_with(".lua") {
+        return Err("Script files must have .lua extension".to_string());
+    }
+
+    let source = std::fs::read_to_string(&canonical)
+        .map_err(|e| format!("Failed to read script: {}", e))?;
+
+    serial_cli::script::ScriptManager::validate_source(&source)
+        .map_err(|e| format!("Script validation failed: {}", e))
+}
+
+// ── User Script File Management ──────────────────────────────────────────────
+
+/// List user scripts saved in ~/.serial-cli/scripts/
+#[tauri::command]
+pub async fn list_user_scripts(_state: State<'_, AppState>) -> Result<Vec<UserScriptInfo>, String> {
+    let scripts_dir = get_user_scripts_dir()?;
     let mut scripts = Vec::new();
 
     if scripts_dir.exists() {
@@ -75,7 +184,7 @@ pub async fn list_scripts(_state: State<'_, AppState>) -> Result<Vec<ScriptInfo>
                 let metadata = fs::metadata(&path)
                     .map_err(|e| format!("Failed to read file metadata: {}", e))?;
 
-                scripts.push(ScriptInfo {
+                scripts.push(UserScriptInfo {
                     name: path
                         .file_stem()
                         .and_then(|s| s.to_str())
@@ -98,16 +207,15 @@ pub async fn list_scripts(_state: State<'_, AppState>) -> Result<Vec<ScriptInfo>
     Ok(scripts)
 }
 
-/// Save a script
+/// Save a user script to ~/.serial-cli/scripts/
 #[tauri::command]
-pub async fn save_script(
+pub async fn save_user_script(
     name: String,
     content: String,
     _state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let scripts_dir = get_scripts_dir()?;
+    let scripts_dir = get_user_scripts_dir()?;
 
-    // Create scripts directory if it doesn't exist
     if !scripts_dir.exists() {
         fs::create_dir_all(&scripts_dir)
             .map_err(|e| format!("Failed to create scripts directory: {}", e))?;
@@ -118,10 +226,10 @@ pub async fn save_script(
     fs::write(&script_path, content).map_err(|e| format!("Failed to write script: {}", e))
 }
 
-/// Delete a script
+/// Delete a user script from ~/.serial-cli/scripts/
 #[tauri::command]
-pub async fn delete_script(name: String, _state: State<'_, AppState>) -> Result<(), String> {
-    let scripts_dir = get_scripts_dir()?;
+pub async fn delete_user_script(name: String, _state: State<'_, AppState>) -> Result<(), String> {
+    let scripts_dir = get_user_scripts_dir()?;
     let script_path = scripts_dir.join(format!("{}.lua", name));
 
     if !script_path.exists() {
@@ -131,22 +239,112 @@ pub async fn delete_script(name: String, _state: State<'_, AppState>) -> Result<
     fs::remove_file(&script_path).map_err(|e| format!("Failed to delete script: {}", e))
 }
 
-/// Get scripts directory
-fn get_scripts_dir() -> Result<PathBuf, String> {
-    let mut base_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
+// ── Port-Script Binding ──────────────────────────────────────────────────────
 
+/// Attach a script to an open port (by name, via ScriptManager)
+#[tauri::command]
+pub async fn bind_script(
+    port_id: String,
+    script_name: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let script_mgr = state.script_manager.lock().await;
+    let port_mgr = state.port_manager.lock().await;
+
+    port_mgr
+        .attach_script_by_name(&port_id, &script_mgr, &script_name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// ── Data Encoding/Decoding ───────────────────────────────────────────────────
+
+/// Encode data using a script (by name)
+#[tauri::command]
+pub async fn script_encode(
+    script: String,
+    data: Vec<u8>,
+    state: State<'_, AppState>,
+) -> Result<Vec<u8>, String> {
+    let manager = state.script_manager.lock().await;
+    let engine = manager
+        .create_engine(&script)
+        .map_err(|e| format!("Failed to create engine: {}", e))?;
+    engine.load().map_err(|e| format!("Failed to load script: {}", e))?;
+    engine
+        .on_send(&data)
+        .map_err(|e| format!("Encode failed: {}", e))
+}
+
+/// Decode data using a script (by name)
+#[tauri::command]
+pub async fn script_decode(
+    script: String,
+    data: Vec<u8>,
+    state: State<'_, AppState>,
+) -> Result<Vec<u8>, String> {
+    let manager = state.script_manager.lock().await;
+    let engine = manager
+        .create_engine(&script)
+        .map_err(|e| format!("Failed to create engine: {}", e))?;
+    engine.load().map_err(|e| format!("Failed to load script: {}", e))?;
+    Ok(engine.on_recv(&data))
+}
+
+// ── File Operations ──────────────────────────────────────────────────────────
+
+/// Save a script file from frontend content and return its filesystem path
+#[tauri::command]
+pub async fn save_script_file(
+    name: String,
+    content: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let safe_name = sanitize_name(&name)?;
+
+    let file_name = if safe_name.ends_with(".lua") {
+        safe_name
+    } else {
+        format!("{safe_name}.lua")
+    };
+
+    let scripts_dir = state
+        .scripts_dir
+        .clone()
+        .ok_or("Scripts directory not configured")?;
+
+    std::fs::create_dir_all(&scripts_dir)
+        .map_err(|e| format!("Failed to create scripts directory: {}", e))?;
+
+    let file_path = scripts_dir.join(&file_name);
+    std::fs::write(&file_path, content)
+        .map_err(|e| format!("Failed to write script file: {}", e))?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Reject paths containing traversal components or absolute separators
+fn sanitize_name(name: &str) -> Result<String, String> {
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
+        return Err(format!("Invalid script name: path components not allowed"));
+    }
+    Ok(name.to_string())
+}
+
+/// Get user scripts directory (~/.serial-cli/scripts/)
+fn get_user_scripts_dir() -> Result<PathBuf, String> {
+    let mut base_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
     base_dir.push(".serial-cli");
     base_dir.push("scripts");
-
     Ok(base_dir)
 }
 
 /// Parse Lua error to extract line and column information
 fn parse_lua_error(error_msg: &str) -> Vec<ValidationError> {
-    // Simple parsing - in production, you'd want more robust error parsing
     let mut errors = Vec::new();
 
-    // Try to extract line number from error message
     if let Some(line_start) = error_msg.find("line ") {
         let line_part = &error_msg[line_start + 5..];
         if let Some(line_end) = line_part.find(',') {
@@ -179,7 +377,7 @@ pub struct ValidationError {
 }
 
 #[derive(serde::Serialize)]
-pub struct ScriptInfo {
+pub struct UserScriptInfo {
     pub name: String,
     pub path: String,
     pub size: usize,
