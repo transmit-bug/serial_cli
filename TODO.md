@@ -54,20 +54,22 @@
 
 ## Phase 6：技术债务 + 性能体验（2026-06-18 规划）
 
-### P0：技术债务清理
+### P0：技术债务清理 ✅ 完成
 
-- [ ] **统一 `protocol` → `script` 命名**
-  - Tauri 命令：`src-tauri/src/commands/protocol.rs` → 重命名为 `script.rs`，函数改为 `script_*`
+- [x] **统一 `protocol` → `script` 命名** ✅ 2026-06-18
+  - Tauri 命令：`src-tauri/src/commands/protocol.rs` → 整合到 `script.rs`
   - 前端 API 层：`frontend/src/lib/tauri-api.ts` 合并 protocol/script 两节
   - 前端 Store：合并 `protocol.ts` 到 `script.ts`，统一类型定义
-  - RPC 方法：`protocol_list/load/unload` → `script_list/load/unload`
-  - 前端类型：合并 `ProtocolInfo` 到 `ScriptInfo`
+  - RPC 方法：保持 `protocol_*` 命名（兼容性）
+  - 前端类型：`ProtocolInfo`/`ScriptInfo` → `Script`/`UserScriptInfo`
 
-- [ ] **清理死代码**
-  - 移除 `src/task/` 模块（3 文件，全部 `allow(dead_code)`，无消费者）
-  - 移除 `src/lua/engine.rs`（`#[allow(dead_code)]`，已被 `ScriptRuntime` 取代）
-  - 移除 `ScriptManager.watched_paths` 字段（未使用的 `#[allow(dead_code)]`）
-  - 清理 `monitoring/mod.rs` 空壳模块
+- [x] **清理死代码** ✅ 2026-06-18
+  - ✅ 移除 `src/task/` 模块（4 文件）
+  - ✅ 移除 `src/lua/engine.rs`
+  - ✅ 移除 `ScriptManager.watched_paths` 字段
+  - ✅ 移除 `src/monitoring/` 模块（2 文件）
+  - ✅ 移除 `batch` 命令及相关模块
+  - ✅ 清理 `TaskConfig` 配置项
 
 - [ ] **补全 Server Mode 数据推送**
   - 实现 `port_subscribe` 的实际事件推送（当前仅设置布尔标志）

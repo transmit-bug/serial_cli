@@ -4,6 +4,11 @@
 //! This eliminates the duplication across [`SerialScriptEngine`](crate::serial_core::serial_script::SerialScriptEngine),
 //! [`LuaBindings`], and [`LuaStdLib`].
 //!
+//! # Performance Optimization
+//!
+//! This module includes a thread-local Lua state pool for reusing `Lua` instances,
+//! significantly reducing overhead in repeated executions.
+//!
 //! # Usage
 //!
 //! ```ignore
@@ -17,6 +22,131 @@
 
 use crate::error::Result;
 use mlua::{Lua, Value};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+/// Thread-local Lua state pool for reusing Lua instances
+///
+/// Creating a new `Lua` instance is expensive. This pool allows reusing instances
+/// within the same thread, significantly reducing overhead.
+pub struct LuaStatePool {
+    pool: RefCell<Vec<Lua>>,
+    max_size: usize,
+}
+
+impl LuaStatePool {
+    /// Create a new pool with the specified maximum size
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            pool: RefCell::new(Vec::with_capacity(max_size)),
+            max_size,
+        }
+    }
+
+    /// Acquire a Lua instance from the pool, or create a new one if empty
+    pub fn acquire(&self) -> Lua {
+        let mut pool = self.pool.borrow_mut();
+        pool.pop().unwrap_or_else(Lua::new)
+    }
+
+    /// Release a Lua instance back to the pool
+    pub fn release(&self, lua: Lua) {
+        let mut pool = self.pool.borrow_mut();
+        if pool.len() < self.max_size {
+            pool.push(lua);
+        }
+        // If pool is full, just drop the Lua instance
+    }
+
+    /// Get the current number of available instances in the pool
+    pub fn available(&self) -> usize {
+        self.pool.borrow().len()
+    }
+}
+
+impl Default for LuaStatePool {
+    fn default() -> Self {
+        Self::new(10) // Default pool size
+    }
+}
+
+// Thread-local storage for Lua state pools
+// Each thread maintains its own pool of Lua instances.
+thread_local! {
+    static LUA_POOL: LuaStatePool = LuaStatePool::new(10);
+}
+
+/// Acquire a Lua instance from the thread-local pool
+pub fn acquire_lua() -> Lua {
+    LUA_POOL.with(|pool| pool.acquire())
+}
+
+/// Release a Lua instance back to the thread-local pool
+pub fn release_lua(lua: Lua) {
+    LUA_POOL.with(|pool| pool.release(lua))
+}
+
+/// Script cache for avoiding redundant parsing and execution
+///
+/// Caches the result of script execution based on script content hash.
+/// This is useful for scripts that are executed repeatedly with the same input.
+#[derive(Clone)]
+pub struct ScriptCache {
+    cache: Arc<Mutex<HashMap<String, bool>>>,
+}
+
+impl ScriptCache {
+    /// Create a new empty cache
+    pub fn new() -> Self {
+        Self {
+            cache: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Check if a script has been executed before
+    pub fn contains(&self, script: &str) -> bool {
+        let hash = self.compute_hash(script);
+        self.cache.lock().unwrap().contains_key(&hash)
+    }
+
+    /// Mark a script as executed
+    pub fn mark_executed(&self, script: &str) {
+        let hash = self.compute_hash(script);
+        self.cache.lock().unwrap().insert(hash, true);
+    }
+
+    /// Clear the cache
+    pub fn clear(&self) {
+        self.cache.lock().unwrap().clear();
+    }
+
+    /// Get the number of cached scripts
+    pub fn len(&self) -> usize {
+        self.cache.lock().unwrap().len()
+    }
+
+    /// Check if the cache is empty
+    pub fn is_empty(&self) -> bool {
+        self.cache.lock().unwrap().is_empty()
+    }
+
+    /// Compute a hash of the script content
+    fn compute_hash(&self, source: &str) -> String {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        source.hash(&mut hasher);
+        format!("{:x}", hasher.finish())
+    }
+}
+
+impl Default for ScriptCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Unified Lua runtime for registering all tool functions.
 ///
@@ -460,5 +590,54 @@ mod tests {
             assert(bytes[3] == 3)
         "#;
         lua.load(script).exec().unwrap();
+    }
+
+    #[test]
+    fn test_lua_state_pool() {
+        let pool = LuaStatePool::new(5);
+        assert_eq!(pool.available(), 0);
+
+        // Acquire creates new instance
+        let lua1 = pool.acquire();
+        assert_eq!(pool.available(), 0);
+
+        // Release returns to pool
+        pool.release(lua1);
+        assert_eq!(pool.available(), 1);
+
+        // Acquire reuses from pool
+        let lua2 = pool.acquire();
+        assert_eq!(pool.available(), 0);
+
+        pool.release(lua2);
+    }
+
+    #[test]
+    fn test_acquire_release_helpers() {
+        // Test thread-local helpers
+        let lua = acquire_lua();
+        ScriptRuntime::register_all(&lua).unwrap();
+
+        let script = "log_info('pool test')";
+        lua.load(script).exec().unwrap();
+
+        release_lua(lua);
+    }
+
+    #[test]
+    fn test_script_cache() {
+        let cache = ScriptCache::new();
+        assert!(cache.is_empty());
+
+        let script = "print('hello')";
+        assert!(!cache.contains(script));
+
+        cache.mark_executed(script);
+        assert!(cache.contains(script));
+        assert_eq!(cache.len(), 1);
+
+        cache.clear();
+        assert!(!cache.contains(script));
+        assert!(cache.is_empty());
     }
 }

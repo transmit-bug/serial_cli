@@ -88,15 +88,18 @@ impl ScriptManager {
         // Read the file
         let source = std::fs::read_to_string(path).map_err(SerialError::Io)?;
 
-        // Validate syntax
-        let lua = mlua::Lua::new();
-        lua.load(&source).exec().map_err(|e| {
+        // Validate syntax using pooled Lua instance
+        use crate::lua::runtime::{acquire_lua, release_lua};
+        let lua = acquire_lua();
+        let validation_result = lua.load(&source).exec().map_err(|e| {
             SerialError::Script(ScriptError::Syntax {
                 script: path.to_path_buf(),
                 line: 0,
                 message: e.to_string(),
             })
-        })?;
+        });
+        release_lua(lua);
+        validation_result?;
 
         // Derive name from filename
         let name = path
@@ -181,10 +184,11 @@ impl ScriptManager {
 
     /// Validate Lua source code syntax without loading it.
     pub fn validate_source(source: &str) -> std::result::Result<(), String> {
-        let lua = mlua::Lua::new();
-        lua.load(source)
-            .exec()
-            .map_err(|e| e.to_string())
+        use crate::lua::runtime::{acquire_lua, release_lua};
+        let lua = acquire_lua();
+        let result = lua.load(source).exec().map_err(|e| e.to_string());
+        release_lua(lua);
+        result
     }
 
     /// Create a SerialScriptEngine from a named script.
