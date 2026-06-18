@@ -71,9 +71,12 @@
   - ✅ 移除 `batch` 命令及相关模块
   - ✅ 清理 `TaskConfig` 配置项
 
-- [ ] **补全 Server Mode 数据推送**
-  - 实现 `port_subscribe` 的实际事件推送（当前仅设置布尔标志）
-  - 客户端通过 Unix socket 接收 `data-received` 事件流
+- [x] **补全 Server Mode 数据推送** ✅ 2026-06-18
+  - 添加 DataPushEvent 结构体用于推送事件
+  - 在 ServerState 中添加 broadcast channel
+  - port_open 时订阅端口数据并启动转发任务
+  - handle_connection 中监听推送事件并发送给订阅客户端
+  - 实现 JSON-RPC 推送格式 (method: port_data)
 
 ### P1：性能与体验提升
 
