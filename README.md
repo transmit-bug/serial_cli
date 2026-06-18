@@ -160,23 +160,17 @@ serial> quit
 
 ---
 
-### One-Shot Commands
+### Run Lua Scripts
 
 ```bash
-# Send command and receive response
-serial-cli exec /dev/ttyUSB0 "send AT; sleep 100; recv 64"
+# Run a Lua script
+serial-cli run script.lua
 
-# With custom baud rate
-serial-cli exec /dev/ttyUSB0 --baudrate 9600 "send data"
+# With arguments
+serial-cli run script.lua arg1 arg2
 
-# With protocol
-serial-cli exec /dev/ttyUSB0 --protocol modbus_rtu "send 0x010300000001"
-
-# Hex data
-serial-cli exec /dev/ttyUSB0 "send 0x01020304"
-
-# Base64 data
-serial-cli exec /dev/ttyUSB0 "send base64:SGVsbG8="
+# Run with specific port settings
+serial-cli run modbus_read.lua --port /dev/ttyUSB0 --baudrate 19200
 ```
 
 #### Data Sniffing — Session Management
@@ -315,310 +309,57 @@ serial-cli server stop
 
 ---
 
-## Lua Scripting - Modbus RTU
+## 📜 Lua Scripting
+
+Serial CLI embeds a **LuaJIT** runtime for automation. Write scripts to open ports, send/receive data, encode/decode protocols, and more.
 
 ```lua
--- modbus_read.lua
-local port_name = "/dev/ttyUSB0"
-local slave_id = 1
-local start_addr = 0
-local reg_count = 10
-
--- Open port with Modbus settings
-local port = serial_open(port_name, {
-  baudrate = 19200,
-  databits = 8,
-  parity = "even",
-  stopbits = 1
-})
-
--- Build Modbus request (function 0x03 = Read Holding Registers)
-local request = string.char(
-  slave_id, 0x03,
-  (start_addr >> 8) & 0xFF, start_addr & 0xFF,
-  (reg_count >> 8) & 0xFF, reg_count & 0xFF
-)
-
--- Calculate CRC
-local crc = 0xFFFF
-for i = 1, #request do
-  crc = crc ~ string.byte(request, i)
-  for j = 1, 8 do
-    if (crc & 0x0001) ~= 0 then
-      crc = (crc >> 1) ~ 0xA001
-    else
-      crc = crc >> 1
-    end
-  end
-end
-request = request .. string.char(crc & 0xFF, (crc >> 8) & 0xFF)
-
--- Send and receive
-serial_send(port, request)
-sleep(100)
-local response = serial_recv(port, 256)
-
-print("Response: " .. hex_encode(response))
-serial_close(port)
-```
-
-**Run:** `serial-cli run modbus_read.lua`
-
-### Data Logging
-
-```lua
--- data_logger.lua
 local port = serial_open("/dev/ttyUSB0", {baudrate = 115200})
-local file = io.open("log.txt", "w")
-
-file:write("# Data log started at " .. os.date() .. "\n")
-
-for i = 1, 100 do
-  local data = serial_recv(port, 1024)
-  if #data > 0 then
-    file:write(data)
-    file:flush()
-    print("Received " .. #data .. " bytes")
-  end
-  sleep(50)
-end
-
-file:close()
+serial_send(port, "AT\r\n")
+local response = serial_recv(port, 1000)
+print(json_encode({status = "ok", data = response}))
 serial_close(port)
 ```
 
-**Run:** `serial-cli run data_logger.lua`
+Run: `serial-cli run script.lua`
 
----
+See `examples/` for protocol implementations (Modbus RTU, data logging, etc.).
 
-## 🔧 Lua Scripting API
-
-Serial CLI includes an embedded **LuaJIT** runtime for powerful automation:
-
-> For the complete API reference, see [Lua Scripting Reference](docs/reference/lua-scripting.md).
-
-### Serial Port Functions
-
-```lua
--- Open serial port
-local port = serial_open("/dev/ttyUSB0", {
-    baudrate = 115200,      -- Baud rate (default: 115200)
-    timeout = 1000,         -- Read timeout in ms (default: 1000)
-    data_bits = 8,          -- Data bits: 5-8 (default: 8)
-    parity = "none",        -- Parity: "none", "odd", "even" (default: "none")
-    stop_bits = 1,          -- Stop bits: 1 or 2 (default: 1)
-    flow_control = "none"   -- Flow control: "none", "hardware", "software"
-})
-
--- Send data
-serial_send(port, "Hello, World!\r\n")
-
--- Receive data
-local data = serial_recv(port, 1000)
-
--- Close port
-serial_close(port)
-```
-
-### Utility Functions
-
-```lua
--- Logging
-log_info("Information message")
-log_warn("Warning message")
-log_error("Error message")
-
--- JSON
-local json = json_encode({key = "value"})
-local obj = json_decode('{"key": "value"}')
-
--- Hex
-local hex = hex_encode({0x48, 0x65, 0x6C, 0x6C, 0x6F})
-local bytes = hex_decode("48656c6c6f")
-
--- Time
-sleep_ms(1000)
-local now = time_now()
-```
-
-### Custom Script Extension
-
-Load custom scripts from Lua files:
-
-```lua
--- Load custom script
-local ok, err = script_load("/path/to/my_script.lua")
-if ok then
-    local encoded = script_encode("my_custom_script", "data")
-    local decoded = script_decode("my_custom_script", encoded)
-end
-```
-
-See `examples/` directory for complete script examples.
+> **Full API reference**: [docs/reference/lua-scripting.md](docs/reference/lua-scripting.md)
 
 ---
 
 ## 🛠️ Development
 
-### Prerequisites
+See [DEVELOPMENT.md](DEVELOPMENT.md) for full development guide (prerequisites, IDE setup, cross-compilation, release process).
+
+**Quick commands** (requires Rust 1.75+ and [just](https://github.com/casey/just)):
 
 ```bash
-# Rust 1.75+
-rustup update stable
-
-# Just task runner (recommended)
-cargo install just
-
-# Platform dependencies
-# Linux:
-sudo apt-get install build-essential libudev-dev libluajit-5.1-dev
-
-# macOS:
-xcode-select --install
-brew install luajit
+just dev          # Build (debug)
+just build        # Build (release)
+just test         # Run tests
+just check        # fmt + lint + test
+just gui-dev      # Start GUI dev server
+just gui-build    # Build GUI application
 ```
 
-### Build Commands
-
-```bash
-# Development build
-just dev          # cargo build
-
-# Release build
-just build        # cargo build --release
-
-# Run application
-just run <args>   # cargo run -- <args>
-
-# Run all checks (fmt + lint + test)
-just check
-```
-
-### Testing
-
-```bash
-# Run all tests
-just test
-
-# Run specific test
-just test <test_name>
-
-# Run tests with output
-just test-verbose
-```
-
-### Code Quality
-
-```bash
-# Format code
-just fmt
-
-# Check formatting
-just fmt-check
-
-# Run linter
-just lint
-
-# Cross-compilation
-just build-all    # All platforms
-just build-linux  # Linux (x86_64 + aarch64)
-just build-macos  # macOS (x86_64 + arm64)
-just build-windows # Windows (requires cross)
-```
-
-### GUI Development
-
-```bash
-# Install GUI dependencies
-just gui-deps
-
-# Start GUI development server
-just gui-dev
-
-# Build GUI application
-just gui-build
-
-# Type check frontend
-just gui-type-check
-
-# Format all code (Rust + TypeScript)
-just gui-fmt
-
-# Check Rust + TypeScript code
-just gui-check
-```
-
-**GUI Features**:
-- Modern Tech Stack — React 19 + Zustand 5 + shadcn/ui + Tailwind CSS 4
-- Real-time Data Monitoring — Live display with virtual scrolling (10000+ packets)
-- Lua Script Editor — Monaco Editor with syntax highlighting
-- Protocol Management — Built-in and custom protocol loading with hot-reload
-- Settings Management — Comprehensive configuration with persistence
-- Data Export — TXT/CSV/JSON formats with filtering
-- System Notifications — Sonner toast + OS desktop notifications
-- Command Palette — Global search (⌘K) with fuzzy matching
-- Keyboard Shortcuts — Full keyboard navigation and quick actions
-- Internationalization — English and Chinese
-
-**GUI Architecture**:
-- State Management: Zustand stores (pure, no React Context)
-- Component Library: shadcn/ui + Radix UI
-- Performance: Virtual scrolling via @tanstack/react-virtual
-- View Structure: 5 views (Terminal, Virtual Ports, Scripts, Protocols, Settings)
-
-### Project Structure
-
-```
-serial_cli/
-├── src/                    # Rust library (core functionality)
-│   ├── main.rs             # CLI entry point
-│   ├── lib.rs              # Library root
-│   ├── error.rs            # Error types
-│   ├── config.rs           # Configuration
-│   ├── serial_core/        # Serial port I/O
-│   ├── script/             # Unified script system
-│   ├── service.rs          # CommandService (shared orchestration)
-│   ├── lua/                # LuaJIT integration
-│   ├── server/             # Server Mode daemon
-│   ├── task/               # Task scheduling (experimental)
-│   └── cli/                # CLI interface
-├── src-tauri/              # Tauri application (GUI backend)
-│   ├── src/                # Tauri-specific code
-│   ├── Cargo.toml
-│   ├── tauri.conf.json
-│   └── build.rs
-├── frontend/               # React frontend (GUI)
-│   ├── src/                # React source
-│   ├── components/
-│   ├── index.html
-│   └── package.json
-├── examples/               # Lua script examples
-├── tests/                  # Integration tests
-├── docs/                   # Documentation
-│   ├── ai/                 # AI/automation guides
-│   ├── dev/                # Development docs
-│   ├── reference/          # Reference material
-│   └── commands/           # Per-command docs
-├── justfile                # Build commands
-├── Cargo.toml              # Package config
-└── README.md               # This file
-```
+**Project structure** — see [docs/dev/ARCH.md](docs/dev/ARCH.md) for full architecture reference.
 
 ---
 
 ## 🔍 Troubleshooting
 
-For common issues and solutions, see the [Troubleshooting Guide](docs/reference/troubleshooting.md).
+See [docs/reference/troubleshooting.md](docs/reference/troubleshooting.md) for full guide.
 
 **Quick fixes:**
 
 | Issue | Solution |
 |-------|----------|
 | Permission denied (Linux) | `sudo usermod -a -G dialout $USER` then re-login |
-| Port not found | Run `serial-cli list-ports` to verify available ports |
+| Port not found | Run `serial-cli port list` to verify available ports |
 | Timeout error | Check baudrate matches device, increase timeout |
-| Port in use | Close other applications using the port (PuTTY, Arduino IDE, etc.) |
-| Lua script error | Run with `--verbose` for detailed error output |
+| Port in use | Close other applications using the port |
 
 **Debug mode:** `serial-cli --verbose <command>` or `RUST_LOG=debug serial-cli <command>`
 

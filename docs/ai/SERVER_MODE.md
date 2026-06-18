@@ -13,7 +13,7 @@ Server Mode is a persistent daemon that provides a JSON-RPC 2.0 interface for se
 ### Key Benefits
 
 - **Persistent connections** - No repeated open/close overhead (50-200ms → 1-5ms)
-- **Protocol persistence** - Custom protocols loaded once, available globally
+- **Protocol persistence** - Custom scripts loaded once, available globally
 - **AI-friendly API** - Standard JSON-RPC 2.0 interface
 - **Multi-client support** - Multiple AI agents can share connections
 
@@ -198,7 +198,7 @@ serial-cli server call port_close '{
 
 #### protocol_list
 
-List all available protocols.
+List all available scripts (protocols).
 
 ```bash
 serial-cli server call protocol_list '{}'
@@ -206,7 +206,7 @@ serial-cli server call protocol_list '{}'
 
 #### protocol_load
 
-Load a custom protocol from Lua script.
+Load a custom script (protocol) from Lua file.
 
 ```bash
 serial-cli server call protocol_load '{
@@ -217,7 +217,7 @@ serial-cli server call protocol_load '{
 
 #### protocol_unload
 
-Unload a custom protocol.
+Unload a custom script (protocol).
 
 ```bash
 serial-cli server call protocol_unload '{
@@ -341,9 +341,6 @@ serial-cli server start \
 **Note:** Server Mode currently supports only Unix sockets (named pipes on Windows). TCP socket support is planned for a future release.
 
 The server socket path defaults to a platform-specific location (typically `~/.cache/serial_cli/serial-cli.sock` on Linux, or the equivalent on other platforms).
-  --log /path/to/server.log \        # Custom log file
-  --max-connections 20               # Max concurrent connections
-```
 
 ### Session File
 

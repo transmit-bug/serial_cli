@@ -64,41 +64,8 @@
 
 ---
 
-## 架构概览
-
-```
-src/
-├── script/              # 统一脚本系统
-│   ├── mod.rs
-│   ├── manager.rs       # ScriptManager
-│   └── built_in/        # 内置 Lua 脚本
-│       ├── line.lua
-│       ├── at_command.lua
-│       └── modbus_rtu.lua
-├── service.rs           # CommandService（共享编排）
-├── cli/
-│   ├── args.rs          # CLI 参数定义
-│   ├── types.rs         # 命令类型定义
-│   ├── commands/
-│   │   ├── script.rs    # 脚本命令处理
-│   │   ├── port.rs      # 端口命令处理
-│   │   └── ...
-│   └── interactive.rs   # 交互式 shell
-├── lua/
-│   ├── bindings.rs      # Lua API 绑定
-│   └── executor.rs      # 脚本执行引擎
-└── serial_core/
-    ├── port.rs          # 端口管理
-    └── serial_script.rs # 脚本引擎
-```
-
----
-
 ## 统计
 
-- **源文件**: 58 个
-- **测试文件**: 6 个
-- **源代码行数**: 17,555
-- **测试代码行数**: 1,366
 - **测试总数**: 277（全部通过）
-- **示例脚本**: 15 个
+- **源代码行数**: ~17,500
+- **测试代码行数**: ~1,400

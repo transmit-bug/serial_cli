@@ -51,7 +51,7 @@ For complete documentation structure, see [`docs/README.md`](docs/README.md).
 - `src/cli/types.rs` — command enum definitions (all subcommands)
 - `src/cli/commands/` — one handler file per command group
 - `src/serial_core/` — port I/O, sniffer, virtual ports
-- `src/protocol/` — protocol engine with Lua extensibility
+- `src/script/` — unified script system (ScriptManager, built-in Lua scripts)
 - `src/lua/` — LuaJIT integration (bindings, stdlib, executor)
 - `src/config.rs` — TOML-based ConfigManager
 
@@ -95,4 +95,6 @@ cd frontend && pnpm lint        # lint with biome
 cd frontend && pnpm type-check  # TypeScript type check
 ```
 
-**Frontend stack:** pnpm, React 19, Vite 8, Tailwind CSS 4, Zustand 5, biome, vitest
+**Frontend stack:** pnpm, React 19, Vite 8, Tailwind CSS 4, Zustand 5, shadcn/ui, biome, vitest
+
+**Frontend 规范**：UI 组件优先使用 shadcn/ui（`npx shadcn@latest add <组件名>`），不要手写基础组件。

@@ -21,7 +21,7 @@ Complete rewrite of the Serial CLI GUI frontend, built on the existing Tauri bac
 
 ## 2. Tech Stack & Dependencies
 
-All versions are the latest stable as of 2026-05. Package manager: **pnpm** (per CLAUDE.md).
+All versions are the latest stable as of 2026-05. Package manager: **pnpm** (per AGENTS.md).
 
 ### Core Framework
 
@@ -29,8 +29,6 @@ All versions are the latest stable as of 2026-05. Package manager: **pnpm** (per
 |---------|---------|---------|
 | `react` | ^19.2 | UI rendering |
 | `react-dom` | ^19.2 | DOM rendering |
-| `@types/react` | ^19.2 | TypeScript types |
-| `@types/react-dom` | ^19.2 | TypeScript types |
 | `typescript` | ^5.8 | Type safety |
 
 ### Build Toolchain
@@ -41,131 +39,93 @@ All versions are the latest stable as of 2026-05. Package manager: **pnpm** (per
 | `@vitejs/plugin-react` | ^4.5 | React Fast Refresh |
 | `tailwindcss` | ^4.3 | Utility-first CSS (v4 CSS-based config) |
 | `@tailwindcss/vite` | ^4.3 | Tailwind Vite plugin (replaces PostCSS plugin) |
-| `autoprefixer` | ^10.5 | Vendor prefixing |
 
 ### UI Components (shadcn/ui)
 
 shadcn/ui 通过 CLI (`npx shadcn@latest init`) 初始化，自动安装所需 Radix 原语。以下是项目会用到的 Radix 组件：
 
-| Package | Version | Usage |
-|---------|---------|-------|
-| `@radix-ui/react-select` | ^2.2 | Port/baud/protocol 下拉选择 |
-| `@radix-ui/react-dialog` | ^1.1 | 模态弹窗（创建虚拟串口、快捷命令编辑） |
-| `@radix-ui/react-tooltip` | ^1.2 | 工具提示 |
-| `@radix-ui/react-tabs` | ^1.1 | 设置面板 Tab 切换 |
-| `@radix-ui/react-switch` | ^1.2 | 开关（协议编解码、自动滚动） |
-| `@radix-ui/react-dropdown-menu` | ^2.1 | 右键菜单、下拉菜单（导出格式） |
-| `@radix-ui/react-popover` | ^1.1 | 弹出面板 |
-| `@radix-ui/react-separator` | ^1.1 | 分隔线 |
-| `@radix-ui/react-toggle` | ^1.1 | 格式切换按钮（HEX/ASCII/Mixed） |
-| `@radix-ui/react-label` | ^2.2 | 表单标签 |
-| `@radix-ui/react-slot` | ^1.1 | Button 组件内部使用 |
-| `@radix-ui/react-scroll-area` | ^1.2 | 自定义滚动条（数据查看器） |
-| `class-variance-authority` | ^0.7 | 组件变体样式 |
-| `clsx` | ^2.1 | 条件类名合并 |
-| `tailwind-merge` | ^3.6 | Tailwind 类名去重 |
+| Package | Usage |
+|---------|-------|
+| `@radix-ui/react-select` | Port/baud/protocol 下拉选择 |
+| `@radix-ui/react-dialog` | 模态弹窗（创建虚拟串口、快捷命令编辑） |
+| `@radix-ui/react-tooltip` | 工具提示 |
+| `@radix-ui/react-tabs` | 设置面板 Tab 切换 |
+| `@radix-ui/react-switch` | 开关（协议编解码、自动滚动） |
+| `@radix-ui/react-dropdown-menu` | 右键菜单、下拉菜单（导出格式） |
+| `@radix-ui/react-popover` | 弹出面板 |
+| `@radix-ui/react-separator` | 分隔线 |
+| `@radix-ui/react-toggle` | 格式切换按钮（HEX/ASCII/Mixed） |
+| `@radix-ui/react-label` | 表单标签 |
+| `@radix-ui/react-slot` | Button 组件内部使用 |
+| `@radix-ui/react-scroll-area` | 自定义滚动条（数据查看器） |
+| `class-variance-authority` | 组件变体样式 |
+| `clsx` | 条件类名合并 |
+| `tailwind-merge` | Tailwind 类名去重 |
 
 ### State & Data
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `zustand` | ^5.0 | 全局状态管理（纯 Zustand，不用 React Context） |
-| `@tanstack/react-virtual` | ^3.13 | 虚拟滚动列表（大数据 RX 查看器） |
-| `date-fns` | ^4.3 | 时间戳格式化 |
+| Package | Purpose |
+|---------|---------|
+| `zustand` | 全局状态管理（纯 Zustand，不用 React Context） |
+| `@tanstack/react-virtual` | 虚拟滚动列表（大数据 RX 查看器） |
+| `date-fns` | 时间戳格式化 |
 
 ### Code Editor
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@monaco-editor/react` | ^4.7 | Lua 脚本编辑器 |
+| Package | Purpose |
+|---------|---------|
+| `@monaco-editor/react` | Lua 脚本编辑器 |
 
 Monaco 自动加载 editor core，无需额外安装。
 
 ### Internationalization
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `i18next` | ^26.2 | i18n 核心 |
-| `react-i18next` | ^17.0 | React 绑定 |
-| `i18next-browser-languagedetector` | ^8.2 | 自动检测浏览器/系统语言 |
+| Package | Purpose |
+|---------|---------|
+| `i18next` | i18n 核心 |
+| `react-i18next` | React 绑定 |
+| `i18next-browser-languagedetector` | 自动检测浏览器/系统语言 |
 
 ### Forms & Validation
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `react-hook-form` | ^7.76 | 表单状态管理（设置面板、快捷命令编辑） |
-| `zod` | ^4.4 | Schema 验证 |
-| `@hookform/resolvers` | ^5.4 | zod ↔ react-hook-form 桥接 |
+| Package | Purpose |
+|---------|---------|
+| `react-hook-form` | 表单状态管理（设置面板、快捷命令编辑） |
+| `zod` | Schema 验证 |
+| `@hookform/resolvers` | zod ↔ react-hook-form 桥接 |
 
 ### Layout & Interaction
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `react-resizable-panels` | ^4.11 | 可拖拽分割面板（RX/TX 区域、左右面板） |
-| `cmdk` | ^1.1 | 命令面板（Cmd+K，VS Code 风格） |
-| `sonner` | ^2.0 | Toast 通知 |
-| `lucide-react` | ^1.16 | 图标库（800+ 图标，shadcn/ui 官方推荐） |
+| Package | Purpose |
+|---------|---------|
+| `react-resizable-panels` | 可拖拽分割面板（RX/TX 区域、左右面板） |
+| `cmdk` | 命令面板（Cmd+K，VS Code 风格） |
+| `sonner` | Toast 通知 |
+| `lucide-react` | 图标库（800+ 图标，shadcn/ui 官方推荐） |
 
 ### Tauri Integration
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@tauri-apps/api` | ^2.11 | Tauri 前端 API（invoke、event listen） |
-| `@tauri-apps/plugin-dialog` | ^2.7 | 原生文件选择对话框（加载协议文件） |
+| Package | Purpose |
+|---------|---------|
+| `@tauri-apps/api` | Tauri 前端 API（invoke、event listen） |
+| `@tauri-apps/plugin-dialog` | 原生文件选择对话框（加载协议文件） |
 
 ### Development Quality
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `@biomejs/biome` | ^2.4 | Linting + Formatting（替代 eslint + prettier） |
-| `vitest` | ^4.1 | 单元测试 |
-| `@testing-library/react` | ^16.3 | React 组件测试 |
-| `jsdom` | ^29.1 | 测试环境 DOM 模拟 |
+| Package | Purpose |
+|---------|---------|
+| `@biomejs/biome` | Linting + Formatting（替代 eslint + prettier） |
+| `vitest` | 单元测试 |
+| `@testing-library/react` | React 组件测试 |
+| `jsdom` | 测试环境 DOM 模拟 |
 
-### 完整安装命令
+### Installation
+
+See `frontend/package.json` for the complete dependency list. To install:
 
 ```bash
-# 创建项目
-pnpm create vite frontend --template react-ts
 cd frontend
-
-# Core UI
-pnpm add react@^19 react-dom@^19
-pnpm add -D @types/react@^19 @types/react-dom@^19 typescript@^5.8
-
-# Build
-pnpm add -D vite@^6 @vitejs/plugin-react@^4.5 tailwindcss@^4 @tailwindcss/vite@^4 autoprefixer@^10
-
-# State & Data
-pnpm add zustand@^5 @tanstack/react-virtual@^3 date-fns@^4
-
-# UI Utilities
-pnpm add clsx@^2 tailwind-merge@^3 class-variance-authority@^0.7 lucide-react@^1
-pnpm add sonner@^2 cmdk@^1 react-resizable-panels@^4
-
-# Radix UI (installed via shadcn CLI, listed for reference)
-pnpm add @radix-ui/react-select @radix-ui/react-dialog @radix-ui/react-tooltip \
-  @radix-ui/react-tabs @radix-ui/react-switch @radix-ui/react-dropdown-menu \
-  @radix-ui/react-popover @radix-ui/react-separator @radix-ui/react-toggle \
-  @radix-ui/react-label @radix-ui/react-slot @radix-ui/react-scroll-area
-
-# Monaco Editor
-pnpm add @monaco-editor/react@^4
-
-# i18n
-pnpm add i18next@^26 react-i18next@^17 i18next-browser-languagedetector@^8
-
-# Forms
-pnpm add react-hook-form@^7 zod@^4 @hookform/resolvers@^5
-
-# Tauri
-pnpm add @tauri-apps/api@^2 @tauri-apps/plugin-dialog@^2
-
-# Dev Quality
-pnpm add -D @biomejs/biome@^2 vitest@^4 @testing-library/react@^16 jsdom@^29
-
-# Init shadcn/ui
-npx shadcn@latest init
+pnpm install
 ```
 
 ---
@@ -440,7 +400,6 @@ Lua script management with Monaco editor.
 │  │   at_cmd.lua │    log("Received: " .. data:len())        │   │
 │  │              │    return data                             │   │
 │  │              │  end                                       │   │
-│  │              │                                           │   │
 │  │              ├───────────────────────────────────────────┤   │
 │  │              │  Output Console                           │   │
 │  │              │  > Script executed successfully            │   │
@@ -593,172 +552,50 @@ uiStore (navigation, sidebar)
         └── config
 ```
 
-### Store Definitions
+### Store Responsibilities
 
 #### `connectionStore`
-```typescript
-interface ConnectionStore {
-  // State
-  portId: string | null;
-  portName: string | null;
-  status: 'disconnected' | 'connecting' | 'connected' | 'error';
-  config: SerialConfig;
-  availablePorts: PortInfo[];
-  error: string | null;
-
-  // Actions
-  refreshPorts: () => Promise<void>;
-  connect: (portName: string, config: SerialConfig) => Promise<void>;
-  disconnect: () => Promise<void>;
-  checkHealth: () => Promise<boolean>;
-}
-```
-
-**Tauri commands:** `list_ports`, `open_port`, `close_port`, `start_sniffing`, `stop_sniffing`, `check_port_health`
-
-**Critical fix**: Do NOT call both `open_port` (which spawns its own read loop) and `start_sniffing`. Use only `start_sniffing` for data reading after `open_port`. The `open_port` call should be fixed on the backend to NOT spawn a background reader — this is the double-read-loop bug.
+- Port lifecycle: connect, disconnect, refresh ports
+- Manages port_id, status, config
+- **Tauri commands:** `list_ports`, `open_port`, `close_port`, `start_sniffing`, `stop_sniffing`, `check_port_health`
+- **Critical fix**: Do NOT call both `open_port` (which spawns its own read loop) and `start_sniffing`. Use only `start_sniffing` for data reading after `open_port`.
 
 #### `dataStore`
-```typescript
-interface DataPacket {
-  id: number;
-  direction: 'rx' | 'tx';
-  timestamp: number;
-  data: Uint8Array;
-  decoded?: string; // protocol decode result
-}
-
-interface DataStore {
-  // State
-  packets: DataPacket[];
-  displayFormat: 'hex' | 'ascii' | 'mixed';
-  autoScroll: boolean;
-  maxPackets: number;
-  searchQuery: string;
-
-  // Actions
-  addPacket: (packet: DataPacket) => void;
-  clearBuffer: () => void;
-  setDisplayFormat: (format: DisplayFormat) => void;
-  toggleAutoScroll: () => void;
-  setSearchQuery: (query: string) => void;
-}
-```
-
-**Event listeners:** `data-received`, `data-sent` Tauri events.
+- RX/TX packet buffer (FIFO, max 10000 packets)
+- Display format: hex, ascii, mixed
+- Search/query, auto-scroll toggle
+- **Event listeners:** `data-received`, `data-sent` Tauri events
 
 #### `protocolStore`
-```typescript
-interface ProtocolStore {
-  // State
-  protocols: ProtocolInfo[];
-  activeProtocol: string | null; // protocol name set on current port
-  loading: boolean;
-
-  // Actions
-  loadProtocols: () => Promise<void>;
-  setActiveProtocol: (portId: string, protocolName: string | null) => Promise<void>;
-  loadCustomProtocol: (path: string) => Promise<void>;
-  unloadProtocol: (name: string) => Promise<void>;
-  reloadProtocol: (name: string) => Promise<void>;
-}
-```
-
-**Tauri commands:** `list_protocols`, `set_port_protocol`, `load_protocol`, `unload_protocol`, `reload_protocol`
+- Protocol list, active protocol selection
+- Load/unload/reload custom protocols
+- **Tauri commands:** `list_protocols`, `set_port_protocol`, `load_protocol`, `unload_protocol`, `reload_protocol`
 
 #### `scriptStore`
-```typescript
-interface ScriptStore {
-  // State
-  scripts: ScriptInfo[];
-  currentScript: { name: string; content: string } | null;
-  isDirty: boolean;
-  output: string[];
-
-  // Actions
-  loadScriptList: () => Promise<void>;
-  openScript: (name: string) => Promise<void>;
-  saveScript: (name: string, content: string) => Promise<void>;
-  deleteScript: (name: string) => Promise<void>;
-  executeScript: (content: string) => Promise<void>;
-  validateScript: (content: string) => Promise<ValidationError[]>;
-  newScript: () => void;
-  updateContent: (content: string) => void;
-}
-```
-
-**Tauri commands:** `list_scripts`, `save_script`, `delete_script`, `execute_script`, `validate_script`
+- Script CRUD: list, save, delete, execute, validate
+- Current script editing state (dirty flag)
+- Output console buffer
+- **Tauri commands:** `list_scripts`, `save_script`, `delete_script`, `execute_script`, `validate_script`
 
 #### `serialScriptStore`
-```typescript
-interface SerialScriptStore {
-  // State
-  attachedScript: string | null; // script source attached to current port
-  scriptStatus: { has_script: boolean; timer_interval_ms: number } | null;
-  actions: UiAction[];
-
-  // Actions
-  attachScript: (portId: string, scriptSource: string) => Promise<void>;
-  detachScript: (portId: string) => Promise<void>;
-  refreshStatus: (portId: string) => Promise<void>;
-  loadActions: (portId: string) => Promise<void>;
-  callAction: (portId: string, functionName: string) => Promise<string>;
-}
-```
-
-**Tauri commands:** `attach_script`, `detach_script`, `has_script`, `get_script_status`, `list_script_actions`, `call_script_function`
+- Port-script binding: attach/detach scripts to ports
+- Script status and discovered UI actions
+- **Tauri commands:** `attach_script`, `detach_script`, `has_script`, `get_script_status`, `list_script_actions`, `call_script_function`
 
 #### `virtualPortStore`
-```typescript
-interface VirtualPortStore {
-  // State
-  ports: VirtualPortInfo[];
-  selectedPort: string | null;
-  capturedPackets: CapturedPacket[];
-
-  // Actions
-  refreshPorts: () => Promise<void>;
-  createPort: (config: CreateVirtualPortConfig) => Promise<void>;
-  stopPort: (id: string) => Promise<void>;
-  getStats: (id: string) => Promise<VirtualPortStats>;
-  capturePackets: (id: string) => Promise<void>;
-}
-```
-
-**Tauri commands:** `create_virtual_port`, `list_virtual_ports`, `stop_virtual_port`, `get_virtual_port_stats`, `get_captured_packets`
+- Virtual port CRUD: create, list, stop
+- Port statistics and captured packets
+- **Tauri commands:** `create_virtual_port`, `list_virtual_ports`, `stop_virtual_port`, `get_virtual_port_stats`, `get_captured_packets`
 
 #### `settingsStore`
-```typescript
-interface SettingsStore {
-  // State
-  config: ConfigData | null;
-  loading: boolean;
-
-  // Actions
-  loadConfig: () => Promise<void>;
-  updateConfig: (config: ConfigData) => Promise<void>;
-  resetConfig: () => Promise<void>;
-}
-```
-
-**Tauri commands:** `get_config`, `update_config`, `reset_config`
+- App configuration: load, update, reset
+- **Tauri commands:** `get_config`, `update_config`, `reset_config`
 
 #### `uiStore`
-```typescript
-interface UIStore {
-  // State
-  currentPage: 'terminal' | 'virtual' | 'scripts' | 'protocols' | 'settings';
-  sidebarCollapsed: boolean;
-  rightPanelCollapsed: boolean;
-  locale: 'en' | 'zh';
-
-  // Actions
-  navigateTo: (page: string) => void;
-  toggleSidebar: () => void;
-  toggleRightPanel: () => void;
-  setLocale: (locale: 'en' | 'zh') => void;
-}
-```
+- Navigation: current page (terminal, virtual, scripts, protocols, settings)
+- Sidebar collapse state
+- Right panel collapse state
+- Locale: en, zh
 
 ---
 
@@ -778,98 +615,14 @@ interface UIStore {
 ### Custom Hooks
 
 #### `useTauriCommand<TArgs, TResult>(command: string)`
-```typescript
-// Generic wrapper for Tauri invoke with loading/error state
-const [result, loading, error] = useTauriCommand('list_ports', { autoInvoke: false });
-const { invoke, loading, error } = useTauriCommand('send_data');
-```
+Generic wrapper for Tauri invoke with loading/error state management.
 
 #### `useTauriEvent(event: string, handler: (payload: any) => void)`
-```typescript
-// Auto-cleanup Tauri event listener
-useTauriEvent('data-received', (payload) => {
-  dataStore.addPacket(payload);
-});
-```
+Auto-cleanup Tauri event listener hook.
 
-### TypeScript Types for Tauri API
+### TypeScript Types
 
-```typescript
-// types/index.ts
-
-interface PortInfo {
-  port_name: string;
-  port_type: string;
-  is_virtual: boolean;
-  virtual_id: string | null;
-}
-
-interface SerialConfig {
-  baudrate: number;
-  databits: number;
-  stopbits: number;
-  parity: string;
-  timeout_ms: number;
-  flow_control: string;
-}
-
-interface PortStatus {
-  id: string;
-  port_name: string;
-  is_open: boolean;
-  config: SerialConfig | null;
-  stats: PortStats;
-}
-
-interface PortStats {
-  bytes_sent: number;
-  bytes_received: number;
-  packets_sent: number;
-  packets_received: number;
-  last_activity: number | null;
-}
-
-interface ProtocolInfo {
-  name: string;
-  description: string;
-}
-
-interface ScriptInfo {
-  name: string;
-  path: string;
-  size: number;
-  modified: number; // unix timestamp
-}
-
-interface UiAction {
-  function_name: string;
-  label: string;
-  icon: string | null;
-  group: string | null;
-  confirm: boolean;
-}
-
-interface VirtualPortInfo {
-  id: string;
-  port_a: string;
-  port_b: string;
-  backend: string;
-  created_at: string;
-  uptime_secs: number;
-  running: boolean;
-}
-
-interface ConfigData {
-  serial: SerialConfigData;
-  logging: LoggingConfigData;
-  lua: LuaConfigData;
-  task: TaskConfigData;
-  output: OutputConfigData;
-  protocols: ProtocolsConfigData;
-  virtual_ports: VirtualPortsConfigData;
-  display: DisplayConfigData;
-}
-```
+See `frontend/src/types/index.ts` for complete TypeScript type definitions (PortInfo, SerialConfig, PortStatus, ProtocolInfo, ScriptInfo, UiAction, VirtualPortInfo, ConfigData, etc.).
 
 ---
 

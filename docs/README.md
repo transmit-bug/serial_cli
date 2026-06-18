@@ -11,12 +11,13 @@ docs/
 │   └── interactive-shell.md
 ├── dev/            # Internal development docs
 │   ├── ARCH.md                      # Architecture overview
-│   └── FRONTEND-REWRITE-DESIGN.md   # Frontend rewrite design spec
+│   ├── FRONTEND-REWRITE-DESIGN.md   # Frontend rewrite design spec
+│   └── UNIFIED-SCRIPT-SYSTEM.md     # Unified script system design decision
 ├── reference/      # Reference material
 │   ├── configuration.md
 │   ├── events.md
 │   ├── lua-scripting.md
-│   ├── protocols.md
+│   ├── protocols.md                 # Script/protocol reference
 │   ├── terminology.md               # English-Chinese glossary
 │   └── troubleshooting.md
 ├── commands/       # Per-command documentation
@@ -25,6 +26,10 @@ docs/
 │   └── ...
 ├── features/       # Feature-specific documentation
 │   └── ui-actions.md
+├── ui/             # GUI design documentation
+│   ├── README.md
+│   ├── UI-Design-Spec.md
+│   └── User-Flow-Diagrams.md
 └── ai/             # AI/automation workflow docs
     ├── USAGE.md
     └── SERVER_MODE.md   # Server mode API reference (user-facing)
@@ -46,6 +51,7 @@ docs/
 - **reference/** - Configuration reference, API docs, troubleshooting guides
 - **commands/** - Command-specific documentation (one file per command)
 - **features/** - Feature-specific documentation
+- **ui/** - GUI design specifications and user flow diagrams
 - **ai/** - Specialized documentation for AI/automation workflows
 
 ### File Naming Conventions

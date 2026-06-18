@@ -1,14 +1,14 @@
 # Unified Script System — Design Decision
 
 **Date**: 2026-06-15
-**Status**: Accepted
+**Status**: Accepted (Implemented)
 **Supersedes**: Current Protocol + Hook Script separation
 
 ---
 
 ## Context
 
-Serial CLI has three Lua execution modes that overlap in purpose:
+Serial CLI had three Lua execution modes that overlap in purpose:
 
 | Mode | Module | Callbacks | Purpose |
 |------|--------|-----------|---------|
@@ -16,9 +16,9 @@ Serial CLI has three Lua execution modes that overlap in purpose:
 | Hook Script | `serial_core/serial_script.rs` → `SerialScriptEngine` | `on_open`, `on_send`, `on_recv`, `on_timer`, `on_close` | Port lifecycle control |
 | Autonomous | `lua/bindings.rs` → `LuaBindings` | (free-form) | One-shot CLI script execution |
 
-Protocol and Hook Script serve the same fundamental purpose — "attach behavior to a port" — but are split across two module hierarchies with separate lifecycle management (`ProtocolManager` vs `attach_script`). Users must understand the distinction to use the tool correctly. Built-in protocols (Modbus, AT Command, Line) are Rust implementations of the `Protocol` trait, bypassing the Lua engine entirely.
+Protocol and Hook Script served the same fundamental purpose — "attach behavior to a port" — but were split across two module hierarchies with separate lifecycle management. Users had to understand the distinction to use the tool correctly. Built-in protocols (Modbus, AT Command, Line) were Rust implementations of the `Protocol` trait, bypassing the Lua engine entirely.
 
-Additionally, the three command surfaces (CLI, JSON-RPC, Tauri) duplicate orchestration logic for port, protocol, and script operations.
+Additionally, the three command surfaces (CLI, JSON-RPC, Tauri) duplicated orchestration logic for port, protocol, and script operations.
 
 ## Decision
 
@@ -35,7 +35,7 @@ function on_timer()        -- periodic timer
 function on_close()        -- port closing
 ```
 
-Frame encoding/decoding (the former `Protocol` role) is implemented through `on_send`/`on_recv`:
+Frame encoding/decoding (the former Protocol role) is implemented through `on_send`/`on_recv`:
 
 ```lua
 -- Example: Modbus RTU protocol as a Script
@@ -91,13 +91,11 @@ impl ScriptManager {
 src/script/
 ├── mod.rs              # Re-exports
 ├── manager.rs          # ScriptManager (load/unload/reload/list/get)
-├── registry.rs         # ScriptRegistry (script storage + lookup)
-├── loader.rs           # ScriptLoader (Lua file loading + validation)
-├── built_in/
-│   ├── mod.rs          # Built-in registration
-│   ├── modbus_rtu.lua  # Embedded Lua
-│   ├── at_command.lua  # Embedded Lua
-│   └── line.lua        # Embedded Lua
+└── built_in/
+    ├── mod.rs          # Built-in registration
+    ├── modbus_rtu.lua  # Embedded Lua
+    ├── at_command.lua  # Embedded Lua
+    └── line.lua        # Embedded Lua
 ```
 
 **Removed modules** (replaced by `script/`):
@@ -173,85 +171,19 @@ LuaBindings     → autonomous model: script drives the port
 
 ---
 
-## Migration Plan
+## Implementation Summary
 
-### Phase 1: Create `script/` Module + ScriptManager
+The unified script system was implemented in phases:
 
-1. Create `src/script/` with `manager.rs`, `registry.rs`, `loader.rs`, `built_in/`
-2. Implement `ScriptManager` with the 5-method interface
-3. Rewrite Modbus RTU as `built_in/modbus_rtu.lua` + write tests
-4. Rewrite AT Command as `built_in/at_command.lua` + write tests
-5. Rewrite Line as `built_in/line.lua` + write tests
-6. Register built-in scripts at startup (via `include_str!()`)
-7. `ScriptManager` coexists with `ProtocolManager` during migration
+1. **Phase 1**: Created `src/script/` module with ScriptManager, rewrote built-in protocols in Lua
+2. **Phase 2**: Extracted CommandService layer for shared orchestration
+3. **Phase 3**: Removed `src/protocol/` directory entirely, updated all references
 
-**Validation**: All existing protocol tests pass with Lua implementations.
-
-### Phase 2: Extract CommandService
-
-1. Create `src/service.rs` (or `src/service/mod.rs`)
-2. Move shared port operations from CLI/RPC/Tauri into `CommandService`
-3. Move shared script operations into `CommandService`
-4. Move shared virtual port operations into `CommandService`
-5. Refactor CLI handlers to delegate to `CommandService`
-6. Refactor RPC dispatcher to delegate to `CommandService`
-7. Refactor Tauri commands to delegate to `CommandService`
-
-**Validation**: All three surfaces produce identical results for the same inputs.
-
-### Phase 3: Remove Old Protocol Modules
-
-1. Remove `src/protocol/` directory entirely
-2. Remove `Protocol` trait
-3. Remove `set_protocol` from `PortManager`
-4. Update `PortManager` to use `ScriptManager` for script attachment
-5. Update all imports and re-exports
-6. Clean up dead code
-
-**Validation**: Full test suite passes. No references to `Protocol` trait remain.
+**Migration completed**: 2026-06-17. All tests passing (237+ tests).
 
 ---
 
-## Module Dependencies (After)
+## See Also
 
-```
-main.rs
-  └→ cli/args (parse args)
-  └→ cli/commands/* (dispatch)
-       └→ service/* (CommandService — shared orchestration)
-            ├→ serial_core (PortManager, VirtualSerialPair)
-            ├→ script/* (ScriptManager, built-in scripts)
-            └→ lua/* (ScriptRuntime, LuaBindings for autonomous)
-```
-
----
-
-## Files Changed (Summary)
-
-| Action | Path | Notes |
-|--------|------|-------|
-| **New** | `src/script/mod.rs` | Module root |
-| **New** | `src/script/manager.rs` | ScriptManager |
-| **New** | `src/script/registry.rs` | ScriptRegistry |
-| **New** | `src/script/loader.rs` | ScriptLoader + validation |
-| **New** | `src/script/built_in/mod.rs` | Built-in registration |
-| **New** | `src/script/built_in/modbus_rtu.lua` | Modbus RTU in Lua |
-| **New** | `src/script/built_in/at_command.lua` | AT Command in Lua |
-| **New** | `src/script/built_in/line.lua` | Line protocol in Lua |
-| **New** | `src/service.rs` | CommandService |
-| **Modified** | `src/serial_core/port.rs` | Remove `set_protocol`, add `attach_script` |
-| **Modified** | `src/serial_core/serial_script.rs` | Adapt for unified script model |
-| **Modified** | `src/cli/commands/port.rs` | Delegate to CommandService |
-| **Modified** | `src/cli/commands/protocol.rs` | Rename to `script.rs`, delegate |
-| **Modified** | `src/cli/commands/sniff.rs` | Delegate to CommandService |
-| **Modified** | `src/cli/commands/virtual_port.rs` | Delegate to CommandService |
-| **Modified** | `src/server/rpc.rs` | Delegate to CommandService |
-| **Modified** | `src-tauri/src/commands/serial.rs` | Delegate to CommandService |
-| **Modified** | `src-tauri/src/commands/protocol.rs` | Rename to `script.rs`, delegate |
-| **Modified** | `src-tauri/src/commands/virtual_port.rs` | Delegate to CommandService |
-| **Modified** | `src/cli/types.rs` | Update command types |
-| **Modified** | `src/cli/args.rs` | Update CLI arg definitions |
-| **Modified** | `src/config.rs` | Remove protocol config, add script config |
-| **Modified** | `src/server/state.rs` | Replace ProtocolManager with ScriptManager |
-| **Modified** | `src-tauri/src/state/app_state.rs` | Replace ProtocolManager with ScriptManager |
-| **Deleted** | `src/protocol/` (entire directory) | Replaced by `src/script/` |
+- [Protocol Reference](../reference/protocols.md) — Current script system documentation
+- [Architecture](ARCH.md) — Full system architecture

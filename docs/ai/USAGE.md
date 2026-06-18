@@ -1,5 +1,7 @@
 # AI Usage Guide
 
+**Updated**: 2026-06-18
+
 This guide explains how AI agents (Claude, GPT, etc.) can effectively use Serial CLI for automation tasks.
 
 ## Quick Start for AI
@@ -28,7 +30,7 @@ serial-cli run script.lua
 
 # Get machine-readable output
 serial-cli port list --json
-serial-cli protocol list --json
+serial-cli script list --json
 
 # Batch processing
 serial-cli batch run commands.txt --concurrent
@@ -43,9 +45,9 @@ All commands support `--json` flag for AI parsing:
 serial-cli port list --json
 # Output: [{"port_name": "/dev/ttyUSB0", "port_type": "Usb"}]
 
-# Protocol information
-serial-cli protocol list --json
-# Output: {"protocols": [...], "count": 4}
+# Script information
+serial-cli script list --json
+# Output: {"scripts": [...], "count": 4}
 ```
 
 ## Lua API for AI
@@ -67,9 +69,17 @@ serial_close(port_id)
 local output = json_encode({status="ok", data=response})
 local config = json_decode('{"baudrate": 115200}')
 
--- Protocols
-local encoded = protocol_encode("at_command", "ATZ")
-local decoded = protocol_decode("at_command", response)
+-- Scripts (protocol encoding/decoding)
+local encoded = script_encode("at_command", "ATZ")
+local decoded = script_decode("at_command", response)
+local scripts = script_list()
+
+local ok, result = pcall(script_load, "/path/to/custom.lua")
+if ok then
+  print(json_encode({status="ok", message=result}))
+else
+  print(json_encode({status="error", error=result}))
+end
 
 -- Hex utilities
 local hex_str = string_to_hex("Hello")
@@ -141,16 +151,16 @@ end
 print(json_encode({status="ok", results=results}))
 ```
 
-## Protocol Handling
+## Script Handling
 
-Built-in protocols (`modbus_rtu`, `modbus_ascii`, `at_command`, `line`) and custom Lua protocols are supported. See [Protocol Reference](../reference/protocols.md) for encoding/parsing details.
+Built-in scripts (`modbus_rtu`, `modbus_ascii`, `at_command`, `line`) and custom Lua scripts are supported. See [Protocol Reference](../reference/protocols.md) for encoding/parsing details.
 
 ```lua
-local encoded = protocol_encode("at_command", "ATZ")
-local decoded = protocol_decode("at_command", response)
-local protocols = protocol_list()
+local encoded = script_encode("at_command", "ATZ")
+local decoded = script_decode("at_command", response)
+local scripts = script_list()
 
-local ok, result = pcall(protocol_load, "/path/to/custom.lua")
+local ok, result = pcall(script_load, "/path/to/custom.lua")
 if ok then
   print(json_encode({status="ok", message=result}))
 else
@@ -283,12 +293,6 @@ local port_id = serial_open(pair.port_a, {baudrate=115200})
 serial_send(port_id, "test data")
 ```
 
-### Benchmarking
-
-```lua
--- Use CLI: serial-cli batch run script.lua
-```
-
 ## Troubleshooting
 
 ### Common Issues
@@ -321,7 +325,7 @@ log_info("Opening port...")
 log_debug("Port opened: " .. port_id)
 
 -- Print intermediate values
-local encoded = protocol_encode("at_command", "AT")
+local encoded = script_encode("at_command", "AT")
 log_debug("Encoded: " .. string_to_hex(encoded))
 
 -- Validate JSON output
@@ -333,11 +337,7 @@ end
 
 ## Further Reading
 
-- [CLI Reference](../../README.md)
-- [Lua Scripting Reference](../reference/lua-scripting.md)
-- [Protocol Reference](../reference/protocols.md)
-- [Examples](../../examples/)
-
-## Version Compatibility
-
-This guide applies to Serial CLI v0.6.0. Features may change in future versions.
+- [Lua Scripting Reference](../reference/lua-scripting.md) — Complete Lua API
+- [Protocol Reference](../reference/protocols.md) — Protocol formats and custom scripts
+- [Server Mode](SERVER_MODE.md) — Persistent daemon for high-frequency automation
+- [Examples](../../examples/) — Script examples

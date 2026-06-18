@@ -1,19 +1,8 @@
 # Serial CLI - Development Guide
 
-## Development Setup
+> **Quick start**: See [README.md](README.md) for build commands. See [AGENTS.md](AGENTS.md) for architecture overview.
 
-### Prerequisites
-
-```bash
-# Rust 1.75+
-rustup update stable
-rustup component add rustfmt clippy
-
-# Just task runner (recommended)
-cargo install just
-```
-
-### Platform Dependencies
+## Platform Dependencies
 
 **Linux:**
 ```bash
@@ -47,82 +36,6 @@ brew install luajit
   "rust-analyzer.cargo.loadOutDirsFromCheck": true
 }
 ```
-
----
-
-## GUI Development
-
-### Prerequisites
-
-```bash
-# Node.js 20+
-node --version
-
-# Rust + Tauri CLI
-cargo install tauri-cli
-```
-
-### Commands
-
-```bash
-just gui-deps       # Install frontend dependencies
-just gui-dev        # Start development server (hot reload)
-just gui-build      # Build GUI application
-just gui-type-check # Type check frontend
-just gui-check      # Check Rust + TypeScript code
-just gui-fmt        # Format all code (Rust + TypeScript + CSS)
-just gui-clean      # Clean build artifacts
-```
-
-See README.md for GUI features and architecture.
-
----
-
-## Cross-Compilation
-
-### Prerequisites
-
-```bash
-cargo install cross
-# Docker required (cross uses containers)
-```
-
-### Build Commands
-
-```bash
-just build-all      # All platforms
-just build-linux    # x86_64 + aarch64
-just build-macos    # x86_64 + arm64 (macOS only)
-just build-windows  # x86_64 (requires cross)
-just release        # Full release build (clean + all platforms)
-```
-
----
-
-## Contributing
-
-### Pull Request Process
-
-```bash
-git checkout -b feature/your-feature-name
-just check
-git commit -m "Add: Your feature description"
-```
-
-### Commit Message Format
-
-```
-<type>: <short description>
-```
-
-**Types:** `Add:`, `Fix:`, `Update:`, `Refactor:`, `Docs:`, `Test:`, `Chore:`, `Perf:`
-
-### Code Style
-
-- Use `cargo fmt` for formatting
-- Fix all `clippy` warnings
-- Write unit tests for new features
-- Add comments for complex logic
 
 ---
 
@@ -206,24 +119,9 @@ git tag -d v1.2.3
 # Fix issues and re-release
 ```
 
-### Conventional Commits
-
-Commit message format: `<type>(<scope>): <subject>`
-
-**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`
-
-**Examples:**
-```bash
-git commit -m "feat(cli): add protocol list command"
-git commit -m "fix(protocol): handle empty response correctly"
-git commit -m "docs(readme): update installation instructions"
-```
-
 ---
 
 ## Resources
 
-- [Rust Guidelines](https://rust-lang.github.io/api-guidelines/)
 - [API Documentation](https://docs.rs/serial-cli/)
-- [README.md](README.md) - Quick start
 - [GitHub Issues](https://github.com/zazac-zhang/serial_cli/issues)
