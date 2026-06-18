@@ -103,9 +103,35 @@ impl LuaBindings {
         Ok(())
     }
 
-    /// Execute a Lua script
+    /// Execute a Lua script with debug traceback on error
     pub fn execute_script(&self, script: &str) -> Result<()> {
-        self.lua.load(script).exec().map_err(SerialError::Lua)
+        self.lua.load(script).exec().map_err(|e| {
+            // Try to get debug traceback for better error messages
+            let traceback = self.get_debug_traceback();
+            if let Some(trace) = traceback {
+                SerialError::Script(crate::error::ScriptError::runtime_with_trace(
+                    std::path::PathBuf::from("<script>"),
+                    e.to_string(),
+                    trace,
+                ))
+            } else {
+                SerialError::Lua(e)
+            }
+        })
+    }
+
+    /// Get debug traceback from Lua
+    fn get_debug_traceback(&self) -> Option<String> {
+        // Try to call debug.traceback() to get the call stack
+        let globals = self.lua.globals();
+        if let Ok(debug) = globals.get::<_, mlua::Table>("debug") {
+            if let Ok(traceback_fn) = debug.get::<_, Function>("traceback") {
+                if let Ok(trace) = traceback_fn.call::<_, String>(()) {
+                    return Some(trace);
+                }
+            }
+        }
+        None
     }
 
     /// Execute a Lua function (simplified - returns success/failure)
@@ -1102,5 +1128,58 @@ mod tests {
         "#;
 
         assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_debug_traceback_on_error() {
+        let bindings = LuaBindings::new().unwrap();
+
+        // Script that will cause a runtime error
+        let script = r#"
+            local function inner()
+                error("intentional error")
+            end
+            local function outer()
+                inner()
+            end
+            outer()
+        "#;
+
+        let result = bindings.execute_script(script);
+        assert!(result.is_err(), "Expected script to fail");
+
+        if let Err(e) = result {
+            let error_msg = e.to_string();
+            // Should contain the error message
+            assert!(
+                error_msg.contains("intentional error"),
+                "Error should contain 'intentional error', got: {}",
+                error_msg
+            );
+            // Should contain stack trace information
+            assert!(
+                error_msg.contains("stack traceback") || error_msg.contains("Stack trace"),
+                "Error should contain stack trace, got: {}",
+                error_msg
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_debug_traceback() {
+        let bindings = LuaBindings::new().unwrap();
+
+        // Test that get_debug_traceback works
+        let traceback = bindings.get_debug_traceback();
+        // Should return Some(String) - the current call stack
+        assert!(
+            traceback.is_some(),
+            "get_debug_traceback should return Some"
+        );
+
+        if let Some(trace) = traceback {
+            // Should be a non-empty string
+            assert!(!trace.is_empty(), "Traceback should not be empty");
+        }
     }
 }
