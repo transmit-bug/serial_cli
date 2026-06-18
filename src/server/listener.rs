@@ -89,10 +89,11 @@ pub async fn run_socket_server(
 async fn handle_connection(
     stream: impl AsyncReadExt + AsyncWriteExt + Unpin,
     rpc: Arc<RpcDispatcher>,
-    _state: ServerState,
+    state: ServerState,
     _conn_token: CancellationToken,
 ) {
     let mut framed = Framed::new(stream, LinesCodec::new());
+    let mut data_rx = state.data_push_tx.subscribe();
 
     loop {
         tokio::select! {
@@ -112,6 +113,45 @@ async fn handle_connection(
                     }
                     None => {
                         info!("Client disconnected");
+                        break;
+                    }
+                }
+            }
+            // Data push notifications
+            event = data_rx.recv() => {
+                match event {
+                    Ok(push_event) => {
+                        // Check if this connection is subscribed
+                        let connections = state.connections.read().await;
+                        let is_subscribed = connections
+                            .values()
+                            .any(|ctx| ctx.connection_id == push_event.connection_id && ctx.subscribed);
+                        drop(connections);
+
+                        if is_subscribed {
+                            // Format as JSON-RPC notification
+                            let notification = serde_json::json!({
+                                "jsonrpc": "2.0",
+                                "method": "port_data",
+                                "params": {
+                                    "connection_id": push_event.connection_id,
+                                    "data": push_event.data_hex,
+                                    "bytes_read": push_event.bytes_read,
+                                    "timestamp": push_event.timestamp,
+                                }
+                            });
+
+                            if let Err(e) = framed.send(notification.to_string()).await {
+                                error!("Failed to send data push: {}", e);
+                                break;
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!("Data push receiver lagged, missed {} messages", n);
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        info!("Data push channel closed");
                         break;
                     }
                 }

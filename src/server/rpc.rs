@@ -265,6 +265,44 @@ impl RpcDispatcher {
             .await
             .map_err(|e| (-32603, e.to_string(), None))?;
 
+        // Subscribe to port data for push notifications
+        {
+            let port_manager = self.state.port_manager.lock().await;
+            if let Ok(port_handle) = port_manager.get_port(&port_id).await {
+                let handle = port_handle.lock().await;
+                let mut data_rx = handle.subscribe_data();
+                let connection_id_clone = connection_id.clone();
+                let data_push_tx = self.state.data_push_tx.clone();
+
+                // Spawn a task to forward data to the broadcast channel
+                tokio::spawn(async move {
+                    loop {
+                        match data_rx.recv().await {
+                            Ok(data) => {
+                                let data_hex = data.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+                                let push_event = crate::server::state::DataPushEvent {
+                                    connection_id: connection_id_clone.clone(),
+                                    data_hex,
+                                    bytes_read: data.len(),
+                                    timestamp: std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs(),
+                                };
+                                let _ = data_push_tx.send(push_event);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                                tracing::warn!("Data receiver lagged, missed {} messages", n);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
         Ok(serde_json::json!({
             "connection_id": connection_id,
             "port": params.port,

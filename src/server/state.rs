@@ -10,7 +10,20 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{broadcast, Mutex, RwLock};
+
+/// Data push event for subscribed clients
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DataPushEvent {
+    /// Connection ID this event belongs to
+    pub connection_id: String,
+    /// Raw data received (hex encoded)
+    pub data_hex: String,
+    /// Number of bytes received
+    pub bytes_read: usize,
+    /// Timestamp when data was received
+    pub timestamp: u64,
+}
 
 /// Global server state (similar to Tauri's AppState)
 #[derive(Clone)]
@@ -31,6 +44,9 @@ pub struct ServerState {
     pub total_requests: Arc<AtomicU64>,
     /// Total RPC errors
     pub total_errors: Arc<AtomicU64>,
+
+    /// Broadcast channel for data push notifications
+    pub data_push_tx: broadcast::Sender<DataPushEvent>,
 }
 
 /// Server configuration
@@ -79,6 +95,7 @@ impl ServerState {
     /// Create a new server state
     pub async fn new(config: ServerConfig) -> Self {
         let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let (data_push_tx, _) = broadcast::channel::<DataPushEvent>(100);
 
         Self {
             port_manager: Arc::new(Mutex::new(PortManager::new())),
@@ -87,6 +104,7 @@ impl ServerState {
             config,
             total_requests: Arc::new(AtomicU64::new(0)),
             total_errors: Arc::new(AtomicU64::new(0)),
+            data_push_tx,
         }
     }
 
