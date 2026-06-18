@@ -84,10 +84,11 @@
   - ✅ 更新 ScriptManager 使用状态池减少 Lua 实例创建开销
   - ✅ 添加 8 个单元测试验证状态池功能
 
-- [ ] **改进错误消息和诊断**
-  - 为 `SerialError` 添加上下文信息（端口名、操作名、建议操作）
-  - Lua 脚本错误时显示行号 + 调用栈
-  - 添加 `--verbose` 模式下的详细诊断输出
+- [x] **改进错误消息和诊断** ✅ 2026-06-18
+  - ScriptError 支持可选的 stack_trace 字段
+  - 新增 ErrorContext 包装器，支持链式上下文添加
+  - 使用 ResultExt trait 提供 context/with_port/with_script 方法
+  - 7 个单元测试验证错误格式
 
 - [ ] **脚本调试支持（分阶段）**
   - Phase 6a：添加 `debug.traceback` 集成，脚本错误时输出完整调用栈
