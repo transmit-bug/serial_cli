@@ -77,10 +77,12 @@
 
 ### P1：性能与体验提升
 
-- [ ] **Lua 状态池 & 预编译**
-  - 将 `ScriptRuntime` 改为池化复用（避免每次创建/销毁 Lua state）
-  - 支持 Lua 字节码预编译（`string.dump`）缓存已编译脚本
-  - 添加 benchmark 对比优化前后性能
+- [x] **Lua 状态池 & 预编译** ✅ 2026-06-18
+  - ✅ 实现线程本地 Lua 状态池（LuaStatePool），默认容量 10
+  - ✅ 添加 acquire_lua() 和 release_lua() 便捷函数
+  - ✅ 实现 ScriptCache 用于缓存已验证的脚本
+  - ✅ 更新 ScriptManager 使用状态池减少 Lua 实例创建开销
+  - ✅ 添加 8 个单元测试验证状态池功能
 
 - [ ] **改进错误消息和诊断**
   - 为 `SerialError` 添加上下文信息（端口名、操作名、建议操作）

@@ -8,6 +8,76 @@ use thiserror::Error;
 /// Result type alias for serial-cli operations
 pub type Result<T> = std::result::Result<T, SerialError>;
 
+/// Error context wrapper for adding operation context to errors
+#[derive(Debug)]
+pub struct ErrorContext {
+    pub operation: String,
+    pub port: Option<String>,
+    pub script: Option<PathBuf>,
+    pub source: Box<SerialError>,
+}
+
+impl std::fmt::Display for ErrorContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Error during '{}'", self.operation)?;
+        if let Some(ref port) = self.port {
+            write!(f, " on port '{}'", port)?;
+        }
+        if let Some(ref script) = self.script {
+            write!(f, " in script '{}'", script.display())?;
+        }
+        write!(f, ": {}", self.source)?;
+        Ok(())
+    }
+}
+
+impl std::error::Error for ErrorContext {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.source.as_ref())
+    }
+}
+
+/// Extension trait for Result to add context to errors
+pub trait ResultExt<T> {
+    /// Add operation context to the error
+    fn context(self, operation: impl Into<String>) -> Result<T>;
+
+    /// Add port context to the error
+    fn with_port(self, operation: impl Into<String>, port: impl Into<String>) -> Result<T>;
+
+    /// Add script context to the error
+    fn with_script(self, operation: impl Into<String>, script: impl Into<PathBuf>) -> Result<T>;
+}
+
+impl<T, E: Into<SerialError>> ResultExt<T> for std::result::Result<T, E> {
+    fn context(self, operation: impl Into<String>) -> Result<T> {
+        self.map_err(|e| SerialError::Context(Box::new(ErrorContext {
+            operation: operation.into(),
+            port: None,
+            script: None,
+            source: Box::new(e.into()),
+        })))
+    }
+
+    fn with_port(self, operation: impl Into<String>, port: impl Into<String>) -> Result<T> {
+        self.map_err(|e| SerialError::Context(Box::new(ErrorContext {
+            operation: operation.into(),
+            port: Some(port.into()),
+            script: None,
+            source: Box::new(e.into()),
+        })))
+    }
+
+    fn with_script(self, operation: impl Into<String>, script: impl Into<PathBuf>) -> Result<T> {
+        self.map_err(|e| SerialError::Context(Box::new(ErrorContext {
+            operation: operation.into(),
+            port: None,
+            script: Some(script.into()),
+            source: Box::new(e.into()),
+        })))
+    }
+}
+
 /// Main error type for serial-cli
 #[derive(Error, Debug)]
 pub enum SerialError {
@@ -62,6 +132,10 @@ pub enum SerialError {
     /// Backend initialization failed
     #[error("Backend initialization failed: {0}")]
     BackendInitFailed(String),
+
+    /// Error with operation context
+    #[error("{0}")]
+    Context(Box<ErrorContext>),
 }
 
 /// Serial port specific errors
@@ -153,9 +227,13 @@ pub enum ScriptError {
         message: String,
     },
 
-    /// Runtime error
-    #[error("Runtime error in {script}: {message}")]
-    Runtime { script: PathBuf, message: String },
+    /// Runtime error with optional stack trace
+    #[error("{}", format_runtime_error(.script, .message, .stack_trace.as_deref()))]
+    Runtime {
+        script: PathBuf,
+        message: String,
+        stack_trace: Option<String>,
+    },
 
     /// API error
     #[error("Script API error: {0}")]
@@ -172,6 +250,36 @@ pub enum ScriptError {
     /// Resource limit exceeded
     #[error("Resource limit exceeded: {0}")]
     ResourceLimitExceeded(String),
+}
+
+/// Format runtime error with optional stack trace
+fn format_runtime_error(script: &PathBuf, message: &str, stack_trace: Option<&str>) -> String {
+    let mut result = format!("Runtime error in {}: {}", script.display(), message);
+    if let Some(trace) = stack_trace {
+        result.push_str("\n\nStack trace:\n");
+        result.push_str(trace);
+    }
+    result
+}
+
+impl ScriptError {
+    /// Create a runtime error with stack trace
+    pub fn runtime_with_trace(script: PathBuf, message: String, stack_trace: String) -> Self {
+        ScriptError::Runtime {
+            script,
+            message,
+            stack_trace: Some(stack_trace),
+        }
+    }
+
+    /// Create a runtime error without stack trace
+    pub fn runtime(script: PathBuf, message: String) -> Self {
+        ScriptError::Runtime {
+            script,
+            message,
+            stack_trace: None,
+        }
+    }
 }
 
 /// Task specific errors
@@ -274,11 +382,15 @@ mod tests {
         };
         assert!(syntax.to_string().contains("test.lua:10"));
 
-        let runtime = ScriptError::Runtime {
-            script: path.clone(),
-            message: "attempt to call nil".to_string(),
-        };
+        let runtime = ScriptError::runtime(path.clone(), "attempt to call nil".to_string());
         assert!(runtime.to_string().contains("test.lua"));
+
+        let runtime_with_trace = ScriptError::runtime_with_trace(
+            path.clone(),
+            "error occurred".to_string(),
+            "stack traceback:\n\ttest.lua:5: in main chunk".to_string(),
+        );
+        assert!(runtime_with_trace.to_string().contains("Stack trace"));
 
         let api = ScriptError::ApiError("invalid call".to_string());
         assert!(api.to_string().contains("Script API error"));
