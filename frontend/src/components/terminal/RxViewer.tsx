@@ -139,7 +139,7 @@ export function RxViewer({ portId }: { portId?: string }) {
 
   const filteredPackets = useMemo(() => {
     return getFilteredPackets(portId);
-  }, [getFilteredPackets, portId]);
+  }, [getFilteredPackets, portId, packets]);
 
   const virtualizer = useVirtualizer({
     count: filteredPackets.length,
