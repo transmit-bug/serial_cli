@@ -349,6 +349,7 @@ pub async fn get_captured_packets(
     Ok(dtos)
 }
 
+#[cfg(test)]
 fn parse_backend_type(backend: &str) -> Option<BackendType> {
     match backend {
         "pty" => Some(BackendType::Pty),

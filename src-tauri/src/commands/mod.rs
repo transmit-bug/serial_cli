@@ -13,5 +13,6 @@ pub mod script;
 pub mod script_ui_actions;
 pub mod serial;
 pub mod serial_script;
+pub mod server;
 pub mod virtual_port;
 pub mod window;

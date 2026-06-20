@@ -110,6 +110,9 @@ async fn main() {
             commands::script::script_encode,
             commands::script::script_decode,
             commands::script::save_script_file,
+            commands::script::get_hot_reload_status,
+            commands::script::set_hot_reload_enabled,
+            commands::script::validate_script_detailed,
             // Script UI actions commands
             commands::script_ui_actions::list_standalone_script_actions,
             commands::script_ui_actions::call_standalone_script_function,
@@ -136,6 +139,10 @@ async fn main() {
             commands::virtual_port::check_virtual_port_health,
             commands::virtual_port::get_captured_packets,
             commands::virtual_port::send_to_virtual_port,
+            // Server commands
+            commands::server::start_server,
+            commands::server::stop_server,
+            commands::server::get_server_status,
         ])
         .setup(|app| {
             // Setup event system
@@ -211,12 +218,22 @@ fn spawn_port_monitor(app: tauri::AppHandle) {
     });
 }
 
-/// Graceful shutdown: stop sniffers → close ports → stop virtual ports.
+/// Graceful shutdown: stop server → stop sniffers → close ports → stop virtual ports.
 async fn shutdown(state: AppState, _app: &tauri::AppHandle) {
     use std::sync::atomic::Ordering;
     use std::time::Duration;
 
     tracing::info!("Shutting down...");
+
+    // 0. Stop embedded server if running
+    {
+        let mut server_state = state.embedded_server.lock().await;
+        if let Some(running) = server_state.take() {
+            running.cancel_token.cancel();
+            let _ = tokio::time::timeout(Duration::from_secs(2), running.listener_handle).await;
+            tracing::info!("Stopped embedded server");
+        }
+    }
 
     // 1. Stop all sniffers
     {

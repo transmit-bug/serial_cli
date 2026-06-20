@@ -16,24 +16,30 @@ use tokio::sync::Mutex;
 /// Load and execute a Lua script with optional command-line arguments.
 ///
 /// The script is executed in the following order:
-/// 1. Create a `ScriptEngine` and register all built-in APIs
-/// 2. Register standard library utilities (`json`, `http`, `fs`, etc.)
-/// 3. Read the script file from disk
-/// 4. Execute the script, passing `args` as a Lua table (if any)
+/// 1. Create a `ScriptEngine` with shared ScriptManager
+/// 2. Register all built-in APIs
+/// 3. Register standard library utilities (`json`, `http`, `fs`, etc.)
+/// 4. Read the script file from disk
+/// 5. Execute the script, passing `args` as a Lua table (if any)
 ///
 /// # Arguments
 ///
 /// * `path` - Path to the `.lua` script file
 /// * `args` - Arguments forwarded to the script as a Lua table
+/// * `script_manager` - Shared ScriptManager for script discovery and state
 ///
 /// # Errors
 ///
 /// Returns an `Io` error if the script file cannot be read.
 /// Returns a `Lua` error if the script fails to compile or execute.
 /// Returns a `Script` error for sandbox violations or resource limits.
-pub async fn run_lua_script(path: PathBuf, args: Vec<String>) -> Result<()> {
-    // 1. Create script engine
-    let engine = ScriptEngine::new()?;
+pub async fn run_lua_script(
+    path: PathBuf,
+    args: Vec<String>,
+    script_manager: Arc<Mutex<ScriptManager>>,
+) -> Result<()> {
+    // 1. Create script engine with shared ScriptManager
+    let engine = ScriptEngine::new(script_manager)?;
 
     // 2. Register all available APIs
     engine.bindings.register_all_apis()?;

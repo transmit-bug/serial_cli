@@ -323,12 +323,53 @@ pub async fn save_script_file(
     Ok(file_path.to_string_lossy().to_string())
 }
 
+// ── Hot Reload & Validation ──────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+pub struct ScriptValidationResult {
+    pub warnings: Vec<String>,
+}
+
+/// Get hot-reload status
+#[tauri::command]
+pub async fn get_hot_reload_status(_state: State<'_, AppState>) -> Result<bool, String> {
+    let config_manager = serial_cli::config::ConfigManager::load_with_fallback();
+    Ok(config_manager.is_hot_reload_enabled())
+}
+
+/// Enable or disable hot-reload
+#[tauri::command]
+pub async fn set_hot_reload_enabled(
+    enabled: bool,
+    _state: State<'_, AppState>,
+) -> Result<(), String> {
+    let config_manager = serial_cli::config::ConfigManager::load_with_fallback();
+    config_manager
+        .set("protocols.hot_reload", &enabled.to_string())
+        .map_err(|e| e.to_string())?;
+    config_manager.save(None).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Validate script with detailed warnings (callbacks, dangerous functions, etc.)
+#[tauri::command]
+pub async fn validate_script_detailed(
+    script: String,
+    _state: State<'_, AppState>,
+) -> Result<ScriptValidationResult, String> {
+    let warnings = serial_cli::script::ScriptManager::validate_script_detailed(&script);
+    
+    Ok(ScriptValidationResult {
+        warnings,
+    })
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /// Reject paths containing traversal components or absolute separators
 fn sanitize_name(name: &str) -> Result<String, String> {
     if name.contains("..") || name.contains('/') || name.contains('\\') {
-        return Err(format!("Invalid script name: path components not allowed"));
+        return Err("Invalid script name: path components not allowed".to_string());
     }
     Ok(name.to_string())
 }
