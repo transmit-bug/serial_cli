@@ -21,6 +21,7 @@
 //! ```
 
 use crate::error::Result;
+use crate::utils::lua_conversion::lua_table_to_bytes;
 use mlua::{Lua, Value};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -47,7 +48,7 @@ impl LuaStatePool {
     /// Acquire a Lua instance from the pool, or create a new one if empty
     pub fn acquire(&self) -> Lua {
         let mut pool = self.pool.borrow_mut();
-        pool.pop().unwrap_or_else(Lua::new)
+        pool.pop().unwrap_or_default()
     }
 
     /// Release a Lua instance back to the pool
@@ -360,49 +361,12 @@ impl ScriptRuntime {
 
     /// Decode a hex string to bytes (shared helper).
     fn hex_decode(hex: &str) -> mlua::Result<Vec<u8>> {
-        let hex = hex.replace([' ', ':', '-'], "");
-        if hex.is_empty() {
-            return Ok(vec![]);
-        }
-        if !hex.len().is_multiple_of(2) {
-            return Err(mlua::Error::RuntimeError(
-                "Hex string must have even length".to_string(),
-            ));
-        }
-        if !hex.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(mlua::Error::RuntimeError(
-                "Invalid hex string: contains non-hex characters".to_string(),
-            ));
-        }
-        let bytes: Vec<u8> = (0..hex.len())
-            .step_by(2)
-            .filter_map(|i| u8::from_str_radix(&hex[i..i + 2], 16).ok())
-            .collect();
-        Ok(bytes)
+        crate::utils::hex::hex_decode(hex)
+            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))
     }
 }
 
 // ── Shared helper functions ──────────────────────────────────────────────
-
-/// Convert a Lua table (1-indexed array of bytes) to a Vec<u8>.
-pub fn lua_table_to_bytes(table: &mlua::Table) -> mlua::Result<Vec<u8>> {
-    let len = table.len().unwrap_or(0) as usize;
-    let mut bytes = Vec::with_capacity(len);
-    for i in 1..=len {
-        let byte: u8 = table.get(i).unwrap_or(0);
-        bytes.push(byte);
-    }
-    Ok(bytes)
-}
-
-/// Convert a byte slice to a Lua table (1-indexed array).
-pub fn bytes_to_lua_table<'lua>(lua: &'lua Lua, data: &[u8]) -> mlua::Result<mlua::Table<'lua>> {
-    let table = lua.create_table()?;
-    for (i, &byte) in data.iter().enumerate() {
-        table.set(i + 1, byte)?;
-    }
-    Ok(table)
-}
 
 /// Convert Lua value to JSON value.
 fn lua_value_to_json(value: Value) -> mlua::Result<serde_json::Value> {

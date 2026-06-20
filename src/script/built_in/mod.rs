@@ -27,5 +27,10 @@ pub fn all_built_in() -> Vec<BuiltInScript> {
             description: "Modbus RTU protocol (industrial communication)",
             source: include_str!("modbus_rtu.lua"),
         },
+        BuiltInScript {
+            name: "modbus_ascii",
+            description: "Modbus ASCII protocol (industrial communication)",
+            source: include_str!("modbus_ascii.lua"),
+        },
     ]
 }

@@ -17,10 +17,9 @@ pub struct ScriptEngine {
 }
 
 impl ScriptEngine {
-    /// Create a new script engine
-    pub fn new() -> Result<Self> {
+    /// Create a new script engine with explicit ScriptManager dependency
+    pub fn new(script_manager: Arc<Mutex<ScriptManager>>) -> Result<Self> {
         let mut bindings = LuaBindings::new()?;
-        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
         bindings.set_script_manager(script_manager.clone());
         
         Ok(Self {
@@ -87,7 +86,8 @@ impl ScriptEngine {
 
 impl Default for ScriptEngine {
     fn default() -> Self {
-        Self::new().unwrap()
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        Self::new(script_manager).unwrap()
     }
 }
 
@@ -97,13 +97,15 @@ mod tests {
 
     #[test]
     fn test_engine_creation() {
-        let engine = ScriptEngine::new().unwrap();
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine = ScriptEngine::new(script_manager).unwrap();
         assert!(engine.execute_string("print('test')").is_ok());
     }
 
     #[test]
     fn test_execute_math() {
-        let engine = ScriptEngine::new().unwrap();
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine = ScriptEngine::new(script_manager).unwrap();
         let script = r#"
             local result = 2 + 2
             assert(result == 4, "Math failed")
@@ -113,7 +115,8 @@ mod tests {
 
     #[test]
     fn test_execute_syntax_error() {
-        let engine = ScriptEngine::new().unwrap();
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine = ScriptEngine::new(script_manager).unwrap();
         // Intentionally malformed Lua script
         let result = engine.execute_string("if true then");
         assert!(result.is_err());
@@ -121,7 +124,8 @@ mod tests {
 
     #[test]
     fn test_execute_runtime_error() {
-        let engine = ScriptEngine::new().unwrap();
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine = ScriptEngine::new(script_manager).unwrap();
         // Calling nil function causes runtime error
         let result = engine.execute_string("nonexistent_function()");
         assert!(result.is_err());
@@ -129,14 +133,16 @@ mod tests {
 
     #[test]
     fn test_execute_file_not_found() {
-        let engine = ScriptEngine::new().unwrap();
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine = ScriptEngine::new(script_manager).unwrap();
         let result = engine.execute_file(std::path::Path::new("nonexistent_script.lua"));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_execute_file_valid() {
-        let engine = ScriptEngine::new().unwrap();
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine = ScriptEngine::new(script_manager).unwrap();
         let result = engine.execute_file(std::path::Path::new(
             "tests/fixtures/protocols/test_valid.lua",
         ));
@@ -145,7 +151,8 @@ mod tests {
 
     #[test]
     fn test_execute_with_args() {
-        let engine = ScriptEngine::new().unwrap();
+        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine = ScriptEngine::new(script_manager).unwrap();
         let script = r#"
             assert(arg[1] == "hello", "arg[1] mismatch")
             assert(arg[2] == "world", "arg[2] mismatch")
@@ -159,10 +166,12 @@ mod tests {
     #[test]
     fn test_state_isolation() {
         // Verify that separate engines don't share state
-        let engine1 = ScriptEngine::new().unwrap();
+        let script_manager1 = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine1 = ScriptEngine::new(script_manager1).unwrap();
         engine1.execute_string("myvar = 42").unwrap();
 
-        let engine2 = ScriptEngine::new().unwrap();
+        let script_manager2 = Arc::new(Mutex::new(ScriptManager::new()));
+        let engine2 = ScriptEngine::new(script_manager2).unwrap();
         // engine2 should not see engine1's globals
         let result = engine2.execute_string("if myvar == nil then return end");
         assert!(result.is_ok());

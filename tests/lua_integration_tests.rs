@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 
 #[test]
 fn test_serial_api_integration() {
-    let mut engine = ScriptEngine::new().unwrap();
+    let mut engine = ScriptEngine::default();
     let port_manager = Arc::new(Mutex::new(engine.port_manager().clone()));
     engine.bindings.set_port_manager(port_manager);
     ScriptRuntime::register_all(engine.bindings.lua()).unwrap();
@@ -23,7 +23,7 @@ fn test_serial_api_integration() {
 
 #[test]
 fn test_script_api_integration() {
-    let engine = ScriptEngine::new().unwrap();
+    let engine = ScriptEngine::default();
     ScriptRuntime::register_all(engine.bindings.lua()).unwrap();
     engine.bindings.register_all_apis().unwrap();
 
@@ -73,7 +73,7 @@ fn test_conversion_api_integration() {
 
 #[test]
 fn test_end_to_end_script_workflow() {
-    let engine = ScriptEngine::new().unwrap();
+    let engine = ScriptEngine::default();
     ScriptRuntime::register_all(engine.bindings.lua()).unwrap();
     engine.bindings.register_all_apis().unwrap();
 
@@ -111,7 +111,7 @@ fn test_end_to_end_script_workflow() {
 
 #[test]
 fn test_script_load_validate() {
-    let engine = ScriptEngine::new().unwrap();
+    let engine = ScriptEngine::default();
     ScriptRuntime::register_all(engine.bindings.lua()).unwrap();
     engine.bindings.register_all_apis().unwrap();
 
