@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useConnectionStore } from "@/stores/connection";
 import { usePresetsStore } from "@/stores/presets";
 import { useSettingsStore } from "@/stores/settings";
+import { tauriApi } from "@/lib/tauri-api";
 import type { ConfigData, ConnectionPreset } from "@/types";
 
 const SETTINGS_TABS = [
@@ -38,11 +39,18 @@ export function SettingsPage() {
     null,
   );
   const [editingOriginalName, setEditingOriginalName] = useState("");
+  const [hotReloadEnabled, setHotReloadEnabled] = useState(false);
 
   useEffect(() => {
     loadConfig();
     loadPresets();
   }, [loadConfig, loadPresets]);
+
+  useEffect(() => {
+    if (activeTab === "luaEngine") {
+      tauriApi.getHotReloadStatus().then(setHotReloadEnabled).catch(() => {});
+    }
+  }, [activeTab]);
 
   const handleSave = useCallback(async () => {
     if (!config) return;
@@ -500,6 +508,29 @@ export function SettingsPage() {
                 onChange={(e) =>
                   update("lua", "enable_sandbox", e.target.checked)
                 }
+              />
+            </FieldRow>
+            <FieldRow
+              label={t("settings.hotReload")}
+              desc={t("settings.hotReloadDesc")}
+            >
+              <input
+                type="checkbox"
+                checked={hotReloadEnabled}
+                onChange={async (e) => {
+                  const enabled = e.target.checked;
+                  try {
+                    await tauriApi.setHotReloadEnabled(enabled);
+                    setHotReloadEnabled(enabled);
+                    toast.success(
+                      enabled
+                        ? t("settings.hotReloadEnabled")
+                        : t("settings.hotReloadDisabled"),
+                    );
+                  } catch (err) {
+                    toast.error(String(err));
+                  }
+                }}
               />
             </FieldRow>
           </div>

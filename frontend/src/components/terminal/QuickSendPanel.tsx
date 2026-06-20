@@ -30,5 +30,7 @@ export function QuickSendPanel({ onSent }: QuickSendPanelProps) {
     addPacket(portId, "tx", bytes, Date.now());
   };
 
-  return <CommandSender enabled={isConnected} sendFn={sendFn} onSent={onSent} />;
+  return (
+    <CommandSender enabled={isConnected} sendFn={sendFn} onSent={onSent} />
+  );
 }

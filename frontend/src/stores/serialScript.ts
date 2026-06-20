@@ -89,9 +89,8 @@ export const useStandaloneScriptStore = create<StandaloneScriptStore>()(
     loadActions: async (scriptSource) => {
       set({ loading: true, currentScriptSource: scriptSource });
       try {
-        const actions = await tauriApi.listStandaloneScriptActions(
-          scriptSource,
-        );
+        const actions =
+          await tauriApi.listStandaloneScriptActions(scriptSource);
         set({ actions, loading: false });
       } catch {
         set({ actions: [], loading: false });

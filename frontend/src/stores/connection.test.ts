@@ -95,6 +95,7 @@ describe("useConnectionStore", () => {
       expect(tauriApi.openPort).toHaveBeenCalledWith(
         "/dev/ttyUSB0",
         expect.any(Object),
+        undefined,
       );
       expect(tauriApi.startSniffing).toHaveBeenCalledWith("port-1");
     });
@@ -153,6 +154,7 @@ describe("useConnectionStore", () => {
       expect(tauriApi.openPort).toHaveBeenCalledWith(
         "/dev/ttyUSB0",
         expect.objectContaining({ baudrate: 9600 }),
+        undefined,
       );
     });
   });

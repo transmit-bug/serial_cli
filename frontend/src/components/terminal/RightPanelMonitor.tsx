@@ -26,9 +26,7 @@ export function RightPanelMonitor() {
 
   const packets = useMemo(
     () =>
-      activePortId
-        ? allPackets.filter((p) => p.portId === activePortId)
-        : [],
+      activePortId ? allPackets.filter((p) => p.portId === activePortId) : [],
     [allPackets, activePortId],
   );
 

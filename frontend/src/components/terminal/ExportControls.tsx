@@ -29,9 +29,7 @@ export function ExportControls() {
   const filteredCount = searchQuery
     ? packets.filter((p) => {
         const data = Array.isArray(p.data) ? p.data : [];
-        const hex = data
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join(" ");
+        const hex = data.map((b) => b.toString(16).padStart(2, "0")).join(" ");
         const ascii = data
           .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : ""))
           .join("");
@@ -76,7 +74,9 @@ export function ExportControls() {
 
   const setFormat = (fmt: ExportFormat) => setExportOptions({ format: fmt });
   const toggleField = (field: keyof ExportFields) =>
-    setExportOptions({ fields: { [field]: !exportOptions.fields[field] } });
+    setExportOptions({
+      fields: { ...exportOptions.fields, [field]: !exportOptions.fields[field] },
+    });
   const toggleFiltered = () =>
     setExportOptions({ filteredOnly: !exportOptions.filteredOnly });
 

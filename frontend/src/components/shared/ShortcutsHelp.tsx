@@ -14,11 +14,7 @@ const SHORTCUTS = [
   { keys: "Ctrl + Enter", key: "shortcuts.sendData" },
 ];
 
-export function ShortcutsHelp({
-  onClose,
-}: {
-  onClose: () => void;
-}) {
+export function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
 
   return (

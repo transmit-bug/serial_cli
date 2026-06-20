@@ -152,9 +152,7 @@ export function RightPanelCommands() {
           <Input
             placeholder={t("quickSend.data")}
             value={editForm.data}
-            onChange={(e) =>
-              setEditForm({ ...editForm, data: e.target.value })
-            }
+            onChange={(e) => setEditForm({ ...editForm, data: e.target.value })}
             className="font-mono"
           />
           <div className="flex gap-2">

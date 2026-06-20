@@ -7,6 +7,8 @@ import type {
   PortInfo,
   PortStatus,
   Script,
+  ScriptValidationResult,
+  ServerStatus,
   UserScriptInfo,
   ScriptStatus,
   SerialConfig,
@@ -35,16 +37,16 @@ export const tauriApi = {
 
   // Script commands (unified protocol + script management)
   listScripts: () => invoke<Script[]>("list_scripts"),
-  loadScript: (path: string) =>
-    invoke<Script>("load_script", { path }),
+  loadScript: (path: string) => invoke<Script>("load_script", { path }),
   unloadScript: (name: string) => invoke<void>("unload_script", { name }),
   reloadScript: (name: string) => invoke<void>("reload_script", { name }),
-  getScriptInfo: (name: string) =>
-    invoke<Script>("get_script_info", { name }),
+  getScriptInfo: (name: string) => invoke<Script>("get_script_info", { name }),
   executeScript: (script: string) =>
     invoke<string>("execute_script", { script }),
   validateScript: (script: string) =>
     invoke<ValidationError[]>("validate_script", { script }),
+  validateScriptDetailed: (script: string) =>
+    invoke<ScriptValidationResult>("validate_script_detailed", { script }),
   validateScriptFile: (path: string) =>
     invoke<void>("validate_script_file", { path }),
   listUserScripts: () => invoke<UserScriptInfo[]>("list_user_scripts"),
@@ -60,6 +62,11 @@ export const tauriApi = {
     invoke<number[]>("script_decode", { script, data }),
   saveScriptFile: (name: string, content: string) =>
     invoke<string>("save_script_file", { name, content }),
+
+  // Hot reload commands
+  getHotReloadStatus: () => invoke<boolean>("get_hot_reload_status"),
+  setHotReloadEnabled: (enabled: boolean) =>
+    invoke<void>("set_hot_reload_enabled", { enabled }),
 
   // Serial script commands
   attachScript: (portId: string, scriptSource: string) =>
@@ -94,6 +101,11 @@ export const tauriApi = {
     invoke<CapturedPacket[]>("get_captured_packets", { id }),
   sendToVirtualPort: (id: string, portEnd: string, data: number[]) =>
     invoke<number>("send_to_virtual_port", { id, portEnd, data }),
+
+  // Server commands
+  startServer: () => invoke<ServerStatus>("start_server"),
+  stopServer: () => invoke<void>("stop_server"),
+  getServerStatus: () => invoke<ServerStatus>("get_server_status"),
 
   // Config commands
   getConfig: () => invoke<ConfigData>("get_config"),

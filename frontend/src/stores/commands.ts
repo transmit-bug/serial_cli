@@ -101,7 +101,7 @@ interface CommandStore {
   sendCommand: (
     index: number,
     portId: string,
-    addPacket: (direction: "tx", data: number[], ts: number) => void,
+    addPacket: (portId: string, direction: "rx" | "tx", data: number[], timestamp: number, decoded?: string) => void,
   ) => Promise<void>;
 
   sequences: CommandSequence[];
@@ -160,7 +160,7 @@ export const useCommandStore = create<CommandStore>()((set, get) => ({
         ? cmd.data.split(/\s+/).map((b) => Number.parseInt(b, 16))
         : Array.from(new TextEncoder().encode(cmd.data));
     await tauriApi.sendData(portId, data);
-    addPacket("tx", data, Date.now());
+    addPacket(portId, "tx", data, Date.now());
   },
 
   sequences: loadSequences(),
@@ -230,7 +230,7 @@ export const useCommandStore = create<CommandStore>()((set, get) => ({
 
           const bytes = stepToBytes(step);
           await tauriApi.sendData(portId, bytes);
-          addPacket("tx", bytes, Date.now());
+          addPacket(portId, "tx", bytes, Date.now());
 
           if (step.delay > 0) {
             await new Promise<void>((resolve) => {

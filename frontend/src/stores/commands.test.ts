@@ -5,7 +5,9 @@ describe("useCommandStore", () => {
   beforeEach(() => {
     localStorage.clear();
     useCommandStore.setState({
-      commands: [{ label: "AT", data: "AT\r\n", format: "ascii", hotkey: "F1" }],
+      commands: [
+        { label: "AT", data: "AT\r\n", format: "ascii", hotkey: "F1" },
+      ],
     });
   });
 
@@ -20,7 +22,9 @@ describe("useCommandStore", () => {
     expect(cmds).toHaveLength(2);
     expect(cmds[1].label).toBe("TEST");
 
-    const stored = JSON.parse(localStorage.getItem("serial-cli-quick-commands") ?? "[]");
+    const stored = JSON.parse(
+      localStorage.getItem("serial-cli-quick-commands") ?? "[]",
+    );
     expect(stored).toHaveLength(2);
   });
 

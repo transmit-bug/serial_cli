@@ -164,7 +164,34 @@ export interface DataPacket {
 
 export type DisplayFormat = "hex" | "ascii" | "mixed";
 
-export type PageName = "terminal" | "virtual" | "editor" | "settings";
+export type PageName =
+  | "terminal"
+  | "virtual"
+  | "editor"
+  | "server"
+  | "settings";
+
+export interface ScriptValidationResult {
+  warnings: string[];
+}
+
+export interface ServerConnectionInfo {
+  connection_id: string;
+  port_id: string | null;
+  protocol: string | null;
+  created_at: number;
+  subscribed: boolean;
+}
+
+export interface ServerStatus {
+  running: boolean;
+  socket_path: string;
+  started_at: number;
+  active_connections: number;
+  total_requests: number;
+  total_errors: number;
+  connections: ServerConnectionInfo[];
+}
 
 export type ConnectionStatus =
   | "disconnected"

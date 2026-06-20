@@ -110,7 +110,11 @@ export function RightPanel() {
       </TabsList>
 
       {TABS.map(({ id }) => (
-        <TabsContent key={id} value={id} className="flex-1 overflow-hidden mt-0">
+        <TabsContent
+          key={id}
+          value={id}
+          className="flex-1 overflow-hidden mt-0"
+        >
           {TAB_COMPONENTS[id]()}
         </TabsContent>
       ))}

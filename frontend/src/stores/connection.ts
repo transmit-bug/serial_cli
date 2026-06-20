@@ -32,6 +32,7 @@ interface ConnectionStore {
   activePortId: string | null;
   pendingPort: string | null;
   defaultConfig: SerialConfig;
+  serverOccupiedPorts: Set<string>;
 
   refreshPorts: () => Promise<void>;
   connect: (portName: string, config?: Partial<SerialConfig>) => Promise<void>;
@@ -39,6 +40,7 @@ interface ConnectionStore {
   disconnectAll: () => Promise<void>;
   setActivePort: (portId: string | null) => void;
   setPendingPort: (portName: string | null) => void;
+  setServerOccupiedPorts: (ports: string[]) => void;
   removePort: (portId: string) => void;
   setDefaultConfig: (config: Partial<SerialConfig>) => void;
   setPortError: (portId: string, error: string | null) => void;
@@ -83,6 +85,7 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
   activePortId: null,
   pendingPort: null,
   defaultConfig: DEFAULT_CONFIG,
+  serverOccupiedPorts: new Set(),
 
   refreshPorts: async () => {
     try {
@@ -94,7 +97,7 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
   },
 
   connect: async (_portName, configOverride) => {
-    const { pendingPort, connections, defaultConfig } = get();
+    const { pendingPort, connections, defaultConfig, availablePorts } = get();
     const portName = pendingPort;
     if (!portName) return;
     if (
@@ -103,6 +106,11 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
       )
     )
       return;
+
+    // Check if this is a virtual port
+    const isVirtual = availablePorts.find(
+      (p) => p.port_name === portName,
+    )?.is_virtual;
 
     const finalConfig = { ...defaultConfig, ...configOverride };
 
@@ -122,7 +130,7 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
     }));
 
     try {
-      const portId = await tauriApi.openPort(portName, finalConfig);
+      const portId = await tauriApi.openPort(portName, finalConfig, isVirtual);
 
       set((s) => ({
         connections: s.connections.map((c) =>
@@ -186,6 +194,9 @@ export const useConnectionStore = create<ConnectionStore>()((set, get) => ({
   setActivePort: (portId) => set({ activePortId: portId }),
 
   setPendingPort: (portName) => set({ pendingPort: portName }),
+
+  setServerOccupiedPorts: (ports) =>
+    set({ serverOccupiedPorts: new Set(ports) }),
 
   removePort: (portId) =>
     set((s) => {

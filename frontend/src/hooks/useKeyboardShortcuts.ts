@@ -76,7 +76,14 @@ export function useKeyboardShortcuts() {
         setShowHelp(false);
       }
     },
-    [navigateTo, toggleSidebar, toggleRightPanel, clearBuffer, activePortId, showHelp],
+    [
+      navigateTo,
+      toggleSidebar,
+      toggleRightPanel,
+      clearBuffer,
+      activePortId,
+      showHelp,
+    ],
   );
 
   useEffect(() => {

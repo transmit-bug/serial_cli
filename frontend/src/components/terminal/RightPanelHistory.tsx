@@ -70,7 +70,7 @@ export function RightPanelHistory() {
             {packets.length > 0 && (
               <button
                 className="text-[10px] text-danger hover:text-danger-hover"
-                onClick={clearBuffer}
+                onClick={() => clearBuffer()}
               >
                 {t("common.clear")}
               </button>

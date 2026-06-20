@@ -43,6 +43,7 @@
     "navTerminal": "切换到终端",
     "navVirtual": "切换到虚拟端口",
     "navEditor": "切换到编辑器",
+    "navServer": "切换到服务器",
     "navSettings": "切换到设置",
     "toggleSidebar": "切换侧边栏",
     "toggleRightPanel": "切换右侧面板",
@@ -51,10 +52,34 @@
     "quickSend": "快捷发送命令",
     "sendData": "发送数据"
   },
+  "server": {
+    "title": "服务器模式",
+    "running": "服务器运行中",
+    "stopped": "服务器已停止",
+    "activeConnections_one": "{{count}} 个活动连接",
+    "activeConnections_other": "{{count}} 个活动连接",
+    "start": "启动服务器",
+    "stop": "停止服务器",
+    "configuration": "配置",
+    "socketPath": "Socket 路径",
+    "notSet": "未配置",
+    "copyPath": "复制 socket 路径",
+    "uptime": "运行时间",
+    "statistics": "统计信息",
+    "requests": "请求数",
+    "connections": "连接数",
+    "errors": "错误数",
+    "noConnections": "暂无活动连接",
+    "subscribed": "已订阅",
+    "port": "端口",
+    "protocol": "协议",
+    "portOccupied": "端口已被服务器客户端占用"
+  },
   "nav": {
     "terminal": "终端",
     "virtual": "虚拟端口",
     "editor": "编辑器",
+    "server": "服务器",
     "settings": "设置"
   },
   "rightPanel": {
@@ -236,8 +261,6 @@
     "basicTxRxDesc": "基本的串口收发示例",
     "autoResponder": "自动应答",
     "autoResponderDesc": "根据收到的命令自动回复",
-    "protocolParser": "协议解析",
-    "protocolParserDesc": "Modbus RTU 协议解析示例",
     "scheduledTask": "定时任务",
     "scheduledTaskDesc": "定时发送心跳数据",
     "dataLogger": "数据记录",
@@ -284,12 +307,10 @@
   },
   "protocolTemplates": {
     "title": "协议模板",
-    "modbusRtu": "Modbus RTU",
-    "modbusRtuDesc": "完整 Modbus RTU 协议 (含 CRC16)",
     "customFrame": "自定义帧",
     "customFrameDesc": "STX/LEN/CMD/DATA/CHECKSUM/ETX 格式",
-    "simpleAt": "简单 AT",
-    "simpleAtDesc": "基于行的 AT 命令/响应协议"
+    "modbusAscii": "Modbus ASCII",
+    "modbusAsciiDesc": "带 LRC 校验的 Modbus ASCII 协议"
   },
   "settings": {
     "title": "设置",
@@ -341,6 +362,8 @@
     "jsonPrettyDesc": "输出格式化的 JSON",
     "showTimestampDesc": "在输出中显示时间戳",
     "hotReloadDesc": "自动重新加载协议文件",
+    "hotReloadEnabled": "热重载已启用",
+    "hotReloadDisabled": "热重载已禁用",
     "maxPacketsDesc": "缓冲区最大数据包数量"
   },
   "presets": {

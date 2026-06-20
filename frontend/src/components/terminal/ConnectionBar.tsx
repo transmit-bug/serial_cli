@@ -27,6 +27,7 @@ export function ConnectionBar() {
     activePortId,
     pendingPort,
     defaultConfig,
+    serverOccupiedPorts,
     refreshPorts,
     connect,
     disconnect,
@@ -115,11 +116,21 @@ export function ConnectionBar() {
                       c.portName === p.port_name && c.status === "connected",
                   ),
               )
-              .map((p) => (
-                <SelectItem key={p.port_name} value={p.port_name}>
-                  {p.port_name} {p.is_virtual ? "(virtual)" : ""}
-                </SelectItem>
-              ))}
+              .map((p) => {
+                const isServerOccupied = serverOccupiedPorts.has(p.port_name);
+                return (
+                  <SelectItem
+                    key={p.port_name}
+                    value={p.port_name}
+                    disabled={isServerOccupied}
+                    className={isServerOccupied ? "opacity-50" : ""}
+                  >
+                    {p.port_name}
+                    {p.is_virtual ? " (virtual)" : ""}
+                    {isServerOccupied ? " 🔒" : ""}
+                  </SelectItem>
+                );
+              })}
           </SelectContent>
         </Select>
       )}
@@ -199,9 +210,7 @@ export function ConnectionBar() {
 
           <Select
             value={defaultConfig.flow_control}
-            onValueChange={(value) =>
-              setDefaultConfig({ flow_control: value })
-            }
+            onValueChange={(value) => setDefaultConfig({ flow_control: value })}
           >
             <SelectTrigger className="w-24">
               <SelectValue />

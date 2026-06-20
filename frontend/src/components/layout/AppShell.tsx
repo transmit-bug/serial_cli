@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { EditorPage } from "@/components/editor/EditorPage";
+import { ServerPage } from "@/components/server/ServerPage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { TerminalWorkbench } from "@/components/terminal/TerminalWorkbench";
 import { VirtualPortsPage } from "@/components/virtual/VirtualPortsPage";
@@ -17,6 +18,7 @@ const PAGES = {
   terminal: TerminalWorkbench,
   virtual: VirtualPortsPage,
   editor: EditorPage,
+  server: ServerPage,
   settings: SettingsPage,
 } as const;
 

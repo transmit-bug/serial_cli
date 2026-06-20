@@ -13,8 +13,6 @@ import { ProtocolList } from "./ProtocolList";
 import { StandaloneActions } from "./StandaloneActions";
 import { TemplateList } from "./TemplateList";
 
-const BUILT_IN_PROTOCOLS = ["ModbusRTU", "Modbus ASCII", "AT Commands", "Line"];
-
 export type FileType = "script" | "protocol";
 
 export function EditorPage() {
@@ -70,6 +68,7 @@ export function EditorPage() {
   const [testerError, setTesterError] = useState<string | null>(null);
 
   const [isDragging, setIsDragging] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
   // ─── Drag & Drop ───
 
@@ -127,9 +126,7 @@ export function EditorPage() {
     loadScripts();
   }, [loadUserScripts, loadScripts]);
 
-  const customProtocols = registeredScripts.filter(
-    (p) => !BUILT_IN_PROTOCOLS.includes(p.name),
-  );
+  const customProtocols = registeredScripts.filter((p) => !p.built_in);
 
   // ─── Create / Open ───
 
@@ -237,15 +234,21 @@ export function EditorPage() {
     if (!currentScript) return;
     try {
       if (fileType === "script") {
-        // For user scripts, we need to save to a temp file first
-        // or use a different validation approach
-        toast.info(t("scripts.validateScriptInfo"));
+        // Use detailed validation for scripts
+        const result = await tauriApi.validateScriptDetailed(currentScript.content);
+        if (result.warnings && result.warnings.length > 0) {
+          setValidationWarnings(result.warnings);
+        } else {
+          setValidationWarnings([]);
+          toast.success(t("scripts.validateSuccess"));
+        }
       } else {
         const path = await tauriApi.saveScriptFile(
           protocolNameInput,
           currentScript.content,
         );
         await tauriApi.validateScriptFile(path);
+        setValidationWarnings([]);
         toast.success(t("scripts.validateSuccess"));
       }
     } catch (e) {
@@ -583,26 +586,43 @@ export function EditorPage() {
                     </div>
                   </div>
                 ) : (
-                  <MonacoEditor
-                    height="100%"
-                    language="lua"
-                    theme={theme === "light" ? "light" : "vs-dark"}
-                    value={currentScript?.content ?? ""}
-                    onChange={(value) =>
-                      value !== undefined && updateContent(value)
-                    }
-                    options={{
-                      fontSize: 13,
-                      fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                      minimap: { enabled: false },
-                      scrollBeyondLastLine: false,
-                      lineNumbers: "on",
-                      renderWhitespace: "selection",
-                      tabSize: 2,
-                      wordWrap: "on",
-                      padding: { top: 8 },
-                    }}
-                  />
+                  <>
+                    <MonacoEditor
+                      height="100%"
+                      language="lua"
+                      theme={theme === "light" ? "light" : "vs-dark"}
+                      value={currentScript?.content ?? ""}
+                      onChange={(value) =>
+                        value !== undefined && updateContent(value)
+                      }
+                      options={{
+                        fontSize: 13,
+                        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                        minimap: { enabled: false },
+                        scrollBeyondLastLine: false,
+                        lineNumbers: "on",
+                        renderWhitespace: "selection",
+                        tabSize: 2,
+                        wordWrap: "on",
+                        padding: { top: 8 },
+                      }}
+                    />
+                    {validationWarnings.length > 0 && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-warning/10 border-t border-warning/30 p-2 max-h-32 overflow-y-auto">
+                        <div className="text-xs font-medium text-warning mb-1">
+                          ⚠️ {t("scripts.validationWarnings")}
+                        </div>
+                        <ul className="text-xs text-text space-y-0.5">
+                          {validationWarnings.map((warning, idx) => (
+                            <li key={idx} className="flex gap-2">
+                              <span className="text-warning">•</span>
+                              <span>{warning}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
                 )}
               </section>
             </Panel>

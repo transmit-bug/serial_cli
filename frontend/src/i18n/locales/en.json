@@ -43,6 +43,7 @@
     "navTerminal": "Go to Terminal",
     "navVirtual": "Go to Virtual Ports",
     "navEditor": "Go to Editor",
+    "navServer": "Go to Server",
     "navSettings": "Go to Settings",
     "toggleSidebar": "Toggle Sidebar",
     "toggleRightPanel": "Toggle Right Panel",
@@ -51,10 +52,34 @@
     "quickSend": "Quick Send Command",
     "sendData": "Send Data"
   },
+  "server": {
+    "title": "Server Mode",
+    "running": "Server Running",
+    "stopped": "Server Stopped",
+    "activeConnections_one": "{{count}} active connection",
+    "activeConnections_other": "{{count}} active connections",
+    "start": "Start Server",
+    "stop": "Stop Server",
+    "configuration": "Configuration",
+    "socketPath": "Socket Path",
+    "notSet": "Not configured",
+    "copyPath": "Copy socket path",
+    "uptime": "Uptime",
+    "statistics": "Statistics",
+    "requests": "Requests",
+    "connections": "Connections",
+    "errors": "Errors",
+    "noConnections": "No active connections",
+    "subscribed": "Subscribed",
+    "port": "Port",
+    "protocol": "Protocol",
+    "portOccupied": "Port occupied by server client"
+  },
   "nav": {
     "terminal": "Terminal",
     "virtual": "Virtual Ports",
     "editor": "Editor",
+    "server": "Server",
     "settings": "Settings"
   },
   "rightPanel": {
@@ -228,7 +253,9 @@
     "attachToPort": "Attach to Port",
     "attached": "Attached",
     "detached": "Script detached",
-    "actions": "Actions"
+    "actions": "Actions",
+    "validationWarnings": "Validation Warnings",
+    "validateScriptInfo": "Script validation will be available after saving"
   },
   "scriptTemplates": {
     "title": "Script Templates",
@@ -236,8 +263,6 @@
     "basicTxRxDesc": "Basic serial send/receive example",
     "autoResponder": "Auto Responder",
     "autoResponderDesc": "Auto-reply to received commands",
-    "protocolParser": "Protocol Parser",
-    "protocolParserDesc": "Modbus RTU parsing example",
     "scheduledTask": "Scheduled Task",
     "scheduledTaskDesc": "Send heartbeat data periodically",
     "dataLogger": "Data Logger",
@@ -284,12 +309,10 @@
   },
   "protocolTemplates": {
     "title": "Protocol Templates",
-    "modbusRtu": "Modbus RTU",
-    "modbusRtuDesc": "Complete Modbus RTU with CRC16",
     "customFrame": "Custom Frame",
     "customFrameDesc": "STX/LEN/CMD/DATA/CHECKSUM/ETX format",
-    "simpleAt": "Simple AT",
-    "simpleAtDesc": "Line-based AT command/response protocol"
+    "modbusAscii": "Modbus ASCII",
+    "modbusAsciiDesc": "Modbus ASCII protocol with LRC checksum"
   },
   "settings": {
     "title": "Settings",
@@ -341,6 +364,8 @@
     "jsonPrettyDesc": "Output formatted JSON",
     "showTimestampDesc": "Show timestamps in output",
     "hotReloadDesc": "Auto-reload protocol files",
+    "hotReloadEnabled": "Hot reload enabled",
+    "hotReloadDisabled": "Hot reload disabled",
     "maxPacketsDesc": "Maximum packets in buffer"
   },
   "presets": {

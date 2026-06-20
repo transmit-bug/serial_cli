@@ -70,47 +70,6 @@ print("自动应答已启动")
 `,
   },
   {
-    name: "protocol_parser",
-    type: "script",
-    labelKey: "scriptTemplates.protocolParser",
-    descriptionKey: "scriptTemplates.protocolParserDesc",
-    content: `-- 协议解析脚本
--- Protocol parser script (Modbus RTU example)
-
-local function crc16(data)
-  local crc = 0xFFFF
-  for i = 1, #data do
-    crc = crc ~ data:byte(i)
-    for _ = 1, 8 do
-      if crc % 2 == 1 then
-        crc = crc >> 1
-        crc = crc ~ 0xA001
-      else
-        crc = crc >> 1
-      end
-    end
-  end
-  return crc
-end
-
-function on_data(data)
-  if #data < 4 then
-    print("数据太短")
-    return
-  end
-
-  local addr = data:byte(1)
-  local func = data:byte(2)
-  local len = #data - 2
-  local payload = data:sub(3, len)
-
-  print(string.format("地址=%d 功能=%02X 长度=%d", addr, func, len))
-end
-
-print("协议解析器已就绪")
-`,
-  },
-  {
     name: "scheduled_task",
     type: "script",
     labelKey: "scriptTemplates.scheduledTask",
@@ -162,69 +121,6 @@ print("数据记录器已启动")
 `,
   },
   // Protocol templates
-  {
-    name: "modbus_rtu",
-    type: "protocol",
-    labelKey: "protocolTemplates.modbusRtu",
-    descriptionKey: "protocolTemplates.modbusRtuDesc",
-    content: `-- Modbus RTU Protocol
--- CRC16 implementation
-
-local function crc16(data)
-  local crc = 0xFFFF
-  for i = 1, #data do
-    crc = crc ~ data:byte(i)
-    for _ = 1, 8 do
-      if crc % 2 == 1 then
-        crc = crc >> 1
-        crc = crc ~ 0xA001
-      else
-        crc = crc >> 1
-      end
-    end
-  end
-  return crc
-end
-
-function on_encode(data)
-  -- data: { addr=1, func=3, start=0, count=1 }
-  local frame = string.char(
-    data.addr or 1,
-    data.func or 3,
-    (data.start or 0) >> 8,
-    (data.start or 0) & 0xFF,
-    (data.count or 1) >> 8,
-    (data.count or 1) & 0xFF
-  )
-  local crc = crc16(frame)
-  return frame .. string.char(crc & 0xFF, crc >> 8)
-end
-
-function on_frame(data)
-  if #data < 4 then
-    return { error = "Frame too short" }
-  end
-
-  local addr = data:byte(1)
-  local func = data:byte(2)
-  local result = { addr = addr, func = func }
-
-  if func >= 0x80 then
-    result.error = true
-    result.exception = data:byte(3)
-  elseif #data > 4 then
-    local byte_count = data:byte(3)
-    result.byte_count = byte_count
-    result.payload = {}
-    for i = 1, byte_count do
-      result.payload[i] = data:byte(3 + i)
-    end
-  end
-
-  return result
-end
-`,
-  },
   {
     name: "custom_frame",
     type: "protocol",
@@ -289,42 +185,116 @@ end
 `,
   },
   {
-    name: "simple_at",
+    name: "modbus_ascii",
     type: "protocol",
-    labelKey: "protocolTemplates.simpleAt",
-    descriptionKey: "protocolTemplates.simpleAtDesc",
-    content: `-- Simple AT Protocol
--- Line-based command/response protocol
+    labelKey: "protocolTemplates.modbusAscii",
+    descriptionKey: "protocolTemplates.modbusAsciiDesc",
+    content: `-- Modbus ASCII Protocol
+-- Frame format: : [ADDR] [FUNC] [DATA...] [LRC] CR LF
+-- Each byte is encoded as 2 HEX ASCII characters
+
+local function calculate_lrc(data)
+  local lrc = 0
+  for i = 1, #data do
+    lrc = lrc + data:byte(i)
+  end
+  -- LRC is the two's complement of the sum
+  lrc = (256 - (lrc % 256)) % 256
+  return lrc
+end
+
+local function bytes_to_hex(data)
+  local hex = ""
+  for i = 1, #data do
+    hex = hex .. string.format("%02X", data:byte(i))
+  end
+  return hex
+end
+
+local function hex_to_bytes(hex)
+  local bytes = {}
+  -- Remove colons, spaces, and line endings
+  hex = hex:gsub("[:%s%z]", ""):gsub("\\r", ""):gsub("\\n", "")
+  
+  for i = 1, #hex, 2 do
+    local byte_str = hex:sub(i, i + 1)
+    if #byte_str == 2 then
+      local byte = tonumber(byte_str, 16)
+      if byte then
+        table.insert(bytes, byte)
+      end
+    end
+  end
+  return bytes
+end
 
 function on_encode(data)
-  local cmd = data.cmd or ""
-  local suffix = data.suffix or "\\r\\n"
-  return cmd .. suffix
+  -- data: table with addr, func, and data fields
+  local addr = data.addr or 0x01
+  local func = data.func or 0x03
+  local payload = data.data or {}
+  
+  -- Build the frame: ADDR + FUNC + DATA
+  local frame = string.char(addr, func)
+  for i = 1, #payload do
+    frame = frame .. string.char(payload[i])
+  end
+  
+  -- Calculate and append LRC
+  local lrc = calculate_lrc(frame)
+  frame = frame .. string.char(lrc)
+  
+  -- Convert to ASCII hex with frame delimiters
+  return ":" .. bytes_to_hex(frame) .. "\\r\\n"
 end
 
 function on_frame(data)
+  -- Remove frame delimiters
   local str = tostring(data)
-  -- Remove trailing CRLF/LF
-  str = str:gsub("\\r\\n$", ""):gsub("\\n$", ""):gsub("\\r$", "")
-
-  local result = { raw = str }
-
-  -- Parse AT response patterns
-  if str:match("^%+") then
-    result.type = "urc"
-    result.key = str:match("^%+(%w+)")
-    result.value = str:match("^%+%w+%s*:%s*(.+)$")
-  elseif str == "OK" then
-    result.type = "ok"
-  elseif str == "ERROR" then
-    result.type = "error"
-  elseif str:match("^AT") then
-    result.type = "command"
-    result.cmd = str
-  else
-    result.type = "data"
+  str = str:gsub("^:", ""):gsub("\\r?\\n?$", "")
+  
+  -- Convert to bytes
+  local bytes = hex_to_bytes(str)
+  
+  if #bytes < 2 then
+    return { error = "Frame too short" }
   end
-
+  
+  -- Verify LRC
+  local data_bytes = string.sub(str, 1, #str - 2)
+  local received_lrc = bytes[#bytes]
+  local calculated_lrc = calculate_lrc(string.sub(data, 1, #data - 2))
+  
+  if received_lrc ~= calculated_lrc then
+    return { error = "LRC checksum mismatch" }
+  end
+  
+  -- Parse Modbus frame
+  local addr = bytes[1]
+  local func = bytes[2]
+  
+  -- Check for error response (function code + 0x80)
+  if func >= 0x80 then
+    return {
+      error = true,
+      addr = addr,
+      func = func - 0x80,
+      exception = bytes[3],
+    }
+  end
+  
+  -- Normal response
+  local result = {
+    addr = addr,
+    func = func,
+    data = {},
+  }
+  
+  -- Extract data bytes (excluding addr, func, and LRC)
+  for i = 3, #bytes - 1 do
+    table.insert(result.data, bytes[i])
+  end
+  
   return result
 end
 `,

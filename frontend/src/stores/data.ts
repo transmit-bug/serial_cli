@@ -22,7 +22,7 @@ export interface ExportFields {
 
 export interface ExportOptions {
   format: ExportFormat;
-  fields: ExportFields;
+  fields: Partial<ExportFields>;
   filteredOnly: boolean;
 }
 

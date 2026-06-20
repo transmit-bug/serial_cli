@@ -1,8 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { Script } from "@/types";
 
-const BUILT_IN_PROTOCOLS = ["ModbusRTU", "Modbus ASCII", "AT Commands", "Line"];
-
 interface ProtocolListProps {
   protocols: Script[];
   customProtocols: Script[];
@@ -23,7 +21,7 @@ export function ProtocolList({
   onImportProtocol,
 }: ProtocolListProps) {
   const { t } = useTranslation();
-  const builtIn = protocols.filter((p) => BUILT_IN_PROTOCOLS.includes(p.name));
+  const builtIn = protocols.filter((p) => p.built_in);
 
   return (
     <div>

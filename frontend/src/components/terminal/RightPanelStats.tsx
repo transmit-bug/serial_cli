@@ -81,11 +81,17 @@ export function RightPanelStats() {
         <div className="grid grid-cols-2 gap-1 text-xs">
           {(() => {
             const rxBytes = packets.reduce(
-              (sum, p) => (p.direction === "rx" ? sum + (Array.isArray(p.data) ? p.data.length : 0) : sum),
+              (sum, p) =>
+                p.direction === "rx"
+                  ? sum + (Array.isArray(p.data) ? p.data.length : 0)
+                  : sum,
               0,
             );
             const txBytes = packets.reduce(
-              (sum, p) => (p.direction === "tx" ? sum + (Array.isArray(p.data) ? p.data.length : 0) : sum),
+              (sum, p) =>
+                p.direction === "tx"
+                  ? sum + (Array.isArray(p.data) ? p.data.length : 0)
+                  : sum,
               0,
             );
             const rxPkts = packets.filter((p) => p.direction === "rx").length;

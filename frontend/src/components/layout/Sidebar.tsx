@@ -2,6 +2,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  Server,
   Settings,
   Split,
   Terminal,
@@ -16,6 +17,7 @@ const NAV_ITEMS: { page: PageName; icon: typeof Terminal; labelKey: string }[] =
     { page: "terminal", icon: Terminal, labelKey: "nav.terminal" },
     { page: "virtual", icon: Split, labelKey: "nav.virtual" },
     { page: "editor", icon: Code2, labelKey: "nav.editor" },
+    { page: "server", icon: Server, labelKey: "nav.server" },
     { page: "settings", icon: Settings, labelKey: "nav.settings" },
   ];
 
@@ -34,7 +36,12 @@ export function Sidebar() {
       )}
     >
       {/* Nav items */}
-      <nav className={cn("flex flex-col gap-0.5 p-1.5 flex-1", collapsed ? "overflow-hidden" : "overflow-y-auto")}>
+      <nav
+        className={cn(
+          "flex flex-col gap-0.5 p-1.5 flex-1",
+          collapsed ? "overflow-hidden" : "overflow-y-auto",
+        )}
+      >
         {NAV_ITEMS.map(({ page, icon: Icon, labelKey }) => (
           <button
             key={page}
