@@ -5,7 +5,7 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use serial_cli::config::ConfigManager;
-use serial_cli::lua::LuaEngine;
+use serial_cli::script::ScriptManager;
 use tokio::task::JoinSet;
 
 /// Run async benchmark code on a separate thread with its own runtime.
@@ -54,7 +54,7 @@ fn bench_concurrent_buffer_ops(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark concurrent Lua engine initialization
+/// Benchmark concurrent ScriptManager initialization
 fn bench_concurrent_lua_init(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_lua_init");
 
@@ -68,7 +68,7 @@ fn bench_concurrent_lua_init(c: &mut Criterion) {
                         let mut join_set = JoinSet::new();
                         for _ in 0..n {
                             join_set.spawn(async {
-                                let _engine = LuaEngine::new().expect("Lua engine init failed");
+                                let _manager = ScriptManager::new();
                             });
                         }
                         while let Some(res) = join_set.join_next().await {

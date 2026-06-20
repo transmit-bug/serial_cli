@@ -5,8 +5,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use serial_cli::config::ConfigManager;
-use serial_cli::lua::LuaEngine;
-use serial_cli::protocol::loader::ProtocolLoader;
+use serial_cli::script::ScriptManager;
 use std::env;
 use std::fs::File;
 use std::io::Write;
@@ -29,7 +28,7 @@ fn bench_config_warm_start(c: &mut Criterion) {
 fn bench_lua_engine_init(c: &mut Criterion) {
     c.bench_function("lua_engine_init", |b| {
         b.iter(|| {
-            let _engine = black_box(LuaEngine::new().unwrap());
+            let _engine = black_box(ScriptManager::new());
         })
     });
 }
@@ -57,7 +56,8 @@ fn bench_protocol_load(c: &mut Criterion) {
             file.write_all(script_content.as_bytes())
                 .expect("write temp file");
 
-            let _loaded = black_box(ProtocolLoader::load_from_file(&temp_file_path).unwrap());
+            let mut manager = ScriptManager::new();
+            let _loaded = black_box(manager.load(&temp_file_path).unwrap());
 
             let _ = std::fs::remove_file(&temp_file_path);
         })
