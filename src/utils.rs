@@ -8,6 +8,9 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
+pub mod hex;
+pub mod lua_conversion;
+
 /// Auto-reconnect configuration
 #[derive(Debug, Clone)]
 pub struct AutoReconnectConfig {

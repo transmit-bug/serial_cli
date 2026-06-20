@@ -11,8 +11,8 @@ pub mod logging;
 pub mod lua;
 pub mod script;
 pub mod serial_core;
-pub mod service;
 pub mod server;
+pub mod state_factory;
 pub mod utils;
 
 // Re-exports for convenience

@@ -4,6 +4,7 @@
 
 use crate::script::ScriptManager;
 use crate::serial_core::PortManager;
+use crate::state_factory::CoreManagers;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -94,12 +95,12 @@ pub struct ConnectionContext {
 impl ServerState {
     /// Create a new server state
     pub async fn new(config: ServerConfig) -> Self {
-        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let core = CoreManagers::new();
         let (data_push_tx, _) = broadcast::channel::<DataPushEvent>(100);
 
         Self {
-            port_manager: Arc::new(Mutex::new(PortManager::new())),
-            script_manager,
+            port_manager: core.port_manager,
+            script_manager: core.script_manager,
             connections: Arc::new(RwLock::new(HashMap::new())),
             config,
             total_requests: Arc::new(AtomicU64::new(0)),

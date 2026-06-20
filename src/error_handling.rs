@@ -34,8 +34,6 @@ pub enum ErrorCode {
     Timeout,
     /// Invalid configuration
     InvalidConfig,
-    /// Protocol error
-    ProtocolError,
     /// Script error
     ScriptError,
     /// IO error
@@ -118,12 +116,6 @@ impl ErrorContext {
             ErrorCode::InvalidConfig => {
                 format!(
                     "Invalid configuration: {}. Check your configuration file and try again.",
-                    self.message
-                )
-            }
-            ErrorCode::ProtocolError => {
-                format!(
-                    "Protocol error: {}. The data format or protocol may be incorrect.",
                     self.message
                 )
             }
@@ -213,10 +205,6 @@ impl ErrorHandler {
             SerialError::Config(ref config_error) => (
                 format!("Configuration error: {}", config_error),
                 ErrorCode::InvalidConfig,
-            ),
-            SerialError::Protocol(ref protocol_error) => (
-                format!("Protocol error: {}", protocol_error),
-                ErrorCode::ProtocolError,
             ),
             SerialError::Script(ref script_error) => (
                 format!("Script error: {}", script_error),

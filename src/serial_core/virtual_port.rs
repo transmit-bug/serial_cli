@@ -11,7 +11,6 @@ use crate::config::ConfigManager;
 use crate::error::Result;
 use crate::serial_core::backends::{BackendType, VirtualBackend};
 use crate::serial_core::factory::BackendFactory;
-use crate::serial_core::sniffer::SerialSniffer;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::Mutex;
@@ -31,16 +30,6 @@ pub struct CapturedPacket {
     pub direction: PacketDirection,
     pub data: Vec<u8>,
     pub timestamp: SystemTime,
-}
-
-/// Shared packet capture buffer (kept for API compatibility)
-#[allow(dead_code)]
-#[derive(Debug, Default)]
-pub struct PacketCapture {
-    packets: Vec<CapturedPacket>,
-    max_packets: usize,
-    total_packets: u64,
-    total_bytes: u64,
 }
 
 /// Virtual serial port configuration
@@ -90,9 +79,6 @@ pub struct VirtualSerialPair {
 
     /// The underlying virtual backend
     backend: Box<dyn VirtualBackend>,
-
-    /// Sniffer for monitoring traffic
-    sniffer: Option<SerialSniffer>,
 
     /// Running state
     running: bool,
@@ -156,7 +142,6 @@ impl VirtualSerialPair {
             port_b: port_b.path.to_string_lossy().to_string(),
             backend_type,
             backend,
-            sniffer: None,
             running: true,
             created_at,
             stats,
@@ -204,19 +189,20 @@ impl VirtualSerialPair {
         }
     }
 
-    /// Get a reference to the sniffer (if monitoring is active)
-    pub fn sniffer(&self) -> Option<&SerialSniffer> {
-        self.sniffer.as_ref()
-    }
-
-    /// Check if monitoring is enabled
+    /// Check if monitoring is enabled for this virtual pair
+    ///
+    /// Note: Monitoring was removed during architecture cleanup (P1-1).
+    /// This method now returns false for backward compatibility with Tauri commands.
     pub fn is_monitoring(&self) -> bool {
-        false // monitoring integrated in backend bridge
+        false
     }
 
-    /// Get captured packets (when monitoring is enabled)
+    /// Get captured packets from this virtual pair
+    ///
+    /// Note: Packet capture was removed during architecture cleanup (P1-1).
+    /// This method now returns an empty vector for backward compatibility with Tauri commands.
     pub async fn captured_packets(&self) -> Vec<CapturedPacket> {
-        Vec::new() // packet capture integrated in backend bridge
+        Vec::new()
     }
 }
 

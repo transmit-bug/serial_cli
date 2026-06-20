@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
             shell.run().await?;
         }
         Some(Commands::Run { script, args }) => {
-            script_cmd::run_lua_script(PathBuf::from(script), args).await?;
+            script_cmd::run_lua_script(PathBuf::from(script), args, script_manager).await?;
         }
         Some(Commands::Script { script_command }) => {
             script_cmd::handle_script_command(script_command, json_output, script_manager).await?;

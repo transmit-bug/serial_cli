@@ -8,6 +8,7 @@
 //! serial port lifecycle — auto-reply, heartbeat, conditional filtering, etc.
 
 use crate::error::{Result, SerialError};
+use crate::utils::lua_conversion::{lua_table_to_bytes, bytes_to_lua_table};
 use mlua::Lua;
 use std::sync::{Arc, Mutex};
 
@@ -386,26 +387,6 @@ impl Drop for SerialScriptEngine {
     fn drop(&mut self) {
         self.stop_timer();
     }
-}
-
-/// Convert a Lua table (1-indexed array of bytes) to a Vec<u8>.
-fn lua_table_to_bytes(table: &mlua::Table) -> mlua::Result<Vec<u8>> {
-    let len = table.len().unwrap_or(0) as usize;
-    let mut bytes = Vec::with_capacity(len);
-    for i in 1..=len {
-        let byte: u8 = table.get(i).unwrap_or(0);
-        bytes.push(byte);
-    }
-    Ok(bytes)
-}
-
-/// Convert a byte slice to a Lua table (1-indexed array).
-fn bytes_to_lua_table<'lua>(lua: &'lua Lua, data: &[u8]) -> mlua::Result<mlua::Table<'lua>> {
-    let table = lua.create_table()?;
-    for (i, &byte) in data.iter().enumerate() {
-        table.set(i + 1, byte)?;
-    }
-    Ok(table)
 }
 
 #[cfg(test)]

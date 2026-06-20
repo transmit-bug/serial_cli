@@ -158,6 +158,12 @@ impl ConfigManager {
                 })?;
                 config.virtual_ports.bridge_poll_interval_ms = interval;
             }
+            ["protocols", "hot_reload"] => {
+                let enable = value
+                    .parse::<bool>()
+                    .map_err(|_| SerialError::Config(format!("Invalid boolean: {}", value)))?;
+                config.protocols.hot_reload = enable;
+            }
             _ => {
                 return Err(SerialError::Config(format!(
                     "Unknown configuration key: {}",

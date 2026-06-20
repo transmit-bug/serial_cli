@@ -421,7 +421,7 @@ impl RpcDispatcher {
         let (data_hex, bytes_read, timed_out) = match read_result {
             Ok(Ok((Ok(n), buffer))) => {
                 let n = n.min(buffer.len());
-                (hex_encode(&buffer[..n]), n, false)
+                (crate::utils::hex::hex_encode_simple(&buffer[..n]), n, false)
             }
             Ok(Ok((Err(e), _))) => return Err((-32603, e.to_string(), None)),
             Ok(Err(e)) => return Err((-32603, format!("Task join error: {:?}", e), None)),
@@ -598,14 +598,6 @@ fn parse_params<T: for<'de> Deserialize<'de>>(params: Option<Value>) -> Result<T
     serde_json::from_value(params).map_err(|e| (-32602, format!("Invalid params: {}", e), None))
 }
 
-/// Encode bytes as hex string
-fn hex_encode(data: &[u8]) -> String {
-    data.iter()
-        .map(|b| format!("{:02x}", b))
-        .collect::<Vec<_>>()
-        .join("")
-}
-
 /// Format SystemTime as ISO 8601 string
 fn format_timestamp(time: SystemTime) -> String {
     use std::time::UNIX_EPOCH;
@@ -623,8 +615,8 @@ mod tests {
 
     #[test]
     fn test_hex_encode() {
-        assert_eq!(hex_encode(b"ABC"), "414243");
-        assert_eq!(hex_encode(b"\x00\xff"), "00ff");
+        assert_eq!(crate::utils::hex::hex_encode_simple(b"ABC"), "414243");
+        assert_eq!(crate::utils::hex::hex_encode_simple(b"\x00\xff"), "00ff");
     }
 
     #[test]

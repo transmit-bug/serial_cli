@@ -2,7 +2,7 @@
 //!
 //! This module defines all error types used throughout the application.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 /// Result type alias for serial-cli operations
@@ -84,10 +84,6 @@ pub enum SerialError {
     /// Serial port related errors
     #[error("Serial port error: {0}")]
     Serial(#[from] SerialPortError),
-
-    /// Protocol related errors
-    #[error("Protocol error: {0}")]
-    Protocol(#[from] ProtocolError),
 
     /// Script related errors
     #[error("Script error: {0}")]
@@ -188,34 +184,6 @@ impl SerialPortError {
     }
 }
 
-/// Protocol specific errors
-#[derive(Error, Debug)]
-pub enum ProtocolError {
-    /// Protocol not found
-    #[error("Protocol '{0}' not found")]
-    NotFound(String),
-
-    /// Invalid frame format
-    #[error("Invalid frame format: {0}")]
-    InvalidFrame(String),
-
-    /// Checksum mismatch
-    #[error("Checksum mismatch (expected: {expected}, got: {got})")]
-    ChecksumFailed { expected: String, got: String },
-
-    /// Unexpected response
-    #[error("Unexpected response: {0}")]
-    UnexpectedResponse(String),
-
-    /// Timeout waiting for response
-    #[error("Protocol timeout: {0}")]
-    Timeout(String),
-
-    /// Invalid protocol state
-    #[error("Invalid protocol state: {0}")]
-    InvalidState(String),
-}
-
 /// Script (Lua) specific errors
 #[derive(Error, Debug)]
 pub enum ScriptError {
@@ -253,7 +221,7 @@ pub enum ScriptError {
 }
 
 /// Format runtime error with optional stack trace
-fn format_runtime_error(script: &PathBuf, message: &str, stack_trace: Option<&str>) -> String {
+fn format_runtime_error(script: &Path, message: &str, stack_trace: Option<&str>) -> String {
     let mut result = format!("Runtime error in {}: {}", script.display(), message);
     if let Some(trace) = stack_trace {
         result.push_str("\n\nStack trace:\n");
@@ -321,15 +289,6 @@ mod tests {
     }
 
     #[test]
-    fn test_protocol_error() {
-        let err = ProtocolError::ChecksumFailed {
-            expected: "0x1234".to_string(),
-            got: "0x5678".to_string(),
-        };
-        assert!(err.to_string().contains("Checksum mismatch"));
-    }
-
-    #[test]
     fn test_serial_port_error_variants() {
         let not_found = SerialError::Serial(SerialPortError::PortNotFound("COM1".to_string()));
         assert!(not_found.to_string().contains("COM1"));
@@ -352,24 +311,6 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let serial_err: SerialError = io_err.into();
         assert!(serial_err.to_string().contains("I/O error"));
-    }
-
-    #[test]
-    fn test_protocol_error_variants() {
-        let not_found = ProtocolError::NotFound("unknown".to_string());
-        assert!(not_found.to_string().contains("unknown"));
-
-        let invalid_frame = ProtocolError::InvalidFrame("bad frame".to_string());
-        assert!(invalid_frame.to_string().contains("Invalid frame"));
-
-        let unexpected = ProtocolError::UnexpectedResponse("bad response".to_string());
-        assert!(unexpected.to_string().contains("Unexpected response"));
-
-        let timeout = ProtocolError::Timeout("read timeout".to_string());
-        assert!(timeout.to_string().contains("Protocol timeout"));
-
-        let invalid_state = ProtocolError::InvalidState("closed".to_string());
-        assert!(invalid_state.to_string().contains("Invalid protocol state"));
     }
 
     #[test]

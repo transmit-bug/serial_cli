@@ -5,6 +5,7 @@
 pub mod backends;
 pub mod factory;
 pub mod io_loop;
+pub mod platform;
 pub mod port;
 pub mod serial_script;
 pub mod signals;
@@ -22,7 +23,7 @@ pub use serial_script::SerialScriptEngine;
 pub use signals::{create_signal_controller, PlatformSignals, SignalState};
 pub use sniffer::{CapturedPacket, PacketDirection, SerialSniffer, SnifferConfig, SnifferSession};
 pub use virtual_port::{
-    CapturedPacket as VirtualCapturedPacket, PacketCapture,
+    CapturedPacket as VirtualCapturedPacket,
     PacketDirection as VirtualPacketDirection, VirtualConfig, VirtualSerialPair, VirtualStats,
 };
 
