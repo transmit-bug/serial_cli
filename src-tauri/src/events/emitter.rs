@@ -173,3 +173,19 @@ pub async fn emit_ports_changed(
     app.emit("ports-changed", payload)?;
     Ok(())
 }
+
+/// Emit a server-status-changed event when the embedded server starts or stops.
+pub async fn emit_server_status_changed(
+    app: AppHandle,
+    running: bool,
+    socket_path: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let payload = serde_json::json!({
+        "running": running,
+        "socket_path": socket_path,
+        "timestamp": chrono::Utc::now().timestamp_millis(),
+    });
+
+    app.emit("server-status-changed", payload)?;
+    Ok(())
+}

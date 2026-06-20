@@ -8,12 +8,14 @@
 
 use serial_cli::script::ScriptManager;
 use serial_cli::serial_core::{PortManager, VirtualSerialPair};
+use serial_cli::state_factory::CoreManagers;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 /// Per-port statistics tracked by the backend
 pub struct PortStatsTracker {
@@ -85,12 +87,28 @@ pub struct AppState {
     pub virtual_port_registry: Arc<RwLock<HashMap<String, VirtualSerialPair>>>,
     /// Directory for storing custom script files
     pub scripts_dir: Option<PathBuf>,
+    /// Embedded server state (None if not running)
+    pub embedded_server: Arc<Mutex<Option<RunningEmbeddedServer>>>,
+}
+
+/// State for the embedded JSON-RPC server
+pub struct RunningEmbeddedServer {
+    /// Unix socket path
+    pub socket_path: String,
+    /// Server start timestamp (Unix epoch seconds)
+    pub started_at: i64,
+    /// Cancellation token for graceful shutdown
+    pub cancel_token: CancellationToken,
+    /// Listener task handle
+    pub listener_handle: JoinHandle<()>,
+    /// Server state with shared managers
+    pub server_state: serial_cli::server::ServerState,
 }
 
 impl AppState {
     /// Create a new application state
     pub async fn new() -> Self {
-        let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
+        let core = CoreManagers::new();
 
         // Set up scripts directory
         let scripts_dir = dirs::data_local_dir().map(|mut p| {
@@ -100,12 +118,13 @@ impl AppState {
         });
 
         Self {
-            port_manager: Arc::new(Mutex::new(PortManager::new())),
-            script_manager,
+            port_manager: core.port_manager,
+            script_manager: core.script_manager,
             active_sniffers: Arc::new(Mutex::new(HashMap::new())),
             port_stats: Arc::new(Mutex::new(HashMap::new())),
             virtual_port_registry: Arc::new(RwLock::new(HashMap::new())),
             scripts_dir,
+            embedded_server: Arc::new(Mutex::new(None)),
         }
     }
 }
