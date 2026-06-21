@@ -1289,11 +1289,13 @@ mod tests {
 
         // All built-in scripts should have SCRIPT_META
         for script in &scripts {
-            assert!(
-                script.meta.is_some(),
-                "Built-in script '{}' should have SCRIPT_META",
-                script.name
-            );
+            if script.built_in {
+                assert!(
+                    script.meta.is_some(),
+                    "Built-in script '{}' should have SCRIPT_META",
+                    script.name
+                );
+            }
         }
 
         // Check line script meta
