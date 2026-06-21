@@ -15,8 +15,38 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "binary",
     min_frame_size = 12,
-    tags = {"dlt645", "electricity", "meter", "smart-grid", "china", "gb"},
+    tags = {"dlt645", "electricity", "meter", "smart-grid", "china", "gb"}
+,
 }
+
+_actions = {
+    read_data = {
+        label = "📊 读数据",
+        group = "DL/T 645",
+        icon = "bar-chart",
+        params = {
+            { name = "addr", type = "hex", label = "表地址 (hex, 12位)" },
+            { name = "di",   type = "hex", label = "数据标识 (hex, 8位)" },
+        },
+    },
+    read_address = {
+        label = "🔍 读表地址",
+        group = "DL/T 645",
+        icon = "search",
+    },
+    set_baudrate = {
+        label = "⚙️ 设置波特率",
+        group = "DL/T 645",
+        icon = "settings",
+        confirm = true,
+        params = {
+            { name = "addr",   type = "hex",    label = "表地址 (hex)" },
+            { name = "baud",   type = "number", label = "波特率 (0-3)" },
+        },
+    },
+}
+
+
 
 local frame_buffer = {}
 

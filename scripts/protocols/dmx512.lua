@@ -11,8 +11,46 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "binary",
     min_frame_size = 5,
-    tags = {"dmx", "dmx512", "lighting", "stage", "theatre"},
+    tags = {"dmx", "dmx512", "lighting", "stage", "theatre"}
+,
 }
+
+_actions = {
+    set_channels = {
+        label = "💡 设置通道",
+        group = "DMX512",
+        icon = "lightbulb",
+        params = {
+            { name = "channels", type = "string", label = "通道值 (起始CH:值, 如 1:255,2:128)" },
+        },
+    },
+    blackout = {
+        label = "🌑 全黑",
+        group = "DMX512",
+        icon = "moon",
+    },
+    full_on = {
+        label = "☀️ 全亮",
+        group = "DMX512",
+        icon = "sun",
+        params = {
+            { name = "count", type = "number", default = 16, label = "通道数" },
+        },
+    },
+    set_color = {
+        label = "🎨 设置 RGB",
+        group = "DMX512",
+        icon = "palette",
+        params = {
+            { name = "start_ch", type = "number", default = 1, label = "起始通道" },
+            { name = "r", type = "number", default = 255, label = "红 (0-255)" },
+            { name = "g", type = "number", default = 0, label = "绿 (0-255)" },
+            { name = "b", type = "number", default = 0, label = "蓝 (0-255)" },
+        },
+    },
+}
+
+
 
 local frame_buffer = {}
 

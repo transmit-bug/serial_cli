@@ -16,8 +16,42 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "binary",
     min_frame_size = 3,
-    tags = {"spi", "uart", "flash", "eeprom", "embedded", "bridge"},
+    tags = {"spi", "uart", "flash", "eeprom", "embedded", "bridge"}
+,
 }
+
+_actions = {
+    transfer = {
+        label = "🔄 SPI 传输",
+        group = "SPI",
+        icon = "refresh-cw",
+        params = {
+            { name = "cs",   type = "number", default = 0, label = "CS 片选" },
+            { name = "data", type = "hex",    label = "TX 数据 (hex)" },
+        },
+    },
+    read_reg = {
+        label = "📖 读寄存器",
+        group = "SPI",
+        icon = "book-open",
+        params = {
+            { name = "cs",  type = "number", default = 0, label = "CS 片选" },
+            { name = "reg", type = "number", label = "寄存器地址" },
+        },
+    },
+    write_reg = {
+        label = "✏️ 写寄存器",
+        group = "SPI",
+        icon = "edit",
+        params = {
+            { name = "cs",    type = "number", default = 0, label = "CS 片选" },
+            { name = "reg",   type = "number", label = "寄存器地址" },
+            { name = "value", type = "number", label = "值" },
+        },
+    },
+}
+
+
 
 local frame_buffer = {}
 

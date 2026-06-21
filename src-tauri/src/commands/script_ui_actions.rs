@@ -37,6 +37,7 @@ pub async fn list_standalone_script_actions(
 pub async fn call_standalone_script_function(
     script_source: String,
     function_name: String,
+    args: Option<String>,
     _state: State<'_, AppState>,
 ) -> Result<String, String> {
     let bindings = LuaBindings::new().map_err(|e| format!("Failed to create Lua engine: {}", e))?;
@@ -49,9 +50,14 @@ pub async fn call_standalone_script_function(
         .execute_script(&script_source)
         .map_err(|e| format!("Failed to load script: {}", e))?;
 
-    let result = bindings
-        .execute_action(&function_name)
-        .map_err(|e| e.to_string())?;
+    let result = match args {
+        Some(args_json) => bindings
+            .execute_action_with_args(&function_name, &args_json)
+            .map_err(|e| e.to_string()),
+        None => bindings
+            .execute_action(&function_name)
+            .map_err(|e| e.to_string()),
+    }?;
 
     Ok(result)
 }

@@ -10,8 +10,39 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "text",
     min_frame_size = 4,
-    tags = {"sdi12", "environmental", "soil", "weather", "agriculture"},
+    tags = {"sdi12", "environmental", "soil", "weather", "agriculture"}
+,
 }
+
+_actions = {
+    send_command = {
+        label = "📡 发送命令",
+        group = "SDI-12",
+        icon = "terminal",
+        params = {
+            { name = "addr", type = "string", default = "0", label = "传感器地址" },
+            { name = "cmd",  type = "string",               label = "命令 (如 M!, D0!)" },
+        },
+    },
+    measure = {
+        label = "📏 测量",
+        group = "SDI-12",
+        icon = "activity",
+        params = {
+            { name = "addr", type = "string", default = "0", label = "传感器地址" },
+        },
+    },
+    identify = {
+        label = "🔍 识别传感器",
+        group = "SDI-12",
+        icon = "search",
+        params = {
+            { name = "addr", type = "string", default = "0", label = "传感器地址" },
+        },
+    },
+}
+
+
 
 local response_buffer = ""
 

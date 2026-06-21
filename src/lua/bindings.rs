@@ -146,6 +146,15 @@ impl LuaBindings {
         crate::lua::ui_actions::execute_action_string(&self.lua, function_name)
     }
 
+    /// Execute a UI action function with JSON-encoded arguments.
+    pub fn execute_action_with_args(
+        &self,
+        function_name: &str,
+        args_json: &str,
+    ) -> Result<String> {
+        crate::lua::ui_actions::execute_action_with_args(&self.lua, function_name, args_json)
+    }
+
     /// Get a global value (simplified)
     pub fn get_global(&self, name: &str) -> Result<Value<'_>> {
         let globals = self.lua.globals();

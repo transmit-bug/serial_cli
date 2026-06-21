@@ -18,8 +18,39 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "binary",
     min_frame_size = 2,
-    tags = {"i2c", "uart", "sensor", "embedded", "bridge"},
+    tags = {"i2c", "uart", "sensor", "embedded", "bridge"}
+,
 }
+
+_actions = {
+    write_reg = {
+        label = "✏️ 写寄存器",
+        group = "I2C",
+        icon = "edit",
+        params = {
+            { name = "addr",  type = "number", label = "I2C 地址 (7-bit)" },
+            { name = "reg",   type = "number", label = "寄存器地址" },
+            { name = "value", type = "number", label = "值" },
+        },
+    },
+    read_reg = {
+        label = "📖 读寄存器",
+        group = "I2C",
+        icon = "book-open",
+        params = {
+            { name = "addr", type = "number", label = "I2C 地址 (7-bit)" },
+            { name = "reg",  type = "number", label = "寄存器地址" },
+            { name = "len",  type = "number", default = 1, label = "字节数" },
+        },
+    },
+    scan = {
+        label = "🔍 扫描总线",
+        group = "I2C",
+        icon = "search",
+    },
+}
+
+
 
 local frame_buffer = {}
 

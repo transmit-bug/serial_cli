@@ -84,8 +84,8 @@ describe("useSerialScriptStore", () => {
     it("should clear state on successful detach", async () => {
       useSerialScriptStore.setState({
         attachedScript: "some script",
-        scriptStatus: { status: "attached" },
-        actions: [{ label: "Action", function_name: "action" }],
+        scriptStatus: { has_script: true, timer_interval_ms: 0 },
+        actions: [{ label: "Action", function_name: "action", icon: null, group: null, confirm: false, params: [] }],
       });
       mockTauriApi.detachScript.mockResolvedValueOnce(undefined);
 
@@ -134,8 +134,8 @@ describe("useSerialScriptStore", () => {
   describe("loadActions", () => {
     it("should update actions from API", async () => {
       const mockActions = [
-        { label: "Action 1", function_name: "action1" },
-        { label: "Action 2", function_name: "action2" },
+        { label: "Action 1", function_name: "action1", icon: null, group: null, confirm: false, params: [] },
+        { label: "Action 2", function_name: "action2", icon: null, group: null, confirm: false, params: [] },
       ];
       mockTauriApi.listScriptActions.mockResolvedValueOnce(mockActions as any);
 
@@ -165,6 +165,7 @@ describe("useSerialScriptStore", () => {
       expect(mockTauriApi.callScriptFunction).toHaveBeenCalledWith(
         "port1",
         "myFunc",
+        undefined,
       );
     });
 
@@ -214,7 +215,7 @@ describe("useStandaloneScriptStore", () => {
     });
 
     it("should update actions from API", async () => {
-      const mockActions = [{ label: "Action", function_name: "action" }];
+      const mockActions = [{ label: "Action", function_name: "action", icon: null, group: null, confirm: false, params: [] }];
       mockTauriApi.listStandaloneScriptActions.mockResolvedValueOnce(
         mockActions as any,
       );
@@ -226,7 +227,7 @@ describe("useStandaloneScriptStore", () => {
 
     it("should set empty actions on error", async () => {
       useStandaloneScriptStore.setState({
-        actions: [{ label: "Old", function_name: "old" }],
+        actions: [{ label: "Old", function_name: "old", icon: null, group: null, confirm: false, params: [] }],
       });
       mockTauriApi.listStandaloneScriptActions.mockRejectedValueOnce(
         new Error("Failed"),
@@ -253,6 +254,7 @@ describe("useStandaloneScriptStore", () => {
       expect(mockTauriApi.callStandaloneScriptFunction).toHaveBeenCalledWith(
         "my script",
         "myFunc",
+        undefined,
       );
     });
 

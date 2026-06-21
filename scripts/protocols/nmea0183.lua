@@ -10,8 +10,34 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "text",
     min_frame_size = 8,
-    tags = {"nmea", "gps", "marine", "navigation"},
+    tags = {"nmea", "gps", "marine", "navigation"}
+,
 }
+
+_actions = {
+    gpgga = {
+        label = "📍 构造 GGA (定位)",
+        group = "NMEA",
+        icon = "map-pin",
+        params = {
+            { name = "lat", type = "string", default = "3956.1234,N", label = "纬度 (ddmm.mmmm,H)" },
+            { name = "lon", type = "string", default = "11623.5678,E", label = "经度 (dddmm.mmmm,H)" },
+            { name = "alt", type = "number", default = 50, label = "海拔 (m)" },
+        },
+    },
+    gprmc = {
+        label = "🗺️ 构造 RMC (推荐定位)",
+        group = "NMEA",
+        icon = "navigation",
+        params = {
+            { name = "lat", type = "string", default = "3956.1234,N", label = "纬度" },
+            { name = "lon", type = "string", default = "11623.5678,E", label = "经度" },
+            { name = "speed", type = "number", default = 0, label = "速度 (knots)" },
+        },
+    },
+}
+
+
 
 local sentence_buffer = {}
 

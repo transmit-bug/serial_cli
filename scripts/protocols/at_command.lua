@@ -7,8 +7,34 @@ SCRIPT_META = {
     description = "AT Command protocol (modem control)",
     author = "serial_cli",
     data_format = "text",
-    tags = {"at", "modem", " Hayes"},
+    tags = {"at", "modem", " Hayes"}
+,
 }
+
+_actions = {
+    send_at = {
+        label = "📡 发送 AT",
+        group = "AT Commands",
+        icon = "terminal",
+    },
+    get_signal = {
+        label = "📶 查询信号",
+        group = "AT Commands",
+        icon = "wifi",
+    },
+    get_imei = {
+        label = "📱 查询 IMEI",
+        group = "AT Commands",
+        icon = "smartphone",
+    },
+    get_sim_info = {
+        label = "💳 查询 SIM 信息",
+        group = "AT Commands",
+        icon = "credit-card",
+    },
+}
+
+
 
 local response_buffer = {}
 

@@ -15,8 +15,63 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "binary",
     min_frame_size = 4,
-    tags = {"pzem", "power", "energy", "modbus", "monitoring", "ac"},
+    tags = {"pzem", "power", "energy", "modbus", "monitoring", "ac"}
+,
 }
+
+_actions = {
+    read_all = {
+        label = "📊 读全部参数",
+        group = "PZEM-004T",
+        icon = "activity",
+        params = {
+            { name = "addr", type = "number", default = 248, label = "从站地址" },
+        },
+    },
+    read_voltage = {
+        label = "⚡ 读电压",
+        group = "PZEM-004T",
+        icon = "zap",
+        params = {
+            { name = "addr", type = "number", default = 248, label = "从站地址" },
+        },
+    },
+    read_current = {
+        label = "🔌 读电流",
+        group = "PZEM-004T",
+        icon = "activity",
+        params = {
+            { name = "addr", type = "number", default = 248, label = "从站地址" },
+        },
+    },
+    read_power = {
+        label = "💡 读功率",
+        group = "PZEM-004T",
+        icon = "power",
+        params = {
+            { name = "addr", type = "number", default = 248, label = "从站地址" },
+        },
+    },
+    read_energy = {
+        label = "🔋 读电能",
+        group = "PZEM-004T",
+        icon = "battery",
+        params = {
+            { name = "addr", type = "number", default = 248, label = "从站地址" },
+        },
+    },
+    set_address = {
+        label = "⚙️ 设置地址",
+        group = "PZEM-004T",
+        icon = "settings",
+        confirm = true,
+        params = {
+            { name = "new_addr", type = "number", label = "新地址 (1-247)" },
+        },
+    },
+}
+
+
 
 local frame_buffer = {}
 

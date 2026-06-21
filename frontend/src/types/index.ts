@@ -49,12 +49,20 @@ export interface ValidationError {
   message: string;
 }
 
+export interface ActionParam {
+  name: string;
+  type: "number" | "string" | "hex";
+  label?: string;
+  default?: string;
+}
+
 export interface UiAction {
   function_name: string;
   label: string;
   icon: string | null;
   group: string | null;
   confirm: boolean;
+  params: ActionParam[];
 }
 
 export interface VirtualPortInfo {

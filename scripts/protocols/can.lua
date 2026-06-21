@@ -16,8 +16,41 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "binary",
     min_frame_size = 5,
-    tags = {"can", "automotive", "industrial", "slcan", "lawicel"},
+    tags = {"can", "automotive", "industrial", "slcan", "lawicel"}
+,
 }
+
+_actions = {
+    standard = {
+        label = "📦 标准帧",
+        group = "CAN",
+        icon = "box",
+        params = {
+            { name = "id",   type = "hex",    label = "CAN ID (hex)" },
+            { name = "data", type = "hex",    label = "数据 (hex, 空格分隔)" },
+        },
+    },
+    extended = {
+        label = "📦 扩展帧",
+        group = "CAN",
+        icon = "box-select",
+        params = {
+            { name = "id",   type = "hex",    label = "扩展 ID (hex)" },
+            { name = "data", type = "hex",    label = "数据 (hex, 空格分隔)" },
+        },
+    },
+    remote = {
+        label = "🔄 远程帧",
+        group = "CAN",
+        icon = "refresh-cw",
+        params = {
+            { name = "id",  type = "hex",    label = "CAN ID (hex)" },
+            { name = "dlc", type = "number", default = 8, label = "DLC (0-8)" },
+        },
+    },
+}
+
+
 
 local frame_buffer = ""
 

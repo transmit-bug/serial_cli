@@ -381,6 +381,16 @@ impl SerialScriptEngine {
         let lua_guard = self.lua.lock().unwrap();
         crate::lua::ui_actions::execute_action_string(lua_guard.inner(), function_name)
     }
+
+    /// Execute a UI action function with JSON-encoded arguments.
+    pub async fn execute_action_with_args(
+        &self,
+        function_name: &str,
+        args_json: &str,
+    ) -> Result<String> {
+        let lua_guard = self.lua.lock().unwrap();
+        crate::lua::ui_actions::execute_action_with_args(lua_guard.inner(), function_name, args_json)
+    }
 }
 
 impl Drop for SerialScriptEngine {

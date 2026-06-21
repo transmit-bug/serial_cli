@@ -18,8 +18,29 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "binary",
     min_frame_size = 2,
-    tags = {"1wire", "onewire", "ds18b20", "temperature", "uart"},
+    tags = {"1wire", "onewire", "ds18b20", "temperature", "uart"}
+,
 }
+
+_actions = {
+    read_temp = {
+        label = "🌡️ 读温度",
+        group = "1-Wire",
+        icon = "thermometer",
+    },
+    read_rom = {
+        label = "🔍 读 ROM",
+        group = "1-Wire",
+        icon = "search",
+    },
+    search_rom = {
+        label = "🔎 搜索设备",
+        group = "1-Wire",
+        icon = "radar",
+    },
+}
+
+
 
 local frame_buffer = {}
 

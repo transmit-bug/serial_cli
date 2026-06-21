@@ -32,6 +32,20 @@ use crate::error::{Result, SerialError};
 use mlua::{Lua, Table, Value};
 use serde::Serialize;
 
+/// Action parameter descriptor
+#[derive(Debug, Clone, Serialize)]
+pub struct ActionParam {
+    /// Parameter name (matches Lua function argument name)
+    pub name: String,
+    /// Parameter type hint: "number", "string", "hex"
+    #[serde(rename = "type")]
+    pub param_type: String,
+    /// Display label for the UI
+    pub label: Option<String>,
+    /// Default value (if present, the param is optional)
+    pub default: Option<String>,
+}
+
 /// UI Action metadata
 #[derive(Debug, Clone, Serialize)]
 pub struct UiAction {
@@ -49,6 +63,9 @@ pub struct UiAction {
 
     /// Whether to show confirmation dialog
     pub confirm: bool,
+
+    /// Parameter descriptors (empty = no params needed)
+    pub params: Vec<ActionParam>,
 }
 
 impl UiAction {
@@ -61,6 +78,7 @@ impl UiAction {
             icon: None,
             group: None,
             confirm: false,
+            params: Vec::new(),
         }
     }
 }
@@ -134,6 +152,26 @@ pub fn discover_actions(lua: &Lua) -> Result<Vec<UiAction>> {
                     if let Ok(confirm) = meta_table.get::<_, bool>("confirm") {
                         action.confirm = confirm;
                     }
+
+                    // Params table
+                    if let Ok(params_table) = meta_table.get::<_, Table>("params") {
+                        for i in 1..=params_table.len().unwrap_or(0) {
+                            if let Ok(p) = params_table.get::<_, Table>(i) {
+                                let name: String =
+                                    p.get("name").unwrap_or_else(|_| format!("arg{}", i));
+                                let param_type: String =
+                                    p.get("type").unwrap_or_else(|_| "string".to_string());
+                                let label: Option<String> = p.get("label").ok();
+                                let default: Option<String> = p.get("default").ok();
+                                action.params.push(ActionParam {
+                                    name,
+                                    param_type,
+                                    label,
+                                    default,
+                                });
+                            }
+                        }
+                    }
                 }
 
                 actions.push(action);
@@ -154,15 +192,13 @@ pub fn discover_actions(lua: &Lua) -> Result<Vec<UiAction>> {
 
 /// Execute an action function by name
 ///
-/// Calls the specified Lua function with no arguments.
-/// Returns the Lua value returned by the function (if any).
+/// Calls the specified Lua function with optional arguments.
 pub fn execute_action(lua: &Lua, function_name: &str) -> Result<()> {
     let globals = lua.globals();
     let func = globals
         .get::<_, mlua::Function>(function_name)
         .map_err(SerialError::Lua)?;
 
-    // Call with no arguments
     func.call::<_, ()>(()).map_err(SerialError::Lua)?;
     Ok(())
 }
@@ -181,6 +217,78 @@ pub fn execute_action_string(lua: &Lua, function_name: &str) -> Result<String> {
 
     Ok(lua_value_to_string(&result))
 }
+
+/// Execute an action function with JSON-encoded arguments.
+///
+/// Parses the `args_json` string as a JSON array and converts each element
+/// to the corresponding Lua value before calling the function. Supports
+/// numbers, strings, booleans, and hex-encoded byte arrays.
+pub fn execute_action_with_args(
+    lua: &Lua,
+    function_name: &str,
+    args_json: &str,
+) -> Result<String> {
+    let globals = lua.globals();
+    let func = globals
+        .get::<_, mlua::Function>(function_name)
+        .map_err(SerialError::Lua)?;
+
+    let args: serde_json::Value =
+        serde_json::from_str(args_json).map_err(|e| SerialError::Config(format!("Invalid args JSON: {}", e)))?;
+
+    let args_array = match args {
+        serde_json::Value::Array(arr) => arr,
+        _ => return Err(SerialError::Config("args must be a JSON array".to_string())),
+    };
+
+    // Build a Lua table to hold the args, then unpack in a wrapper call
+    // This avoids lifetime issues with MultiValue and borrowed strings.
+    let args_table = lua.create_table().map_err(SerialError::Lua)?;
+    for (i, arg) in args_array.iter().enumerate() {
+        match arg {
+            serde_json::Value::Null => {
+                args_table.set(i + 1, mlua::Value::Nil).map_err(SerialError::Lua)?;
+            }
+            serde_json::Value::Bool(b) => {
+                args_table.set(i + 1, *b).map_err(SerialError::Lua)?;
+            }
+            serde_json::Value::Number(n) => {
+                if let Some(v) = n.as_i64() {
+                    args_table.set(i + 1, v).map_err(SerialError::Lua)?;
+                } else if let Some(v) = n.as_f64() {
+                    args_table.set(i + 1, v).map_err(SerialError::Lua)?;
+                }
+            }
+            serde_json::Value::String(s) => {
+                args_table.set(i + 1, s.as_str()).map_err(SerialError::Lua)?;
+            }
+            _ => {
+                // Objects/arrays: serialize as JSON string
+                let json_str = serde_json::to_string(arg)
+                    .map_err(|e| SerialError::Config(e.to_string()))?;
+                args_table.set(i + 1, json_str).map_err(SerialError::Lua)?;
+            }
+        }
+    }
+
+    // Use a Lua wrapper to spread table values as function arguments
+    let wrapper = lua
+        .create_function(move |lua, (func, args_table): (mlua::Function, mlua::Table)| {
+            // Build a call string: return function(unpack(args))
+            let globals = lua.globals();
+            let unpack_fn: mlua::Function = globals.get("unpack").or_else(|_| globals.get("table").and_then(|t: mlua::Table| t.get("unpack")))?;
+            let unpacked = unpack_fn.call::<_, mlua::MultiValue>(args_table)?;
+            func.call::<_, Value>(unpacked)
+        })
+        .map_err(SerialError::Lua)?;
+
+    let result = wrapper
+        .call::<_, Value>((func, args_table))
+        .map_err(SerialError::Lua)?;
+
+    Ok(lua_value_to_string(&result))
+}
+
 
 /// Convert a Lua return value to a display string.
 fn lua_value_to_string(value: &Value) -> String {
@@ -296,6 +404,98 @@ mod tests {
 
         // execute_action_string returns the result as "42"
         let result = execute_action_string(&lua, "action_test").unwrap();
+        assert_eq!(result, "42");
+    }
+
+    #[test]
+    fn test_discover_actions_with_params() {
+        let lua = Lua::new();
+
+        lua.load(
+            r#"
+            function action_read_coils(slave, addr, count)
+                return "read"
+            end
+
+            _actions = {
+                read_coils = {
+                    label = "📡 读线圈",
+                    group = "Modbus",
+                    params = {
+                        { name = "slave", type = "number", default = 1, label = "从站地址" },
+                        { name = "addr",  type = "number", default = 0, label = "起始地址" },
+                        { name = "count", type = "number", label = "数量" },
+                    },
+                },
+            }
+        "#,
+        )
+        .exec()
+        .unwrap();
+
+        let actions = discover_actions(&lua).unwrap();
+        assert_eq!(actions.len(), 1);
+
+        let action = &actions[0];
+        assert_eq!(action.params.len(), 3);
+        assert_eq!(action.params[0].name, "slave");
+        assert_eq!(action.params[0].param_type, "number");
+        assert_eq!(action.params[0].default, Some("1".to_string()));
+        assert_eq!(action.params[1].default, Some("0".to_string()));
+        assert_eq!(action.params[2].default, None); // required param
+    }
+
+    #[test]
+    fn test_execute_action_with_args() {
+        let lua = Lua::new();
+
+        lua.load(
+            r#"
+            function action_add(a, b)
+                return a + b
+            end
+        "#,
+        )
+        .exec()
+        .unwrap();
+
+        let result = execute_action_with_args(&lua, "action_add", "[3, 7]").unwrap();
+        assert_eq!(result, "10");
+    }
+
+    #[test]
+    fn test_execute_action_with_string_args() {
+        let lua = Lua::new();
+
+        lua.load(
+            r#"
+            function action_greet(name)
+                return "Hello " .. name
+            end
+        "#,
+        )
+        .exec()
+        .unwrap();
+
+        let result = execute_action_with_args(&lua, "action_greet", "[\"World\"]").unwrap();
+        assert_eq!(result, "Hello World");
+    }
+
+    #[test]
+    fn test_execute_action_with_empty_args() {
+        let lua = Lua::new();
+
+        lua.load(
+            r#"
+            function action_noop()
+                return 42
+            end
+        "#,
+        )
+        .exec()
+        .unwrap();
+
+        let result = execute_action_with_args(&lua, "action_noop", "[]").unwrap();
         assert_eq!(result, "42");
     }
 

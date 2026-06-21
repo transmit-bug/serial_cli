@@ -17,8 +17,47 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "text",
     min_frame_size = 4,
-    tags = {"mqtt", "iot", "at", "gsm", "lte", "sim7600", "esp32"},
+    tags = {"mqtt", "iot", "at", "gsm", "lte", "sim7600", "esp32"}
+,
 }
+
+_actions = {
+    connect = {
+        label = "🔗 连接 Broker",
+        group = "MQTT",
+        icon = "link",
+        params = {
+            { name = "host", type = "string", label = "Broker 地址" },
+            { name = "port", type = "number", default = 1883, label = "端口" },
+        },
+    },
+    publish = {
+        label = "📤 发布消息",
+        group = "MQTT",
+        icon = "send",
+        params = {
+            { name = "topic",   type = "string", label = "主题" },
+            { name = "message", type = "string", label = "消息内容" },
+            { name = "qos",     type = "number", default = 0, label = "QoS (0-2)" },
+        },
+    },
+    subscribe = {
+        label = "📥 订阅主题",
+        group = "MQTT",
+        icon = "inbox",
+        params = {
+            { name = "topic", type = "string", label = "主题" },
+            { name = "qos",   type = "number", default = 0, label = "QoS (0-2)" },
+        },
+    },
+    disconnect = {
+        label = "❌ 断开连接",
+        group = "MQTT",
+        icon = "x-circle",
+    },
+}
+
+
 
 local response_buffer = ""
 

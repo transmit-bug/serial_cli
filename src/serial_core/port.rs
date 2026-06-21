@@ -525,6 +525,27 @@ impl PortManager {
         }
     }
 
+    /// Execute a UI action with JSON-encoded arguments.
+    pub async fn call_script_action_with_args(
+        &self,
+        port_id: &str,
+        function_name: &str,
+        args_json: &str,
+    ) -> Result<String> {
+        let port_handle = self.get_port(port_id).await?;
+        let handle = port_handle.lock().await;
+        match &handle.script_engine {
+            Some(engine) => {
+                engine
+                    .execute_action_with_args(function_name, args_json)
+                    .await
+            }
+            None => Err(SerialError::Script(crate::error::ScriptError::ApiError(
+                "No script attached to port".into(),
+            ))),
+        }
+    }
+
     /// Send data and wait for a complete response frame.
     ///
     /// Delegates to [`SerialPortHandle::query`] — the script's `on_recv`

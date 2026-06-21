@@ -76,16 +76,17 @@ export const tauriApi = {
     invoke<ScriptStatus>("get_script_status", { portId }),
   listScriptActions: (portId: string) =>
     invoke<UiAction[]>("list_script_actions", { portId }),
-  callScriptFunction: (portId: string, functionName: string) =>
-    invoke<string>("call_script_function", { portId, functionName }),
+  callScriptFunction: (portId: string, functionName: string, args?: string) =>
+    invoke<string>("call_script_function", { portId, functionName, args: args ?? null }),
 
   // Standalone script UI actions
   listStandaloneScriptActions: (scriptSource: string) =>
     invoke<UiAction[]>("list_standalone_script_actions", { scriptSource }),
-  callStandaloneScriptFunction: (scriptSource: string, functionName: string) =>
+  callStandaloneScriptFunction: (scriptSource: string, functionName: string, args?: string) =>
     invoke<string>("call_standalone_script_function", {
       scriptSource,
       functionName,
+      args: args ?? null,
     }),
 
   // Virtual port commands

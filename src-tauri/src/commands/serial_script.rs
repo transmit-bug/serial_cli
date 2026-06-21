@@ -88,13 +88,20 @@ pub async fn list_script_actions(
 pub async fn call_script_function(
     port_id: String,
     function_name: String,
+    args: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let manager = state.port_manager.lock().await;
-    manager
-        .call_script_action(&port_id, &function_name)
-        .await
-        .map_err(|e| e.to_string())
+    match args {
+        Some(args_json) => manager
+            .call_script_action_with_args(&port_id, &function_name, &args_json)
+            .await
+            .map_err(|e| e.to_string()),
+        None => manager
+            .call_script_action(&port_id, &function_name)
+            .await
+            .map_err(|e| e.to_string()),
+    }
 }
 
 /// Script status response
