@@ -1,6 +1,16 @@
 -- Modbus RTU protocol
 -- Frame: [slave_id][function_code][data...][CRC16_lo][CRC16_hi]
 
+SCRIPT_META = {
+    name = "modbus_rtu",
+    version = "1.0.0",
+    description = "Modbus RTU protocol (industrial communication)",
+    author = "serial_cli",
+    data_format = "binary",
+    min_frame_size = 4,
+    tags = {"modbus", "rtu", "industrial"},
+}
+
 local frame_buffer = {}
 
 -- CRC16 for Modbus RTU (polynomial 0xA001)

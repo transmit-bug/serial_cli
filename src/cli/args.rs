@@ -6,8 +6,7 @@
 use clap::{Parser, Subcommand};
 
 use super::types::{
-    ConfigCommand, PortCommand, ScriptCommand, ServerCommand, SniffCommand,
-    VirtualCommand,
+    ConfigCommand, PortCommand, ScriptCommand, ServerCommand, SniffCommand, VirtualCommand,
 };
 
 /// Top-level CLI arguments for the serial-cli application.

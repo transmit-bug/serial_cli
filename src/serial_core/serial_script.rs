@@ -8,7 +8,7 @@
 //! serial port lifecycle — auto-reply, heartbeat, conditional filtering, etc.
 
 use crate::error::{Result, SerialError};
-use crate::utils::lua_conversion::{lua_table_to_bytes, bytes_to_lua_table};
+use crate::utils::lua_conversion::{bytes_to_lua_table, lua_table_to_bytes};
 use mlua::Lua;
 use std::sync::{Arc, Mutex};
 

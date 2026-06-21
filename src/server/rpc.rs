@@ -279,7 +279,10 @@ impl RpcDispatcher {
                     loop {
                         match data_rx.recv().await {
                             Ok(data) => {
-                                let data_hex = data.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+                                let data_hex = data
+                                    .iter()
+                                    .map(|b| format!("{:02x}", b))
+                                    .collect::<String>();
                                 let push_event = crate::server::state::DataPushEvent {
                                     connection_id: connection_id_clone.clone(),
                                     data_hex,

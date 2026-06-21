@@ -32,10 +32,7 @@ pub async fn list_scripts(state: State<'_, AppState>) -> Result<Vec<ScriptInfo>,
 
 /// Load a custom script from a file path
 #[tauri::command]
-pub async fn load_script(
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<ScriptInfo, String> {
+pub async fn load_script(path: String, state: State<'_, AppState>) -> Result<ScriptInfo, String> {
     let path_buf = PathBuf::from(&path);
     let canonical = path_buf
         .canonicalize()
@@ -158,8 +155,8 @@ pub async fn validate_script_file(path: String) -> Result<(), String> {
         return Err("Script files must have .lua extension".to_string());
     }
 
-    let source = std::fs::read_to_string(&canonical)
-        .map_err(|e| format!("Failed to read script: {}", e))?;
+    let source =
+        std::fs::read_to_string(&canonical).map_err(|e| format!("Failed to read script: {}", e))?;
 
     serial_cli::script::ScriptManager::validate_source(&source)
         .map_err(|e| format!("Script validation failed: {}", e))
@@ -270,7 +267,9 @@ pub async fn script_encode(
     let engine = manager
         .create_engine(&script)
         .map_err(|e| format!("Failed to create engine: {}", e))?;
-    engine.load().map_err(|e| format!("Failed to load script: {}", e))?;
+    engine
+        .load()
+        .map_err(|e| format!("Failed to load script: {}", e))?;
     engine
         .on_send(&data)
         .map_err(|e| format!("Encode failed: {}", e))
@@ -287,7 +286,9 @@ pub async fn script_decode(
     let engine = manager
         .create_engine(&script)
         .map_err(|e| format!("Failed to create engine: {}", e))?;
-    engine.load().map_err(|e| format!("Failed to load script: {}", e))?;
+    engine
+        .load()
+        .map_err(|e| format!("Failed to load script: {}", e))?;
     Ok(engine.on_recv(&data))
 }
 
@@ -358,10 +359,8 @@ pub async fn validate_script_detailed(
     _state: State<'_, AppState>,
 ) -> Result<ScriptValidationResult, String> {
     let warnings = serial_cli::script::ScriptManager::validate_script_detailed(&script);
-    
-    Ok(ScriptValidationResult {
-        warnings,
-    })
+
+    Ok(ScriptValidationResult { warnings })
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

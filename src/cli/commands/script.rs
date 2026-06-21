@@ -73,7 +73,9 @@ pub async fn handle_script_command(
     script_manager: Arc<Mutex<ScriptManager>>,
 ) -> Result<()> {
     match cmd {
-        ScriptCommand::List { detailed } => list_scripts(detailed, json_output, script_manager).await,
+        ScriptCommand::List { detailed } => {
+            list_scripts(detailed, json_output, script_manager).await
+        }
         ScriptCommand::Info { name } => show_script_info(&name, json_output, script_manager).await,
         ScriptCommand::Validate { path } => validate_script(&path, json_output),
         ScriptCommand::Load { path, .. } => load_script(&path, json_output, script_manager).await,
@@ -158,7 +160,10 @@ async fn show_script_info(
     let meta = manager.get_meta(name)?;
 
     println!("Script: {}", meta.name);
-    println!("Type: {}", if meta.built_in { "Built-in" } else { "Custom" });
+    println!(
+        "Type: {}",
+        if meta.built_in { "Built-in" } else { "Custom" }
+    );
     println!("Description: {}", meta.description);
     if let Some(ref path) = meta.path {
         println!("Path: {}", path.display());
@@ -252,7 +257,10 @@ fn handle_hot_reload(action: &str, _json_output: bool) -> Result<()> {
         }
         "status" => {
             let enabled = config_manager.is_hot_reload_enabled();
-            println!("Script hot-reload status: {}", if enabled { "Enabled" } else { "Disabled" });
+            println!(
+                "Script hot-reload status: {}",
+                if enabled { "Enabled" } else { "Disabled" }
+            );
         }
         _ => {
             return Err(SerialError::InvalidInput(format!(

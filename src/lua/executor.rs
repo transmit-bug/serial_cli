@@ -21,7 +21,7 @@ impl ScriptEngine {
     pub fn new(script_manager: Arc<Mutex<ScriptManager>>) -> Result<Self> {
         let mut bindings = LuaBindings::new()?;
         bindings.set_script_manager(script_manager.clone());
-        
+
         Ok(Self {
             bindings,
             port_manager: PortManager::new(),

@@ -322,16 +322,34 @@ mod tests {
 
     #[test]
     fn test_parse_flow_control_software() {
-        assert!(matches!(parse_flow_control("Software"), FlowControl::Software));
-        assert!(matches!(parse_flow_control("software"), FlowControl::Software));
-        assert!(matches!(parse_flow_control("SOFTWARE"), FlowControl::Software));
+        assert!(matches!(
+            parse_flow_control("Software"),
+            FlowControl::Software
+        ));
+        assert!(matches!(
+            parse_flow_control("software"),
+            FlowControl::Software
+        ));
+        assert!(matches!(
+            parse_flow_control("SOFTWARE"),
+            FlowControl::Software
+        ));
     }
 
     #[test]
     fn test_parse_flow_control_hardware() {
-        assert!(matches!(parse_flow_control("Hardware"), FlowControl::Hardware));
-        assert!(matches!(parse_flow_control("hardware"), FlowControl::Hardware));
-        assert!(matches!(parse_flow_control("HARDWARE"), FlowControl::Hardware));
+        assert!(matches!(
+            parse_flow_control("Hardware"),
+            FlowControl::Hardware
+        ));
+        assert!(matches!(
+            parse_flow_control("hardware"),
+            FlowControl::Hardware
+        ));
+        assert!(matches!(
+            parse_flow_control("HARDWARE"),
+            FlowControl::Hardware
+        ));
     }
 
     #[test]

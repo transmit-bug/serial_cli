@@ -65,7 +65,13 @@ mod tests {
         let managers2 = managers1.clone();
 
         // Both should point to the same underlying managers
-        assert!(Arc::ptr_eq(&managers1.port_manager, &managers2.port_manager));
-        assert!(Arc::ptr_eq(&managers1.script_manager, &managers2.script_manager));
+        assert!(Arc::ptr_eq(
+            &managers1.port_manager,
+            &managers2.port_manager
+        ));
+        assert!(Arc::ptr_eq(
+            &managers1.script_manager,
+            &managers2.script_manager
+        ));
     }
 }

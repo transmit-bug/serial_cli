@@ -2,7 +2,7 @@
 //!
 //! 测试端口冲突检测和状态同步功能
 
-use serial_cli::serial_core::{PortManager, SerialConfig, Parity, FlowControl};
+use serial_cli::serial_core::{FlowControl, Parity, PortManager, SerialConfig};
 
 #[tokio::test]
 async fn test_port_manager_creation() {
@@ -35,7 +35,10 @@ async fn test_list_ports_returns_available() {
     let ports = manager.list_ports().unwrap();
 
     // 返回的应该是 Vec<SerialPortInfo>
-    assert!(!ports.is_empty() || ports.is_empty(), "Port list should be accessible");
+    assert!(
+        !ports.is_empty() || ports.is_empty(),
+        "Port list should be accessible"
+    );
 }
 
 #[tokio::test]

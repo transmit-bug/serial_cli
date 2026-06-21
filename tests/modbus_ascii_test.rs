@@ -28,10 +28,7 @@ async fn test_modbus_ascii_on_send() {
     assert_eq!(encoded[encoded.len() - 1], 0x0A);
 
     // 将结果转换为字符串以便检查
-    let result_str: String = encoded
-        .iter()
-        .map(|&b| b as char)
-        .collect();
+    let result_str: String = encoded.iter().map(|&b| b as char).collect();
 
     // 验证格式：:[HEX_DATA][LRC_HEX]\r\n
     assert!(result_str.starts_with(':'));

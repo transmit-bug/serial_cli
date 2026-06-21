@@ -1,6 +1,15 @@
 -- AT Command protocol
 -- Handles AT command/response framing.
 
+SCRIPT_META = {
+    name = "at_command",
+    version = "1.0.0",
+    description = "AT Command protocol (modem control)",
+    author = "serial_cli",
+    data_format = "text",
+    tags = {"at", "modem", " Hayes"},
+}
+
 local response_buffer = {}
 
 function on_send(data)

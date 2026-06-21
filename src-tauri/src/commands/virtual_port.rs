@@ -370,7 +370,10 @@ mod tests {
 
     #[test]
     fn test_parse_backend_type_namedpipe() {
-        assert_eq!(parse_backend_type("namedpipe"), Some(BackendType::NamedPipe));
+        assert_eq!(
+            parse_backend_type("namedpipe"),
+            Some(BackendType::NamedPipe)
+        );
     }
 
     #[test]

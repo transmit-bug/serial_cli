@@ -19,8 +19,7 @@ use tokio::sync::Mutex;
 
 /// Convert a hex-encoded string to bytes (used for binary protocol data in Lua).
 fn hex_str_to_bytes(hex: &str) -> std::result::Result<Vec<u8>, mlua::Error> {
-    crate::utils::hex::hex_decode(hex)
-        .map_err(|e| mlua::Error::RuntimeError(e.to_string()))
+    crate::utils::hex::hex_decode(hex).map_err(|e| mlua::Error::RuntimeError(e.to_string()))
 }
 
 /// Convert bytes to a hex-encoded string (used for binary protocol data in Lua).
@@ -70,6 +69,8 @@ impl LuaBindings {
             self.register_serial_close()?;
             self.register_serial_send()?;
             self.register_serial_recv()?;
+            self.register_serial_query()?;
+            self.register_serial_flush()?;
             self.register_serial_list()?;
         }
 
@@ -312,6 +313,75 @@ impl LuaBindings {
         Ok(())
     }
 
+    /// Register serial_query API
+    ///
+    /// `serial_query(port_id, data, timeout_ms) -> byte_table | nil`
+    ///
+    /// Sends `data` and waits for a complete response frame. The port's
+    /// script engine `on_recv` hook determines when a frame is complete.
+    /// Returns a Lua byte table on success, or `nil` on timeout.
+    pub fn register_serial_query(&self) -> Result<()> {
+        let port_manager = self
+            .port_manager
+            .clone()
+            .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
+
+        let query = self.lua.create_function(
+            move |lua, (port_id, data, timeout_ms): (String, mlua::Table, u64)| {
+                // Convert Lua byte table to Vec<u8>
+                let mut bytes = Vec::new();
+                for pair in data.pairs::<usize, u8>() {
+                    let (_, b) = pair.map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+                    bytes.push(b);
+                }
+
+                let pm = port_manager.clone();
+                let result = run_in_separate_runtime(move || async move {
+                    let pm_guard = pm.lock().await;
+                    pm_guard.query(&port_id, &bytes, timeout_ms).await
+                })?;
+
+                match result {
+                    Some(response) => {
+                        let table = lua.create_table()?;
+                        for (i, &byte) in response.iter().enumerate() {
+                            table.set(i + 1, byte)?;
+                        }
+                        Ok(mlua::Value::Table(table))
+                    }
+                    None => Ok(mlua::Value::Nil),
+                }
+            },
+        )?;
+
+        self.lua.globals().set("serial_query", query)?;
+        Ok(())
+    }
+
+    /// Register serial_flush API
+    ///
+    /// `serial_flush(port_id)`
+    ///
+    /// Clears the receive buffer for the specified port.
+    /// Useful for error recovery after timeout or checksum failure.
+    pub fn register_serial_flush(&self) -> Result<()> {
+        let port_manager = self
+            .port_manager
+            .clone()
+            .ok_or_else(|| SerialError::Config("PortManager not initialized".to_string()))?;
+
+        let flush = self.lua.create_function(move |_, port_id: String| {
+            let pm = port_manager.clone();
+            run_in_separate_runtime(move || async move {
+                let pm_guard = pm.lock().await;
+                pm_guard.flush(&port_id).await
+            })
+        })?;
+
+        self.lua.globals().set("serial_flush", flush)?;
+        Ok(())
+    }
+
     /// Register serial_list API
     pub fn register_serial_list(&self) -> Result<()> {
         let port_manager = self
@@ -412,36 +482,39 @@ impl LuaBindings {
             .clone()
             .ok_or_else(|| SerialError::Config("ScriptManager not initialized".to_string()))?;
 
-        let encode = self.lua.create_function(
-            move |_, (script_name, data): (String, String)| {
-                let sm = script_manager.clone();
-                run_in_separate_runtime(|| async move {
-                    let manager = sm.lock().await;
-                    let engine = manager.create_engine(&script_name)?;
-                    engine.load()?;
+        let encode =
+            self.lua
+                .create_function(move |_, (script_name, data): (String, String)| {
+                    let sm = script_manager.clone();
+                    run_in_separate_runtime(|| async move {
+                        let manager = sm.lock().await;
+                        let engine = manager.create_engine(&script_name)?;
+                        engine.load()?;
 
-                    // Convert input to bytes
-                    let is_binary = matches!(script_name.as_str(), "modbus_rtu" | "modbus_ascii");
-                    let input_bytes = if is_binary {
-                        hex_str_to_bytes(&data).map_err(|e| {
-                            SerialError::Script(crate::error::ScriptError::ApiError(e.to_string()))
-                        })?
-                    } else {
-                        data.into_bytes()
-                    };
+                        // Convert input to bytes
+                        let is_binary =
+                            matches!(script_name.as_str(), "modbus_rtu" | "modbus_ascii");
+                        let input_bytes = if is_binary {
+                            hex_str_to_bytes(&data).map_err(|e| {
+                                SerialError::Script(crate::error::ScriptError::ApiError(
+                                    e.to_string(),
+                                ))
+                            })?
+                        } else {
+                            data.into_bytes()
+                        };
 
-                    // Call on_send
-                    let output_bytes = engine.on_send(&input_bytes)?;
+                        // Call on_send
+                        let output_bytes = engine.on_send(&input_bytes)?;
 
-                    // Convert output back to string
-                    if is_binary {
-                        Ok(bytes_to_hex_str(&output_bytes))
-                    } else {
-                        Ok(String::from_utf8_lossy(&output_bytes).to_string())
-                    }
-                })
-            },
-        )?;
+                        // Convert output back to string
+                        if is_binary {
+                            Ok(bytes_to_hex_str(&output_bytes))
+                        } else {
+                            Ok(String::from_utf8_lossy(&output_bytes).to_string())
+                        }
+                    })
+                })?;
 
         self.lua.globals().set("script_encode", &encode)?;
         Ok(())
@@ -458,36 +531,39 @@ impl LuaBindings {
             .clone()
             .ok_or_else(|| SerialError::Config("ScriptManager not initialized".to_string()))?;
 
-        let decode = self.lua.create_function(
-            move |_, (script_name, data): (String, String)| {
-                let sm = script_manager.clone();
-                run_in_separate_runtime(|| async move {
-                    let manager = sm.lock().await;
-                    let engine = manager.create_engine(&script_name)?;
-                    engine.load()?;
+        let decode =
+            self.lua
+                .create_function(move |_, (script_name, data): (String, String)| {
+                    let sm = script_manager.clone();
+                    run_in_separate_runtime(|| async move {
+                        let manager = sm.lock().await;
+                        let engine = manager.create_engine(&script_name)?;
+                        engine.load()?;
 
-                    // Convert input to bytes
-                    let is_binary = matches!(script_name.as_str(), "modbus_rtu" | "modbus_ascii");
-                    let input_bytes = if is_binary {
-                        hex_str_to_bytes(&data).map_err(|e| {
-                            SerialError::Script(crate::error::ScriptError::ApiError(e.to_string()))
-                        })?
-                    } else {
-                        data.into_bytes()
-                    };
+                        // Convert input to bytes
+                        let is_binary =
+                            matches!(script_name.as_str(), "modbus_rtu" | "modbus_ascii");
+                        let input_bytes = if is_binary {
+                            hex_str_to_bytes(&data).map_err(|e| {
+                                SerialError::Script(crate::error::ScriptError::ApiError(
+                                    e.to_string(),
+                                ))
+                            })?
+                        } else {
+                            data.into_bytes()
+                        };
 
-                    // Call on_recv
-                    let output_bytes = engine.on_recv(&input_bytes);
+                        // Call on_recv
+                        let output_bytes = engine.on_recv(&input_bytes);
 
-                    // Convert output back to string
-                    if is_binary {
-                        Ok(bytes_to_hex_str(&output_bytes))
-                    } else {
-                        Ok(String::from_utf8_lossy(&output_bytes).to_string())
-                    }
-                })
-            },
-        )?;
+                        // Convert output back to string
+                        if is_binary {
+                            Ok(bytes_to_hex_str(&output_bytes))
+                        } else {
+                            Ok(String::from_utf8_lossy(&output_bytes).to_string())
+                        }
+                    })
+                })?;
 
         self.lua.globals().set("script_decode", &decode)?;
         Ok(())
@@ -511,7 +587,14 @@ impl LuaBindings {
             for (i, script) in scripts.iter().enumerate() {
                 let script_table = lua.create_table()?;
                 script_table.set("name", script.name.clone())?;
-                script_table.set("type", if script.built_in { "built-in" } else { "custom" })?;
+                script_table.set(
+                    "type",
+                    if script.built_in {
+                        "built-in"
+                    } else {
+                        "custom"
+                    },
+                )?;
                 result.set(i + 1, script_table)?;
             }
 
@@ -969,7 +1052,7 @@ mod tests {
         "#;
 
         match bindings.execute_script(script) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => panic!("Script execution failed: {:?}", e),
         }
     }
@@ -1038,7 +1121,7 @@ mod tests {
         "#;
 
         match bindings.execute_script(script) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => panic!("Script execution failed: {:?}", e),
         }
     }
@@ -1157,7 +1240,7 @@ mod tests {
         // Test that get_debug_traceback handles missing debug library gracefully
         // In default Lua initialization, debug library may not be loaded
         let traceback = bindings.get_debug_traceback();
-        
+
         // The method should either:
         // 1. Return None if debug library is not available
         // 2. Return Some(String) if debug library is available
@@ -1167,5 +1250,96 @@ mod tests {
             assert!(!trace.is_empty(), "Traceback should not be empty");
         }
         // If None, that's also acceptable - debug library not loaded
+    }
+
+    #[test]
+    fn test_serial_query_lua() {
+        let mut bindings = LuaBindings::new().unwrap();
+        let pm = Arc::new(Mutex::new(PortManager::new()));
+        bindings.set_port_manager(pm);
+        bindings.register_serial_query().unwrap();
+
+        let script = r#"
+            assert(type(serial_query) == "function", "serial_query should be a function")
+            -- Can't actually call without a real port, just verify registration
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_serial_flush_lua() {
+        let mut bindings = LuaBindings::new().unwrap();
+        let pm = Arc::new(Mutex::new(PortManager::new()));
+        bindings.set_port_manager(pm);
+        bindings.register_serial_flush().unwrap();
+
+        let script = r#"
+            assert(type(serial_flush) == "function", "serial_flush should be a function")
+            -- Can't actually call without a real port, just verify registration
+        "#;
+
+        assert!(bindings.execute_script(script).is_ok());
+    }
+
+    #[test]
+    fn test_script_meta_extraction() {
+        let manager = crate::script::ScriptManager::new();
+        let scripts = manager.list();
+
+        // All built-in scripts should have SCRIPT_META
+        for script in &scripts {
+            assert!(
+                script.meta.is_some(),
+                "Built-in script '{}' should have SCRIPT_META",
+                script.name
+            );
+        }
+
+        // Check line script meta
+        let line_info = scripts.iter().find(|s| s.name == "line").unwrap();
+        let meta = line_info.meta.as_ref().unwrap();
+        assert_eq!(meta.name, Some("line".to_string()));
+        assert_eq!(meta.data_format, Some("text".to_string()));
+
+        // Check modbus_rtu script meta
+        let modbus_info = scripts.iter().find(|s| s.name == "modbus_rtu").unwrap();
+        let meta = modbus_info.meta.as_ref().unwrap();
+        assert_eq!(meta.name, Some("modbus_rtu".to_string()));
+        assert_eq!(meta.data_format, Some("binary".to_string()));
+        assert_eq!(meta.min_frame_size, Some(4));
+    }
+
+    #[test]
+    fn test_script_meta_serialization() {
+        use crate::script::ScriptMeta;
+
+        let meta = ScriptMeta {
+            name: Some("test".to_string()),
+            version: Some("1.0.0".to_string()),
+            description: Some("Test protocol".to_string()),
+            author: Some("tester".to_string()),
+            license: Some("MIT".to_string()),
+            homepage: None,
+            tags: Some(vec!["test".to_string(), "example".to_string()]),
+            data_format: Some("binary".to_string()),
+            min_frame_size: Some(4),
+        };
+
+        // Test JSON serialization
+        let json = serde_json::to_string(&meta).unwrap();
+        assert!(json.contains("\"name\":\"test\""));
+        assert!(json.contains("\"version\":\"1.0.0\""));
+        assert!(json.contains("\"data_format\":\"binary\""));
+        assert!(json.contains("\"min_frame_size\":4"));
+
+        // Test that None fields are skipped
+        assert!(!json.contains("homepage"));
+
+        // Test deserialization
+        let deserialized: ScriptMeta = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, Some("test".to_string()));
+        assert_eq!(deserialized.min_frame_size, Some(4));
+        assert_eq!(deserialized.homepage, None);
     }
 }

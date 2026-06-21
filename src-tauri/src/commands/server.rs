@@ -143,10 +143,7 @@ pub async fn start_server(
 
 /// Stop the embedded server
 #[tauri::command]
-pub async fn stop_server(
-    state: State<'_, AppState>,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
+pub async fn stop_server(state: State<'_, AppState>, app: tauri::AppHandle) -> Result<(), String> {
     let mut server_state = state.embedded_server.lock().await;
 
     if let Some(running) = server_state.take() {
@@ -154,11 +151,8 @@ pub async fn stop_server(
         running.cancel_token.cancel();
 
         // Wait for listener to finish (with timeout)
-        let _ = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            running.listener_handle,
-        )
-        .await;
+        let _ =
+            tokio::time::timeout(std::time::Duration::from_secs(2), running.listener_handle).await;
 
         // Emit event
         if let Err(e) =

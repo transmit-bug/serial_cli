@@ -243,10 +243,7 @@ mod tests {
     fn test_hex_decode_odd_length() {
         let result = hex_decode("012");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("even length"));
+        assert!(result.unwrap_err().to_string().contains("even length"));
     }
 
     #[test]

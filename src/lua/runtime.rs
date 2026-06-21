@@ -361,8 +361,7 @@ impl ScriptRuntime {
 
     /// Decode a hex string to bytes (shared helper).
     fn hex_decode(hex: &str) -> mlua::Result<Vec<u8>> {
-        crate::utils::hex::hex_decode(hex)
-            .map_err(|e| mlua::Error::RuntimeError(e.to_string()))
+        crate::utils::hex::hex_decode(hex).map_err(|e| mlua::Error::RuntimeError(e.to_string()))
     }
 }
 

@@ -51,30 +51,36 @@ pub trait ResultExt<T> {
 
 impl<T, E: Into<SerialError>> ResultExt<T> for std::result::Result<T, E> {
     fn context(self, operation: impl Into<String>) -> Result<T> {
-        self.map_err(|e| SerialError::Context(Box::new(ErrorContext {
-            operation: operation.into(),
-            port: None,
-            script: None,
-            source: Box::new(e.into()),
-        })))
+        self.map_err(|e| {
+            SerialError::Context(Box::new(ErrorContext {
+                operation: operation.into(),
+                port: None,
+                script: None,
+                source: Box::new(e.into()),
+            }))
+        })
     }
 
     fn with_port(self, operation: impl Into<String>, port: impl Into<String>) -> Result<T> {
-        self.map_err(|e| SerialError::Context(Box::new(ErrorContext {
-            operation: operation.into(),
-            port: Some(port.into()),
-            script: None,
-            source: Box::new(e.into()),
-        })))
+        self.map_err(|e| {
+            SerialError::Context(Box::new(ErrorContext {
+                operation: operation.into(),
+                port: Some(port.into()),
+                script: None,
+                source: Box::new(e.into()),
+            }))
+        })
     }
 
     fn with_script(self, operation: impl Into<String>, script: impl Into<PathBuf>) -> Result<T> {
-        self.map_err(|e| SerialError::Context(Box::new(ErrorContext {
-            operation: operation.into(),
-            port: None,
-            script: Some(script.into()),
-            source: Box::new(e.into()),
-        })))
+        self.map_err(|e| {
+            SerialError::Context(Box::new(ErrorContext {
+                operation: operation.into(),
+                port: None,
+                script: Some(script.into()),
+                source: Box::new(e.into()),
+            }))
+        })
     }
 }
 

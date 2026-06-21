@@ -97,7 +97,8 @@ mod tests {
 
     #[test]
     fn test_port_stats_deserialization_missing_last_activity() {
-        let json = r#"{"bytes_sent": 0, "bytes_received": 0, "packets_sent": 0, "packets_received": 0}"#;
+        let json =
+            r#"{"bytes_sent": 0, "bytes_received": 0, "packets_sent": 0, "packets_received": 0}"#;
         let stats: PortStats = serde_json::from_str(json).unwrap();
         assert_eq!(stats.last_activity, None);
     }

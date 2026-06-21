@@ -205,7 +205,8 @@ mod script_lifecycle_tests {
         temp_file.flush().unwrap();
 
         // Get the file name (without extension) as the script name
-        let file_name = temp_file.path()
+        let file_name = temp_file
+            .path()
             .file_stem()
             .unwrap()
             .to_str()

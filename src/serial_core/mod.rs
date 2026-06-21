@@ -23,8 +23,8 @@ pub use serial_script::SerialScriptEngine;
 pub use signals::{create_signal_controller, PlatformSignals, SignalState};
 pub use sniffer::{CapturedPacket, PacketDirection, SerialSniffer, SnifferConfig, SnifferSession};
 pub use virtual_port::{
-    CapturedPacket as VirtualCapturedPacket,
-    PacketDirection as VirtualPacketDirection, VirtualConfig, VirtualSerialPair, VirtualStats,
+    CapturedPacket as VirtualCapturedPacket, PacketDirection as VirtualPacketDirection,
+    VirtualConfig, VirtualSerialPair, VirtualStats,
 };
 
 #[cfg(windows)]

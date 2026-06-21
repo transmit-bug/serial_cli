@@ -45,7 +45,9 @@ async fn test_validate_script_missing_callbacks() {
 
     let warnings = ScriptManager::validate_script_detailed(script_without_callbacks);
     assert!(
-        warnings.iter().any(|w: &String| w.contains("No callbacks defined")),
+        warnings
+            .iter()
+            .any(|w: &String| w.contains("No callbacks defined")),
         "Should warn about no callbacks defined"
     );
 }
@@ -62,7 +64,9 @@ async fn test_validate_script_dangerous_functions() {
 
     let warnings = ScriptManager::validate_script_detailed(script_with_dangerous_calls);
     assert!(
-        warnings.iter().any(|w: &String| w.contains("dangerous function")),
+        warnings
+            .iter()
+            .any(|w: &String| w.contains("dangerous function")),
         "Should warn about dangerous functions"
     );
 }
@@ -133,7 +137,9 @@ async fn test_validate_script_multiple_issues() {
     let warnings = ScriptManager::validate_script_detailed(script_with_issues);
     // Implementation generates one warning for dangerous functions
     assert!(
-        warnings.iter().any(|w: &String| w.contains("dangerous functions")),
+        warnings
+            .iter()
+            .any(|w: &String| w.contains("dangerous functions")),
         "Should warn about dangerous functions"
     );
 }
@@ -180,7 +186,10 @@ async fn test_validate_script_complete_callbacks() {
 
     let warnings = ScriptManager::validate_script_detailed(script_complete);
     assert!(
-        warnings.is_empty() || !warnings.iter().any(|w: &String| w.contains("Missing required callback")),
+        warnings.is_empty()
+            || !warnings
+                .iter()
+                .any(|w: &String| w.contains("Missing required callback")),
         "Should not warn about missing callbacks when all are present"
     );
 }

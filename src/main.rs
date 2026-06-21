@@ -23,8 +23,8 @@ use clap::Parser;
 
 use serial_cli::cli::args::{Cli, Commands};
 use serial_cli::cli::commands::{
-    config as config_cmd, port as port_cmd, script as script_cmd,
-    server as server_cmd, sniff as sniff_cmd, virtual_port,
+    config as config_cmd, port as port_cmd, script as script_cmd, server as server_cmd,
+    sniff as sniff_cmd, virtual_port,
 };
 use serial_cli::cli::interactive::InteractiveShell;
 use serial_cli::cli::sniff_session;

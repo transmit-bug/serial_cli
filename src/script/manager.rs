@@ -4,7 +4,7 @@
 
 use crate::error::{Result, ScriptError, SerialError};
 use crate::script::built_in;
-use crate::script::ScriptInfo;
+use crate::script::{ScriptInfo, ScriptMeta};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -18,6 +18,8 @@ pub struct LoadedScript {
     pub built_in: bool,
     pub loaded_at: std::time::SystemTime,
     pub version: u64,
+    /// Optional embedded metadata from `SCRIPT_META`.
+    pub meta: Option<ScriptMeta>,
 }
 
 /// Manages the lifecycle of Lua scripts: loading from disk, registering
@@ -33,6 +35,8 @@ impl ScriptManager {
 
         // Register built-in scripts
         for entry in built_in::all_built_in() {
+            // Extract SCRIPT_META from built-in scripts
+            let meta = extract_script_meta(entry.source);
             scripts.insert(
                 entry.name.to_string(),
                 LoadedScript {
@@ -43,6 +47,7 @@ impl ScriptManager {
                     built_in: true,
                     loaded_at: std::time::SystemTime::now(),
                     version: 1,
+                    meta,
                 },
             );
         }
@@ -54,10 +59,18 @@ impl ScriptManager {
     pub fn list(&self) -> Vec<ScriptInfo> {
         self.scripts
             .values()
-            .map(|s| ScriptInfo {
-                name: s.name.clone(),
-                description: s.description.clone(),
-                built_in: s.built_in,
+            .map(|s| {
+                let description = s
+                    .meta
+                    .as_ref()
+                    .and_then(|m| m.description.clone())
+                    .unwrap_or_else(|| s.description.clone());
+                ScriptInfo {
+                    name: s.name.clone(),
+                    description,
+                    built_in: s.built_in,
+                    meta: s.meta.clone(),
+                }
             })
             .collect()
     }
@@ -102,24 +115,36 @@ impl ScriptManager {
             .unwrap_or("unnamed")
             .to_string();
 
+        let meta = extract_script_meta(&source);
+
         let loaded = LoadedScript {
             name: name.clone(),
-            description: format!("Custom script: {}", path.display()),
+            description: meta
+                .as_ref()
+                .and_then(|m| m.description.clone())
+                .unwrap_or_else(|| format!("Custom script: {}", path.display())),
             source,
             path: Some(path.to_path_buf()),
             built_in: false,
             loaded_at: std::time::SystemTime::now(),
             version: 1,
+            meta: meta.clone(),
         };
 
         self.scripts.insert(name.clone(), loaded);
 
         tracing::info!("Loaded script: {} from {}", name, path.display());
 
+        let description = meta
+            .as_ref()
+            .and_then(|m| m.description.clone())
+            .unwrap_or_else(|| format!("Custom script: {}", path.display()));
+
         Ok(ScriptInfo {
             name,
-            description: format!("Custom script: {}", path.display()),
+            description,
             built_in: false,
+            meta,
         })
     }
 
@@ -157,13 +182,12 @@ impl ScriptManager {
                 ))));
             }
 
-            script
-                .path
-                .clone()
-                .ok_or_else(|| SerialError::Script(ScriptError::ApiError(format!(
+            script.path.clone().ok_or_else(|| {
+                SerialError::Script(ScriptError::ApiError(format!(
                     "Script has no file path: {}",
                     name
-                ))))?
+                )))
+            })?
         };
 
         self.unload(name)?;
@@ -189,7 +213,10 @@ impl ScriptManager {
     ///
     /// This is the bridge between ScriptManager and the port-level
     /// script attachment system.
-    pub fn create_engine(&self, name: &str) -> Result<crate::serial_core::serial_script::SerialScriptEngine> {
+    pub fn create_engine(
+        &self,
+        name: &str,
+    ) -> Result<crate::serial_core::serial_script::SerialScriptEngine> {
         let source = self.get_source(name)?;
         crate::serial_core::serial_script::SerialScriptEngine::new(&source)
     }
@@ -212,12 +239,14 @@ impl ScriptManager {
     /// Returns `true` if the file's modification time is newer than
     /// the script's loaded_at time.
     pub fn is_script_modified(&self, name: &str) -> Result<bool> {
-        let script = self.scripts.get(name)
+        let script = self
+            .scripts
+            .get(name)
             .ok_or_else(|| SerialError::Script(ScriptError::NotFound(PathBuf::from(name))))?;
 
         let path = match &script.path {
             Some(p) => p,
-            None => return Ok(false),  // Built-in scripts have no path
+            None => return Ok(false), // Built-in scripts have no path
         };
 
         let metadata = std::fs::metadata(path).map_err(SerialError::Io)?;
@@ -256,7 +285,8 @@ impl ScriptManager {
 
     /// Get list of all custom script paths being tracked.
     pub fn tracked_paths(&self) -> Vec<&PathBuf> {
-        self.scripts.values()
+        self.scripts
+            .values()
             .filter_map(|s| s.path.as_ref())
             .collect()
     }
@@ -288,16 +318,22 @@ impl ScriptManager {
         let has_on_timer = source.contains("function on_timer") || source.contains("on_timer =");
 
         if !has_on_send && !has_on_recv && !has_on_open && !has_on_close && !has_on_timer {
-            warnings.push("No callbacks defined (on_send, on_recv, on_open, on_close, on_timer)".to_string());
+            warnings.push(
+                "No callbacks defined (on_send, on_recv, on_open, on_close, on_timer)".to_string(),
+            );
         }
 
         // Check for common issues
         if source.contains("require(") && !source.contains("-- require(") {
-            warnings.push("Script uses 'require()' which may not be available in all contexts".to_string());
+            warnings.push(
+                "Script uses 'require()' which may not be available in all contexts".to_string(),
+            );
         }
 
         if source.contains("os.execute") || source.contains("io.popen") {
-            warnings.push("Script uses potentially dangerous functions (os.execute, io.popen)".to_string());
+            warnings.push(
+                "Script uses potentially dangerous functions (os.execute, io.popen)".to_string(),
+            );
         }
 
         warnings
@@ -359,6 +395,60 @@ impl Default for ScriptManager {
     }
 }
 
+/// Extract `SCRIPT_META` from Lua source code.
+///
+/// Executes the script in a sandboxed Lua instance and reads the global
+/// `SCRIPT_META` table if present. Returns `None` if the table is not
+/// defined or cannot be parsed.
+fn extract_script_meta(source: &str) -> Option<ScriptMeta> {
+    use crate::lua::runtime::{acquire_lua, release_lua};
+    let lua = acquire_lua();
+
+    // Execute the script to define SCRIPT_META
+    let result = lua.load(source).exec();
+    if result.is_err() {
+        release_lua(lua);
+        return None;
+    }
+
+    // Try to read SCRIPT_META global — extract all data before releasing lua
+    let meta = {
+        let globals = lua.globals();
+        let meta_table: std::result::Result<mlua::Table, _> = globals.get("SCRIPT_META");
+        match meta_table {
+            Ok(table) => {
+                let get_str = |key: &str| -> Option<String> { table.get::<_, String>(key).ok() };
+                let get_str_vec = |key: &str| -> Option<Vec<String>> {
+                    table.get::<_, mlua::Table>(key).ok().map(|t| {
+                        let mut v = Vec::new();
+                        for s in t.sequence_values::<String>().flatten() {
+                            v.push(s);
+                        }
+                        v
+                    })
+                };
+                let get_u64 = |key: &str| -> Option<u64> { table.get::<_, u64>(key).ok() };
+
+                Some(ScriptMeta {
+                    name: get_str("name"),
+                    version: get_str("version"),
+                    description: get_str("description"),
+                    author: get_str("author"),
+                    license: get_str("license"),
+                    homepage: get_str("homepage"),
+                    tags: get_str_vec("tags"),
+                    data_format: get_str("data_format"),
+                    min_frame_size: get_u64("min_frame_size"),
+                })
+            }
+            Err(_) => None,
+        }
+    }; // globals and table dropped here
+
+    release_lua(lua);
+    meta
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -382,7 +472,11 @@ mod tests {
         let scripts = manager.list();
 
         for script in &scripts {
-            assert!(script.built_in, "{} should be marked as built-in", script.name);
+            assert!(
+                script.built_in,
+                "{} should be marked as built-in",
+                script.name
+            );
         }
     }
 
@@ -390,8 +484,14 @@ mod tests {
     fn test_get_source_returns_lua_code() {
         let manager = ScriptManager::new();
         let source = manager.get_source("line").unwrap();
-        assert!(source.contains("on_send"), "Line script should define on_send");
-        assert!(source.contains("on_recv"), "Line script should define on_recv");
+        assert!(
+            source.contains("on_send"),
+            "Line script should define on_send"
+        );
+        assert!(
+            source.contains("on_recv"),
+            "Line script should define on_recv"
+        );
     }
 
     #[test]
@@ -505,7 +605,11 @@ mod tests {
         manager.load(&path).unwrap();
 
         // Modify the file
-        std::fs::write(&path, "function on_recv(data)\n    -- modified\n    return data\nend").unwrap();
+        std::fs::write(
+            &path,
+            "function on_recv(data)\n    -- modified\n    return data\nend",
+        )
+        .unwrap();
 
         manager.reload("reloadable").unwrap();
         let source = manager.get_source("reloadable").unwrap();
@@ -608,7 +712,10 @@ mod tests {
         // Only 2 bytes — too short for any Modbus frame
         let data = vec![0x01, 0x03];
         let result = engine.on_recv(&data);
-        assert!(result.is_empty(), "Incomplete frame should return empty (nil in Lua)");
+        assert!(
+            result.is_empty(),
+            "Incomplete frame should return empty (nil in Lua)"
+        );
     }
 
     // ── Additional comprehensive tests ──────────────────────────────
@@ -618,7 +725,9 @@ mod tests {
         let dir = std::env::temp_dir().join("serial_cli_test_callbacks");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("callbacks.lua");
-        std::fs::write(&path, r#"
+        std::fs::write(
+            &path,
+            r#"
             function on_open(port, config)
                 log_info("Port opened: " .. port)
             end
@@ -634,7 +743,9 @@ mod tests {
             function on_close()
                 log_info("Port closed")
             end
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         let mut manager = ScriptManager::new();
         let info = manager.load(&path).unwrap();
@@ -709,7 +820,10 @@ mod tests {
 
         for script in &scripts {
             assert!(!script.name.is_empty(), "Script name should not be empty");
-            assert!(!script.description.is_empty(), "Script description should not be empty");
+            assert!(
+                !script.description.is_empty(),
+                "Script description should not be empty"
+            );
         }
     }
 
@@ -718,7 +832,9 @@ mod tests {
         let dir = std::env::temp_dir().join("serial_cli_test_imports");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("with_imports.lua");
-        std::fs::write(&path, r#"
+        std::fs::write(
+            &path,
+            r#"
             -- Simple script without external dependencies
             local function helper(data)
                 return data
@@ -727,7 +843,9 @@ mod tests {
             function on_send(data)
                 return helper(data)
             end
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         let mut manager = ScriptManager::new();
         let info = manager.load(&path).unwrap();
@@ -914,7 +1032,10 @@ mod tests {
     fn test_validate_script_detailed_no_callbacks() {
         let source = "local x = 1";
         let warnings = ScriptManager::validate_script_detailed(source);
-        assert!(!warnings.is_empty(), "Script with no callbacks should have warning");
+        assert!(
+            !warnings.is_empty(),
+            "Script with no callbacks should have warning"
+        );
         assert!(warnings.iter().any(|w| w.contains("No callbacks defined")));
     }
 
@@ -980,7 +1101,10 @@ mod tests {
         let (info, warnings) = manager.load_with_validation(&path).unwrap();
 
         assert_eq!(info.name, "warn");
-        assert!(!warnings.is_empty(), "Script with no callbacks should have warnings");
+        assert!(
+            !warnings.is_empty(),
+            "Script with no callbacks should have warnings"
+        );
 
         // Cleanup
         std::fs::remove_file(&path).ok();

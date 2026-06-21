@@ -626,7 +626,11 @@ impl InteractiveShell {
         }
 
         let port_id = self.current_port_id.as_ref().unwrap();
-        match self.manager.attach_script_by_name(port_id, &self.script_manager, script_name).await {
+        match self
+            .manager
+            .attach_script_by_name(port_id, &self.script_manager, script_name)
+            .await
+        {
             Ok(_) => {
                 println!("Script '{}' set for port", script_name);
             }

@@ -524,6 +524,38 @@ impl PortManager {
             ))),
         }
     }
+
+    /// Send data and wait for a complete response frame.
+    ///
+    /// Delegates to [`SerialPortHandle::query`] — the script's `on_recv`
+    /// hook determines when a frame is complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
+    pub async fn query(
+        &self,
+        port_id: &str,
+        data: &[u8],
+        timeout_ms: u64,
+    ) -> Result<Option<Vec<u8>>> {
+        let port_handle = self.get_port(port_id).await?;
+        let mut handle = port_handle.lock().await;
+        handle.query(data, timeout_ms)
+    }
+
+    /// Flush the receive buffer for a port.
+    ///
+    /// Delegates to [`SerialPortHandle::flush`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the port ID is not found.
+    pub async fn flush(&self, port_id: &str) -> Result<()> {
+        let port_handle = self.get_port(port_id).await?;
+        let mut handle = port_handle.lock().await;
+        handle.flush()
+    }
 }
 
 /// Thin wrapper to assert `*mut dyn SerialPort` is safe to Send/Sync between threads.
@@ -811,6 +843,87 @@ impl SerialPortHandle {
             self.excess_buffer.extend_from_slice(&after_script[len..]);
         }
         Ok(len)
+    }
+
+    /// Send data and wait for a complete response frame.
+    ///
+    /// Sends `data` through the script's `on_send` hook, then reads incoming
+    /// data in a loop. Each chunk is passed through the script's `on_recv` hook;
+    /// when `on_recv` returns a non-empty result (a complete frame), it is returned.
+    /// If `on_recv` is not defined, the first non-empty read is returned.
+    ///
+    /// Returns `None` if the timeout expires before a complete frame is received.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the write or read fails.
+    pub fn query(&mut self, data: &[u8], timeout_ms: u64) -> Result<Option<Vec<u8>>> {
+        // Send the request (goes through on_send hook)
+        self.write(data)?;
+
+        let start = std::time::Instant::now();
+        let mut buf = vec![0u8; 4096];
+
+        loop {
+            let elapsed_ms = start.elapsed().as_millis() as u64;
+            if elapsed_ms >= timeout_ms {
+                return Ok(None);
+            }
+
+            // Set remaining timeout for this read
+            let remaining = timeout_ms - elapsed_ms;
+            let _ = self
+                .port
+                .set_timeout(std::time::Duration::from_millis(remaining));
+
+            match self.port.read(&mut buf) {
+                Ok(n) => {
+                    if n == 0 {
+                        continue;
+                    }
+
+                    // Process through script engine's on_recv
+                    let after_script = if let Some(ref engine) = self.script_engine {
+                        engine.on_recv(&buf[..n])
+                    } else {
+                        buf[..n].to_vec()
+                    };
+
+                    // on_recv returns empty = suppressed/incomplete, keep reading
+                    if !after_script.is_empty() {
+                        return Ok(Some(after_script));
+                    }
+                }
+                Err(e) => {
+                    let kind = e.kind();
+                    if kind == std::io::ErrorKind::TimedOut
+                        || kind == std::io::ErrorKind::WouldBlock
+                    {
+                        // This read timed out — check overall deadline
+                        continue;
+                    }
+                    return Err(SerialError::Serial(SerialPortError::IoError(e.to_string())));
+                }
+            }
+        }
+    }
+
+    /// Flush the receive buffer, discarding any pending data.
+    ///
+    /// Useful for error recovery: after a timeout or checksum failure,
+    /// call `flush` to clear residual bytes before retrying.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the flush operation fails.
+    pub fn flush(&mut self) -> Result<()> {
+        // Clear excess buffer from previous reads
+        self.excess_buffer.clear();
+        // Drain the OS serial port buffer
+        self.port
+            .clear(serialport::ClearBuffer::All)
+            .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))?;
+        Ok(())
     }
 
     /// Close the port, consuming `self`. Calls the script's `on_close` hook

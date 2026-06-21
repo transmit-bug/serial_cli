@@ -28,9 +28,7 @@ fn bench_script_validation(c: &mut Criterion) {
                 return data
             end
         "#;
-        b.iter(|| {
-            black_box(ScriptManager::validate_source(black_box(source)))
-        })
+        b.iter(|| black_box(ScriptManager::validate_source(black_box(source))))
     });
 }
 
@@ -38,11 +36,7 @@ fn bench_script_validation(c: &mut Criterion) {
 fn bench_script_list(c: &mut Criterion) {
     let manager = ScriptManager::new();
 
-    c.bench_function("script_list", |b| {
-        b.iter(|| {
-            black_box(manager.list())
-        })
-    });
+    c.bench_function("script_list", |b| b.iter(|| black_box(manager.list())));
 }
 
 /// Benchmark script get_source
@@ -53,9 +47,7 @@ fn bench_script_get_source(c: &mut Criterion) {
 
     for protocol in ["at_command", "modbus_rtu", "modbus_ascii", "line"] {
         group.bench_function(BenchmarkId::new(protocol, "get_source"), |b| {
-            b.iter(|| {
-                black_box(manager.get_source(black_box(protocol)))
-            })
+            b.iter(|| black_box(manager.get_source(black_box(protocol))))
         });
     }
 

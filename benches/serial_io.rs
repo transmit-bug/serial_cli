@@ -14,17 +14,13 @@ fn bench_script_execution(c: &mut Criterion) {
 
         group.bench_function(BenchmarkId::new(protocol, "on_send"), |b| {
             let input = vec![0x01, 0x03, 0x00, 0x00, 0x00, 0x0A];
-            b.iter(|| {
-                black_box(engine.on_send(black_box(&input)))
-            })
+            b.iter(|| black_box(engine.on_send(black_box(&input))))
         });
 
         group.bench_function(BenchmarkId::new(protocol, "on_recv"), |b| {
             let input = vec![0x01, 0x03, 0x00, 0x00, 0x00, 0x0A];
             let encoded = engine.on_send(&input).unwrap();
-            b.iter(|| {
-                black_box(engine.on_recv(black_box(&encoded)))
-            })
+            b.iter(|| black_box(engine.on_recv(black_box(&encoded))))
         });
     }
 
@@ -42,18 +38,12 @@ fn bench_large_payload(c: &mut Criterion) {
         let input: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
 
         group.bench_function(BenchmarkId::new("on_send", size), |b| {
-            b.iter(|| {
-                black_box(engine.on_send(black_box(&input)))
-            })
+            b.iter(|| black_box(engine.on_send(black_box(&input))))
         });
     }
 
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    bench_script_execution,
-    bench_large_payload,
-);
+criterion_group!(benches, bench_script_execution, bench_large_payload,);
 criterion_main!(benches);
