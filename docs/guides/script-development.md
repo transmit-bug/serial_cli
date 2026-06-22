@@ -539,6 +539,124 @@ assert(type(encoded) == "string")
 assert(#encoded == 16, "Expected 8 bytes (16 hex chars)")
 ```
 
+## 脚本导入（require）
+
+脚本可以通过 `require()` 导入其他脚本模块，实现代码复用。
+
+### 基本用法
+
+所有位于 `scripts/protocols/` 目录下的 `.lua` 文件都可以通过 `require()` 导入：
+
+```lua
+-- 导入同目录下的库脚本
+local modbus_lib = require("modbus_rtu_lib")
+
+-- 使用库中的函数
+local crc = modbus_lib.calculate_crc({0x01, 0x03, 0x00, 0x00})
+```
+
+### 模块返回模式
+
+库脚本应通过 `return` 返回一个 table，包含可复用的函数和数据：
+
+```lua
+-- modbus_rtu_lib.lua: Modbus 工具库
+local M = {}
+
+-- CRC16 计算
+function M.calculate_crc(data)
+    local crc = 0xFFFF
+    for _, byte in ipairs(data) do
+        crc = crc ~ byte
+        for _ = 0, 7 do
+            if crc & 1 ~= 0 then
+                crc = (crc >> 1) ~ 0xA001
+            else
+                crc = crc >> 1
+            end
+        end
+    end
+    return crc
+end
+
+-- 构建读取请求帧
+function M.build_read_request(slave_id, func_code, start_addr, quantity)
+    return {
+        slave_id,
+        func_code,
+        (start_addr >> 8) & 0xFF,
+        start_addr & 0xFF,
+        (quantity >> 8) & 0xFF,
+        quantity & 0xFF,
+    }
+end
+
+-- 构建写入请求帧
+function M.build_write_request(slave_id, func_code, addr, value)
+    return {
+        slave_id,
+        func_code,
+        (addr >> 8) & 0xFF,
+        addr & 0xFF,
+        (value >> 8) & 0xFF,
+        value & 0xFF,
+    }
+end
+
+-- 检查异常响应
+function M.is_exception(response)
+    return response and #response >= 2 and (response[2] & 0x80) ~= 0
+end
+
+return M
+```
+
+### 缓存机制
+
+`require()` 会缓存已加载的模块。同一个模块被多次 `require()` 时只执行一次：
+
+```lua
+local lib1 = require("mylib")
+local lib2 = require("mylib")
+-- lib1 和 lib2 是同一个 table 引用
+```
+
+### 目录结构
+
+```
+scripts/
+└── protocols/
+    ├── modbus_rtu.lua        # 协议脚本
+    ├── modbus_ascii.lua      # 协议脚本
+    ├── modbus_rtu_lib.lua    # 可被 require 的库脚本
+    └── my_device.lua         # 自定义设备驱动
+```
+
+所有 `scripts/protocols/` 目录下的 `.lua` 文件都可以通过文件名（不含 `.lua` 后缀）直接 `require()`。
+
+### 链式导入
+
+支持多层依赖链：A requires B requires C。
+
+```lua
+-- common.lua: 基础工具
+local M = {}
+function M.hex_to_bytes(hex) ... end
+return M
+
+-- protocol_base.lua: 协议基础（依赖 common）
+local common = require("common")
+local M = {}
+function M.parse_frame(data) ... end
+return M
+
+-- my_device.lua: 设备驱动（依赖 protocol_base）
+local base = require("protocol_base")
+function on_recv(data)
+    return base.parse_frame(data)
+end
+```
+
 ## 内置脚本参考
 
 Serial CLI 内置了 4 个协议脚本，可作为编写自定义脚本的参考模板：

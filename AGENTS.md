@@ -61,6 +61,7 @@ For complete documentation structure, see [`docs/README.md`](docs/README.md).
 - **Async**: All I/O uses `tokio`
 - **Lua integration**: Scripts executed via LuaEngine
 - **Configuration**: TOML-based with fallback defaults
+- **Script imports**: Scripts in `scripts/protocols/` can `require()` each other; library scripts should `return ModuleTable`
 - **Documentation**: Follow strict documentation hierarchy
   - **Root level only**: README.md, CHANGELOG.md, RELEASE.md (essential user-facing docs only)
   - **docs/guides/** - End-user documentation (guides, tutorials, feature explanations)

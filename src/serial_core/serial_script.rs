@@ -62,6 +62,9 @@ impl SerialScriptEngine {
     pub fn new(script: &str) -> Result<Self> {
         let lua = Lua::new();
 
+        // Configure package.path for require() support
+        crate::lua::runtime::configure_package_path(&lua);
+
         // Validate syntax
         lua.load(script).exec().map_err(|e| {
             SerialError::Script(crate::error::ScriptError::ApiError(format!(
@@ -389,7 +392,11 @@ impl SerialScriptEngine {
         args_json: &str,
     ) -> Result<String> {
         let lua_guard = self.lua.lock().unwrap();
-        crate::lua::ui_actions::execute_action_with_args(lua_guard.inner(), function_name, args_json)
+        crate::lua::ui_actions::execute_action_with_args(
+            lua_guard.inner(),
+            function_name,
+            args_json,
+        )
     }
 }
 

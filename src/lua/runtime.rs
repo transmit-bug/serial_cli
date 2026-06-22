@@ -21,6 +21,7 @@
 //! ```
 
 use crate::error::Result;
+use crate::script::ScriptManager;
 use crate::utils::lua_conversion::lua_table_to_bytes;
 use mlua::{Lua, Value};
 use std::cell::RefCell;
@@ -78,9 +79,37 @@ thread_local! {
     static LUA_POOL: LuaStatePool = LuaStatePool::new(10);
 }
 
+/// Configure Lua `package.path` to include all protocol script directories.
+///
+/// This enables `require('scriptname')` to load scripts from `scripts/protocols/`
+/// and other discovered protocol directories.
+pub fn configure_package_path(lua: &Lua) {
+    let candidates = ScriptManager::protocols_dir_candidates();
+    let existing_paths: Vec<String> = candidates
+        .iter()
+        .filter(|p| p.is_dir())
+        .map(|p| {
+            let dir = p.to_string_lossy();
+            format!("{dir}/?.lua")
+        })
+        .collect();
+
+    if existing_paths.is_empty() {
+        return;
+    }
+
+    // Append to existing package.path (preserve Lua defaults for safety)
+    let new_paths = existing_paths.join(";");
+    let _ = lua
+        .load(format!("package.path = package.path .. ';{new_paths}'"))
+        .exec();
+}
+
 /// Acquire a Lua instance from the thread-local pool
 pub fn acquire_lua() -> Lua {
-    LUA_POOL.with(|pool| pool.acquire())
+    let lua = LUA_POOL.with(|pool| pool.acquire());
+    configure_package_path(&lua);
+    lua
 }
 
 /// Release a Lua instance back to the thread-local pool

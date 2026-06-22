@@ -223,18 +223,14 @@ pub fn execute_action_string(lua: &Lua, function_name: &str) -> Result<String> {
 /// Parses the `args_json` string as a JSON array and converts each element
 /// to the corresponding Lua value before calling the function. Supports
 /// numbers, strings, booleans, and hex-encoded byte arrays.
-pub fn execute_action_with_args(
-    lua: &Lua,
-    function_name: &str,
-    args_json: &str,
-) -> Result<String> {
+pub fn execute_action_with_args(lua: &Lua, function_name: &str, args_json: &str) -> Result<String> {
     let globals = lua.globals();
     let func = globals
         .get::<_, mlua::Function>(function_name)
         .map_err(SerialError::Lua)?;
 
-    let args: serde_json::Value =
-        serde_json::from_str(args_json).map_err(|e| SerialError::Config(format!("Invalid args JSON: {}", e)))?;
+    let args: serde_json::Value = serde_json::from_str(args_json)
+        .map_err(|e| SerialError::Config(format!("Invalid args JSON: {}", e)))?;
 
     let args_array = match args {
         serde_json::Value::Array(arr) => arr,
@@ -247,7 +243,9 @@ pub fn execute_action_with_args(
     for (i, arg) in args_array.iter().enumerate() {
         match arg {
             serde_json::Value::Null => {
-                args_table.set(i + 1, mlua::Value::Nil).map_err(SerialError::Lua)?;
+                args_table
+                    .set(i + 1, mlua::Value::Nil)
+                    .map_err(SerialError::Lua)?;
             }
             serde_json::Value::Bool(b) => {
                 args_table.set(i + 1, *b).map_err(SerialError::Lua)?;
@@ -260,12 +258,14 @@ pub fn execute_action_with_args(
                 }
             }
             serde_json::Value::String(s) => {
-                args_table.set(i + 1, s.as_str()).map_err(SerialError::Lua)?;
+                args_table
+                    .set(i + 1, s.as_str())
+                    .map_err(SerialError::Lua)?;
             }
             _ => {
                 // Objects/arrays: serialize as JSON string
-                let json_str = serde_json::to_string(arg)
-                    .map_err(|e| SerialError::Config(e.to_string()))?;
+                let json_str =
+                    serde_json::to_string(arg).map_err(|e| SerialError::Config(e.to_string()))?;
                 args_table.set(i + 1, json_str).map_err(SerialError::Lua)?;
             }
         }
@@ -273,13 +273,19 @@ pub fn execute_action_with_args(
 
     // Use a Lua wrapper to spread table values as function arguments
     let wrapper = lua
-        .create_function(move |lua, (func, args_table): (mlua::Function, mlua::Table)| {
-            // Build a call string: return function(unpack(args))
-            let globals = lua.globals();
-            let unpack_fn: mlua::Function = globals.get("unpack").or_else(|_| globals.get("table").and_then(|t: mlua::Table| t.get("unpack")))?;
-            let unpacked = unpack_fn.call::<_, mlua::MultiValue>(args_table)?;
-            func.call::<_, Value>(unpacked)
-        })
+        .create_function(
+            move |lua, (func, args_table): (mlua::Function, mlua::Table)| {
+                // Build a call string: return function(unpack(args))
+                let globals = lua.globals();
+                let unpack_fn: mlua::Function = globals.get("unpack").or_else(|_| {
+                    globals
+                        .get("table")
+                        .and_then(|t: mlua::Table| t.get("unpack"))
+                })?;
+                let unpacked = unpack_fn.call::<_, mlua::MultiValue>(args_table)?;
+                func.call::<_, Value>(unpacked)
+            },
+        )
         .map_err(SerialError::Lua)?;
 
     let result = wrapper
@@ -288,7 +294,6 @@ pub fn execute_action_with_args(
 
     Ok(lua_value_to_string(&result))
 }
-
 
 /// Convert a Lua return value to a display string.
 fn lua_value_to_string(value: &Value) -> String {
