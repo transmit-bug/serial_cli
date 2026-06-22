@@ -1,6 +1,6 @@
 # Serial CLI TODO List
 
-**Updated**: 2026-06-19
+**Updated**: 2026-06-22
 
 ---
 
@@ -16,6 +16,14 @@
 - ✅ 添加 RUSTSEC-2025-0069（daemonize unmaintained）advisory skip，暂无安全替代方案
 - ✅ 添加 AGENTS.md 指导文件
 - ✅ 精简文档结构，删除 CLAUDE.md 并整合内容到 AGENTS.md
+
+### Lua 脚本导入支持（2026-06-22）
+- ✅ 配置 Lua package.path 支持 require()（#24）
+- ✅ 移除 require() 验证警告（#25）
+- ✅ 添加 5 个集成测试验证 require() 功能（#26）
+- ✅ 新增 modbus_rtu_lib.lua 工具库和 temp_sensor.lua 设备驱动示例
+- ✅ 更新 script-development.md 文档添加 require() 使用说明（#27）
+- ✅ 更新 AGENTS.md 添加脚本导入规范
 
 ### 测试
 - ✅ Tauri 后端补充 29 个单元测试（port_state、port 解析、virtual_port、config、export 5 个模块）
