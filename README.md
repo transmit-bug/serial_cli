@@ -3,7 +3,7 @@
   ![Serial CLI](https://img.shields.io/badge/Serial%20CLI-0.6.0-blue?style=for-the-badge&logo=rust)
   [![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green?style=for-the-badge)](LICENSE-MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-  [![Tests](https://img.shields.io/badge/Tests-237%2B%20passing-success?style=for-the-badge)](https://github.com/zazac-zhang/serial_cli)
+  [![Tests](https://img.shields.io/badge/Tests-237%2B%20passing-success?style=for-the-badge)](https://github.com/transmit-bug/serial_cli)
   [![GUI](https://img.shields.io/badge/GUI-Production%20Ready-brightgreen?style=for-the-badge&logo=react)](https://reactjs.org/)
 
   # 🚀 Serial CLI
@@ -33,7 +33,7 @@ Serial CLI is a powerful, cross-platform serial communication tool built with Ru
 cargo install --path .
 
 # Or download pre-built binaries
-# Visit: https://github.com/zazac-zhang/serial_cli/releases
+# Visit: https://github.com/transmit-bug/serial_cli/releases
 
 # Clone repository
 git clone <repository-url>
@@ -397,6 +397,6 @@ Dual-licensed under:
 
 **Built with ❤️ and Rust**
 
-[GitHub](https://github.com/zazac-zhang/serial_cli) • [Report Issues](https://github.com/zazac-zhang/serial_cli/issues) • [Releases](https://github.com/zazac-zhang/serial_cli/releases)
+[GitHub](https://github.com/transmit-bug/serial_cli) • [Report Issues](https://github.com/transmit-bug/serial_cli/issues) • [Releases](https://github.com/transmit-bug/serial_cli/releases)
 
 </div>

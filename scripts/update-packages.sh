@@ -39,11 +39,11 @@ pkgver=$VERSION_NUM
 pkgrel=1
 pkgdesc="Universal serial port CLI tool optimized for AI interaction"
 arch=('x86_64' 'aarch64')
-url="https://github.com/zazac-zhang/serial_cli"
+url="https://github.com/transmit-bug/serial_cli"
 license=('MIT' 'Apache')
 depends=('gcc-libs')
 makedepends=('cargo')
-source=("\$pkgname-\$pkgver.tar.gz::https://github.com/zazac-zhang/serial_cli/archive/refs/tags/v\$pkgver.tar.gz")
+source=("\$pkgname-\$pkgver.tar.gz::https://github.com/transmit-bug/serial_cli/archive/refs/tags/v\$pkgver.tar.gz")
 sha256sums=('$SHA256')
 
 build() {
@@ -62,14 +62,14 @@ pkgbase = serial-cli
 pkgdesc = Universal serial port CLI tool optimized for AI interaction
 pkgver = $VERSION_NUM
 pkgrel = 1
-url = https://github.com/zazac-zhang/serial_cli
+url = https://github.com/transmit-bug/serial_cli
 arch = x86_64
 arch = aarch64
 license = MIT
 license = Apache
 depends = gcc-libs
 makedepends = cargo
-source = serial-cli-$VERSION_NUM.tar.gz::https://github.com/zazac-zhang/serial_cli/archive/refs/tags/v$VERSION_NUM.tar.gz
+source = serial-cli-$VERSION_NUM.tar.gz::https://github.com/transmit-bug/serial_cli/archive/refs/tags/v$VERSION_NUM.tar.gz
 sha256sums = $SHA256
 EOF
 
@@ -97,8 +97,8 @@ update_homebrew() {
         cat > "$formula_file" << EOF
 class SerialCli < Formula
   desc "Universal serial port CLI tool optimized for AI interaction"
-  homepage "https://github.com/zazac-zhang/serial_cli"
-  url "https://github.com/zazac-zhang/serial_cli/archive/refs/tags/${VERSION}.tar.gz"
+  homepage "https://github.com/transmit-bug/serial_cli"
+  url "https://github.com/transmit-bug/serial_cli/archive/refs/tags/${VERSION}.tar.gz"
   sha256 "$SHA256"
   license any_of: ["MIT", "Apache-2.0"]
 
@@ -141,9 +141,9 @@ update_scoop() {
 {
   "version": "$VERSION_NUM",
   "description": "Universal serial port CLI tool",
-  "homepage": "https://github.com/zazac-zhang/serial_cli",
+  "homepage": "https://github.com/transmit-bug/serial_cli",
   "license": "MIT OR Apache-2.0",
-  "url": "https://github.com/zazac-zhang/serial_cli/releases/download/${VERSION}/serial-cli-windows-x86_64.exe",
+  "url": "https://github.com/transmit-bug/serial_cli/releases/download/${VERSION}/serial-cli-windows-x86_64.exe",
   "hash": "$SHA256",
   "bin": "serial-cli.exe",
   "post_install": [

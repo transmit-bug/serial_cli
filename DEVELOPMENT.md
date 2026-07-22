@@ -124,4 +124,4 @@ git tag -d v1.2.3
 ## Resources
 
 - [API Documentation](https://docs.rs/serial-cli/)
-- [GitHub Issues](https://github.com/zazac-zhang/serial_cli/issues)
+- [GitHub Issues](https://github.com/transmit-bug/serial_cli/issues)
