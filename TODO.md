@@ -16,6 +16,7 @@
 - ✅ 添加 RUSTSEC-2025-0069（daemonize unmaintained）advisory skip，暂无安全替代方案
 - ✅ 添加 AGENTS.md 指导文件
 - ✅ 精简文档结构，删除 CLAUDE.md 并整合内容到 AGENTS.md
+- ✅ 配置 Agent skills（issue tracker、triage labels、domain docs），添加 `## Agent skills` 到 AGENTS.md
 
 ### Lua 脚本导入支持（2026-06-22）
 - ✅ 配置 Lua package.path 支持 require()（#24）

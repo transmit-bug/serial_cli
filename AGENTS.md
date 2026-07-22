@@ -99,3 +99,17 @@ cd frontend && pnpm type-check  # TypeScript type check
 **Frontend stack:** pnpm, React 19, Vite 8, Tailwind CSS 4, Zustand 5, shadcn/ui, biome, vitest
 
 **Frontend 规范**：UI 组件优先使用 shadcn/ui（`npx shadcn@latest add <组件名>`），不要手写基础组件。
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues (via `gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout (root `CONTEXT.md` + `docs/adr/`). See `docs/agents/domain.md`.

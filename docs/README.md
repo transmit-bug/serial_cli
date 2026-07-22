@@ -30,9 +30,13 @@ docs/
 │   ├── README.md
 │   ├── UI-Design-Spec.md
 │   └── User-Flow-Diagrams.md
-└── ai/             # AI/automation workflow docs
-    ├── USAGE.md
-    └── SERVER_MODE.md   # Server mode API reference (user-facing)
+├── ai/             # AI/automation workflow docs
+│   ├── USAGE.md
+│   └── SERVER_MODE.md   # Server mode API reference (user-facing)
+└── agents/         # Agent skill configuration
+    ├── issue-tracker.md     # Issue tracker settings (GitHub/GitLab/local)
+    ├── triage-labels.md     # Triage label vocabulary mapping
+    └── domain.md            # Domain doc consumer rules + layout
 ```
 
 ## Documentation Guidelines
@@ -53,6 +57,7 @@ docs/
 - **features/** - Feature-specific documentation
 - **ui/** - GUI design specifications and user flow diagrams
 - **ai/** - Specialized documentation for AI/automation workflows
+- **agents/** - Agent skill configuration (issue tracker, triage labels, domain docs)
 
 ### File Naming Conventions
 
