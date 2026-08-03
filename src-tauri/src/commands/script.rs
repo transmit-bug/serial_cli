@@ -89,6 +89,7 @@ pub async fn get_script_info(
         name: meta.name.clone(),
         description: meta.description.clone(),
         built_in: meta.built_in,
+        meta: meta.meta.clone(),
     })
 }
 
