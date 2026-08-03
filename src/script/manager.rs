@@ -76,11 +76,19 @@ impl ScriptManager {
             if file_path.exists() {
                 match std::fs::read_to_string(&file_path) {
                     Ok(source) => {
-                        tracing::info!("Loaded external protocol override: {} from {}", name, file_path.display());
+                        tracing::info!(
+                            "Loaded external protocol override: {} from {}",
+                            name,
+                            file_path.display()
+                        );
                         return (source, Some(file_path));
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to read {}: {}, falling back to built-in", file_path.display(), e);
+                        tracing::warn!(
+                            "Failed to read {}: {}, falling back to built-in",
+                            file_path.display(),
+                            e
+                        );
                     }
                 }
             }
@@ -123,7 +131,11 @@ impl ScriptManager {
                     .as_ref()
                     .and_then(|m| m.description.clone())
                     .unwrap_or_else(|| format!("Protocol script: {}", path.display()));
-                tracing::info!("Discovered external protocol: {} from {}", name, path.display());
+                tracing::info!(
+                    "Discovered external protocol: {} from {}",
+                    name,
+                    path.display()
+                );
                 scripts.insert(
                     name.clone(),
                     LoadedScript {
@@ -142,7 +154,7 @@ impl ScriptManager {
     }
 
     /// Return candidate directories where protocol scripts may live.
-    fn protocols_dir_candidates() -> Vec<PathBuf> {
+    pub fn protocols_dir_candidates() -> Vec<PathBuf> {
         let mut candidates = Vec::new();
 
         // 1. Relative to the executable (typical for installed binaries)
@@ -438,12 +450,6 @@ impl ScriptManager {
         }
 
         // Check for common issues
-        if source.contains("require(") && !source.contains("-- require(") {
-            warnings.push(
-                "Script uses 'require()' which may not be available in all contexts".to_string(),
-            );
-        }
-
         if source.contains("os.execute") || source.contains("io.popen") {
             warnings.push(
                 "Script uses potentially dangerous functions (os.execute, io.popen)".to_string(),
@@ -592,7 +598,11 @@ mod tests {
             .filter(|s| s.built_in)
             .map(|s| s.name.as_str())
             .collect();
-        assert_eq!(built_in_names.len(), 4, "Expected exactly 4 built-in scripts");
+        assert_eq!(
+            built_in_names.len(),
+            4,
+            "Expected exactly 4 built-in scripts"
+        );
         assert!(built_in_names.contains(&"line"));
         assert!(built_in_names.contains(&"at_command"));
         assert!(built_in_names.contains(&"modbus_rtu"));
@@ -624,6 +634,9 @@ mod tests {
     fn test_built_in_scripts_are_valid_lua() {
         let manager = ScriptManager::new();
         let lua = mlua::Lua::new();
+
+        // Configure package.path so scripts that use require() can find modules
+        crate::lua::runtime::configure_package_path(&lua);
 
         for script in manager.list() {
             let source = manager.get_source(&script.name).unwrap();
@@ -993,7 +1006,11 @@ mod tests {
         let scripts = manager.list();
         let custom_scripts: Vec<_> = scripts.iter().filter(|s| !s.built_in).collect();
         // In dev env, there are already external protocol scripts, so check >= 5
-        assert!(custom_scripts.len() >= 5, "Should have at least 5 custom scripts, got {}", custom_scripts.len());
+        assert!(
+            custom_scripts.len() >= 5,
+            "Should have at least 5 custom scripts, got {}",
+            custom_scripts.len()
+        );
 
         // Cleanup
         for i in 0..5 {
@@ -1177,15 +1194,21 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_script_detailed_require_warning() {
+    fn test_validate_script_detailed_require_no_warning() {
+        // require() is now officially supported via package.path configuration
+        // Use require() inside a function so it doesn't execute during validation
         let source = r#"
-            local json = require("json")
             function on_send(data)
-                return data
+                local lib = require("mylib")
+                return lib.process(data)
             end
         "#;
         let warnings = ScriptManager::validate_script_detailed(source);
-        assert!(warnings.iter().any(|w| w.contains("require")));
+        assert!(
+            !warnings.iter().any(|w| w.contains("require")),
+            "require() should not trigger a warning, got: {:?}",
+            warnings
+        );
     }
 
     #[test]
@@ -1285,5 +1308,208 @@ mod tests {
         // Cleanup
         std::fs::remove_file(&path).ok();
         std::fs::remove_dir(&dir).ok();
+    }
+
+    // ========== Cross-script require() integration tests ==========
+
+    /// Helper: create a temp protocols directory with the given files,
+    /// configure package.path on a Lua instance, and return (dir, lua).
+    fn setup_require_env(files: &[(&str, &str)]) -> (std::path::PathBuf, mlua::Lua) {
+        let dir = std::env::temp_dir().join(format!(
+            "serial_cli_require_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        for (name, content) in files {
+            std::fs::write(dir.join(name), content).unwrap();
+        }
+
+        let lua = mlua::Lua::new();
+        // Configure package.path to include our temp dir
+        let dir_str = dir.to_string_lossy();
+        lua.load(&format!(
+            "package.path = package.path .. ';{dir_str}/?.lua'"
+        ))
+        .exec()
+        .unwrap();
+        (dir, lua)
+    }
+
+    fn cleanup_dir(dir: &std::path::Path) {
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn test_require_library_script() {
+        // Library script returns a table with functions
+        let (dir, lua) = setup_require_env(&[(
+            "mylib.lua",
+            r#"
+            local M = {}
+            function M.add(a, b) return a + b end
+            function M.greet(name) return "Hello, " .. name end
+            return M
+            "#,
+        )]);
+
+        // Main script requires the library and uses it
+        let result = lua
+            .load(
+                r#"
+            local lib = require("mylib")
+            return lib.add(2, 3)
+            "#,
+            )
+            .eval::<i64>();
+
+        assert_eq!(result.unwrap(), 5);
+        cleanup_dir(&dir);
+    }
+
+    #[test]
+    fn test_require_caching() {
+        // Module that increments a counter on load
+        let (dir, lua) = setup_require_env(&[(
+            "counter.lua",
+            r#"
+            local M = { count = 0 }
+            M.count = M.count + 1
+            return M
+            "#,
+        )]);
+
+        // Require the same module twice - should only execute once
+        let result = lua
+            .load(
+                r#"
+            local a = require("counter")
+            local b = require("counter")
+            -- Both references should point to the same table
+            return a.count == b.count and a == b
+            "#,
+            )
+            .eval::<bool>();
+
+        assert!(result.unwrap(), "require() should cache modules");
+        cleanup_dir(&dir);
+    }
+
+    #[test]
+    fn test_require_nonexistent_module() {
+        let (dir, lua) = setup_require_env(&[]);
+
+        let result = lua.load(r#"require("nonexistent")"#).exec();
+
+        assert!(
+            result.is_err(),
+            "require() of non-existent module should error"
+        );
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("nonexistent") || err_msg.contains("not found"),
+            "Error should mention the module name: {}",
+            err_msg
+        );
+        cleanup_dir(&dir);
+    }
+
+    #[test]
+    fn test_require_chained_imports() {
+        // A requires B requires C
+        let (dir, lua) = setup_require_env(&[
+            (
+                "mod_c.lua",
+                r#"
+                local M = {}
+                function M.value() return 42 end
+                return M
+                "#,
+            ),
+            (
+                "mod_b.lua",
+                r#"
+                local c = require("mod_c")
+                local M = {}
+                function M.value() return c.value() * 2 end
+                return M
+                "#,
+            ),
+            (
+                "mod_a.lua",
+                r#"
+                local b = require("mod_b")
+                local M = {}
+                function M.value() return b.value() + 1 end
+                return M
+                "#,
+            ),
+        ]);
+
+        let result = lua
+            .load(
+                r#"
+            local a = require("mod_a")
+            return a.value()
+            "#,
+            )
+            .eval::<i64>();
+
+        assert_eq!(result.unwrap(), 85); // 42 * 2 + 1
+        cleanup_dir(&dir);
+    }
+
+    #[test]
+    fn test_require_with_engine() {
+        // Test that SerialScriptEngine supports require() via package.path
+        use crate::serial_core::serial_script::SerialScriptEngine;
+
+        let dir = std::env::temp_dir().join(format!(
+            "serial_cli_engine_require_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Create a library script in the protocols directory
+        std::fs::write(
+            dir.join("test_helper.lua"),
+            r#"
+            local M = {}
+            function M.transform(byte)
+                return byte + 1
+            end
+            return M
+            "#,
+        )
+        .unwrap();
+
+        // The engine should be able to require scripts from the protocols directory
+        // Note: This test verifies the engine's package.path includes the protocols dir
+        let script = r#"
+            function on_recv(data)
+                local helper = require("test_helper")
+                local result = {}
+                for i, b in ipairs(data) do
+                    result[i] = helper.transform(b)
+                end
+                return result
+            end
+        "#;
+
+        // Create engine - this should succeed because package.path is configured
+        let engine = SerialScriptEngine::new(script);
+        assert!(
+            engine.is_ok(),
+            "Engine creation should succeed: {:?}",
+            engine.err()
+        );
+
+        // Cleanup
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

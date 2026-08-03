@@ -147,11 +147,7 @@ impl LuaBindings {
     }
 
     /// Execute a UI action function with JSON-encoded arguments.
-    pub fn execute_action_with_args(
-        &self,
-        function_name: &str,
-        args_json: &str,
-    ) -> Result<String> {
+    pub fn execute_action_with_args(&self, function_name: &str, args_json: &str) -> Result<String> {
         crate::lua::ui_actions::execute_action_with_args(&self.lua, function_name, args_json)
     }
 
