@@ -409,4 +409,54 @@ mod tests {
         assert!(backend.master_a.is_none());
         assert!(backend.master_b.is_none());
     }
+
+    #[test]
+    fn test_pty_backend_type() {
+        let backend = PtyBackend::new().unwrap();
+        assert_eq!(backend.backend_type(), "pty");
+    }
+
+    #[tokio::test]
+    async fn test_pty_create_pair_and_data_flow() {
+        let mut backend = PtyBackend::new().unwrap();
+
+        let (port_a, port_b, _error_rx, _stats) = backend.create_pair().await.unwrap();
+
+        // Verify port paths exist and are different
+        assert!(!port_a.path.to_string_lossy().is_empty());
+        assert!(!port_b.path.to_string_lossy().is_empty());
+        assert_ne!(port_a.path, port_b.path);
+        assert_eq!(port_a.name, "A");
+        assert_eq!(port_b.name, "B");
+
+        // Verify backend is healthy after creation
+        assert!(backend.is_healthy().await);
+
+        // Verify stats are accessible
+        let stats = backend.get_stats().await;
+        assert_eq!(stats.uptime_seconds, 0); // just created
+
+        // Cleanup
+        backend.cleanup().await.unwrap();
+        assert!(!backend.is_healthy().await);
+    }
+
+    #[tokio::test]
+    async fn test_pty_cleanup() {
+        let mut backend = PtyBackend::new().unwrap();
+        let (_port_a, _port_b, _, _) = backend.create_pair().await.unwrap();
+
+        assert!(backend.is_healthy().await);
+        backend.cleanup().await.unwrap();
+        assert!(!backend.is_healthy().await);
+        assert!(backend.bridge_task.is_none());
+        assert!(backend.master_a.is_none());
+        assert!(backend.master_b.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_pty_not_healthy_before_creation() {
+        let backend = PtyBackend::new().unwrap();
+        assert!(!backend.is_healthy().await);
+    }
 }

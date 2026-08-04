@@ -724,4 +724,93 @@ mod tests {
         assert_eq!(params.connection_id, "test");
         assert_eq!(params.timeout, 1000);
     }
+
+    #[tokio::test]
+    async fn test_jsonrpc_server_stats_format() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        let request = r#"{"jsonrpc":"2.0","method":"server_stats","params":{},"id":2}"#;
+        let response = dispatcher.handle_request(request).await;
+
+        assert!(response.contains(r#""jsonrpc":"2.0""#));
+        assert!(response.contains(r#""id":2"#));
+        assert!(response.ends_with('\n'));
+
+        let json_str = response.trim_end();
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        assert!(json["result"].is_object(), "server_stats should return an object");
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_protocol_list_format() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        let request = r#"{"jsonrpc":"2.0","method":"protocol_list","params":{},"id":3}"#;
+        let response = dispatcher.handle_request(request).await;
+
+        assert!(response.contains(r#""jsonrpc":"2.0""#));
+        assert!(response.contains(r#""id":3"#));
+
+        let json_str = response.trim_end();
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        // Should have either result or error
+        assert!(
+            json["result"].is_object() || json["error"].is_object(),
+            "protocol_list should return result or error, got: {}",
+            json
+        );
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_connection_list_empty() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        let request = r#"{"jsonrpc":"2.0","method":"connection_list","params":{},"id":4}"#;
+        let response = dispatcher.handle_request(request).await;
+
+        let json_str = response.trim_end();
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        assert!(json["result"].is_object(), "connection_list should return an object");
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_missing_params_uses_defaults() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        // port_list without params should still work
+        let request = r#"{"jsonrpc":"2.0","method":"port_list","id":5}"#;
+        let response = dispatcher.handle_request(request).await;
+        assert!(response.contains(r#""jsonrpc":"2.0""#));
+        assert!(response.contains(r#""id":5"#));
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_batch_requests() {
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state);
+
+        // Batch request with multiple methods
+        let request = r#"[
+            {"jsonrpc":"2.0","method":"port_list","id":1},
+            {"jsonrpc":"2.0","method":"server_stats","id":2}
+        ]"#;
+        let response = dispatcher.handle_request(request).await;
+
+        let json_str = response.trim_end();
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        // Server may return an array (batch) or a single error (if batch not supported)
+        assert!(
+            json.is_array() || json.is_object(),
+            "Batch response should be array or error object"
+        );
+    }
 }

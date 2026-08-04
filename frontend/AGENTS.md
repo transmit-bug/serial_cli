@@ -75,6 +75,23 @@ Theme applied via `data-theme` attribute on `<html>`, not a class.
 
 Store tests mock `@/lib/tauri-api` with `vi.mock()`. Each store has a `resetStore()` helper. Test files co-located: `stores/connection.test.ts`.
 
+## Mock Layer (pnpm dev without Rust)
+
+`pnpm dev` runs independently of `cargo tauri dev`. Vite aliases redirect Tauri imports to `src/lib/mock/`:
+
+- `@/lib/tauri-api` → `src/lib/mock/index.ts`
+- `@tauri-apps/api/event` → `src/lib/mock/events.ts`
+- `@tauri-apps/plugin-dialog` → `src/lib/mock/dialog.ts`
+
+Switch: `process.env.TAURI_PLATFORM` (set by `cargo tauri dev`, absent in `pnpm dev`).
+
+**Debug events from browser console:**
+```js
+__MOCK_EMIT__("data-received", { port_id: "/dev/ttyUSB0", data: [72,69,76,76,79], timestamp: Date.now(), direction: "rx" })
+```
+
+Mock code is fully isolated — `cargo tauri dev` / `cargo tauri build` never touches it.
+
 ## Gotchas
 
 - **Connection polling** is managed outside React (module-level `Map<string, timer>` in `connection.ts`), not in useEffect — intentional, survives re-renders

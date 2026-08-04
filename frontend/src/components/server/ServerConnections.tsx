@@ -20,7 +20,7 @@ export function ServerConnections() {
       <CardHeader>
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Users className="w-4 h-4" />
-          {t("server.activeConnections")}
+          {t("server.connections")}
           <span className="ml-auto text-xs text-text-secondary">
             {status.connections.length}
           </span>

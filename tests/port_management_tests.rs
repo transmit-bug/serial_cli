@@ -1,11 +1,11 @@
 //! 端口管理集成测试
 //!
-//! 测试端口冲突检测和状态同步功能
+//! 测试端口配置和管理功能
 
 use serial_cli::serial_core::{FlowControl, Parity, PortManager, SerialConfig};
 
-#[tokio::test]
-async fn test_port_manager_creation() {
+#[test]
+fn test_port_manager_creation() {
     let manager = PortManager::new();
     let ports = manager.list_ports();
     // 可能没有实际端口，但调用不应失败
@@ -29,20 +29,8 @@ async fn test_close_unopened_port() {
     assert!(result.is_err(), "Closing unopened port should fail");
 }
 
-#[tokio::test]
-async fn test_list_ports_returns_available() {
-    let manager = PortManager::new();
-    let ports = manager.list_ports().unwrap();
-
-    // 返回的应该是 Vec<SerialPortInfo>
-    assert!(
-        !ports.is_empty() || ports.is_empty(),
-        "Port list should be accessible"
-    );
-}
-
-#[tokio::test]
-async fn test_serial_config_default() {
+#[test]
+fn test_serial_config_default() {
     let config = SerialConfig::default();
     assert_eq!(config.baudrate, 115200);
     assert_eq!(config.databits, 8);
@@ -50,8 +38,8 @@ async fn test_serial_config_default() {
     assert_eq!(config.timeout_ms, 1000);
 }
 
-#[tokio::test]
-async fn test_serial_config_custom_values() {
+#[test]
+fn test_serial_config_custom_values() {
     let config = SerialConfig {
         baudrate: 9600,
         databits: 7,
@@ -69,34 +57,46 @@ async fn test_serial_config_custom_values() {
     assert_eq!(config.timeout_ms, 5000);
 }
 
-#[tokio::test]
-async fn test_parity_variants() {
-    let none = Parity::None;
-    let even = Parity::Even;
-    let odd = Parity::Odd;
-
-    // 确保可以创建不同变体
-    assert_eq!(format!("{:?}", none), "None");
-    assert_eq!(format!("{:?}", even), "Even");
-    assert_eq!(format!("{:?}", odd), "Odd");
+#[test]
+fn test_parity_debug_roundtrip() {
+    // 配置文件中 parity 用字符串 "none"/"even"/"odd" 表示
+    // 测试 Debug 输出与预期一致（用于日志和诊断）
+    let cases = vec![
+        (Parity::None, "None"),
+        (Parity::Even, "Even"),
+        (Parity::Odd, "Odd"),
+    ];
+    for (parity, expected) in cases {
+        assert_eq!(format!("{:?}", parity), expected);
+    }
 }
 
-#[tokio::test]
-async fn test_stop_bits_values() {
-    let one = 1u8;
-    let two = 2u8;
-
-    assert_eq!(one, 1);
-    assert_eq!(two, 2);
+#[test]
+fn test_flow_control_debug_roundtrip() {
+    let cases = vec![
+        (FlowControl::None, "None"),
+        (FlowControl::Software, "Software"),
+        (FlowControl::Hardware, "Hardware"),
+    ];
+    for (fc, expected) in cases {
+        assert_eq!(format!("{:?}", fc), expected);
+    }
 }
 
-#[tokio::test]
-async fn test_flow_control_variants() {
-    let none = FlowControl::None;
-    let software = FlowControl::Software;
-    let hardware = FlowControl::Hardware;
+#[test]
+fn test_serial_config_clone() {
+    let config = SerialConfig {
+        baudrate: 9600,
+        databits: 7,
+        stopbits: 2,
+        parity: Parity::Even,
+        timeout_ms: 5000,
+        flow_control: FlowControl::Hardware,
+        dtr_enable: true,
+        rts_enable: false,
+    };
 
-    assert_eq!(format!("{:?}", none), "None");
-    assert_eq!(format!("{:?}", software), "Software");
-    assert_eq!(format!("{:?}", hardware), "Hardware");
+    let cloned = config.clone();
+    assert_eq!(cloned.baudrate, config.baudrate);
+    assert_eq!(format!("{:?}", cloned.parity), format!("{:?}", config.parity));
 }

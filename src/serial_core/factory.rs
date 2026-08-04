@@ -128,14 +128,44 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_factory_create_backend_auto() {
-        // This test requires a ConfigManager, which we can't easily create here
-        // In a real test, you'd set up a test config
+    async fn test_factory_create_pty_backend() {
+        #[cfg(unix)]
+        {
+            let config = Arc::new(ConfigManager::new());
+            let factory = BackendFactory::new(config);
+            let backend = factory.create_backend(Some(BackendType::Pty)).await;
+            assert!(backend.is_ok());
+            let backend = backend.unwrap();
+            assert_eq!(backend.backend_type(), "pty");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_factory_rejects_named_pipe_on_unix() {
+        #[cfg(unix)]
+        {
+            let config = Arc::new(ConfigManager::new());
+            let factory = BackendFactory::new(config);
+            let result = factory.create_backend(Some(BackendType::NamedPipe)).await;
+            assert!(result.is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_factory_auto_detect() {
+        let config = Arc::new(ConfigManager::new());
+        let factory = BackendFactory::new(config);
+        // Auto should resolve to PTY on unix, NamedPipe on windows
+        let result = factory.create_backend(None).await;
+        // May fail if socat is not available, but PTY should work on unix
+        #[cfg(unix)]
+        {
+            assert!(result.is_ok());
+        }
     }
 
     #[test]
     fn test_backend_type_resolution() {
-        // Test that BackendType::detect() returns the correct type
         let detected = BackendType::detect();
         #[cfg(windows)]
         assert_eq!(detected, BackendType::NamedPipe);

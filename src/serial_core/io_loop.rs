@@ -307,6 +307,8 @@ impl Default for IoLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serial_core::backends::mock::MockSerialPort;
+    use crate::serial_core::{SerialConfig, SerialPortHandle};
 
     #[test]
     fn test_io_loop_creation() {
@@ -328,7 +330,6 @@ mod tests {
         let mut io_loop = IoLoop::new();
         let mut rx = io_loop.event_rx.take().unwrap();
 
-        // Send test event
         let _ = io_loop
             .event_tx
             .send(IoEvent::PortOpened {
@@ -336,7 +337,6 @@ mod tests {
             })
             .await;
 
-        // Receive event
         let event = rx.recv().await.unwrap();
         match event {
             IoEvent::PortOpened { port_id } => {
@@ -349,12 +349,9 @@ mod tests {
     #[tokio::test]
     async fn test_ioloop_lifecycle() {
         let mut io_loop = IoLoop::new();
-
-        // Test creation
         assert!(!io_loop.is_running());
         assert!(io_loop.event_rx.is_some());
 
-        // Test event sender works
         let tx = io_loop.event_sender();
         let result = tx
             .send(IoEvent::PortOpened {
@@ -363,9 +360,217 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        // Test shutdown
         let shutdown_result = io_loop.shutdown().await;
         assert!(shutdown_result.is_ok());
         assert!(!io_loop.is_running());
+    }
+
+    // ── Mock-based data flow tests ──────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_write_to_mock_port() {
+        let mock = MockSerialPort::empty();
+        let write_capture = mock.write_capture_ref();
+        let handle = SerialPortHandle::new_with_port(
+            "mock-tty".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        let io_loop = IoLoop::new();
+        let port_id = io_loop.port_manager.insert_handle(handle).await;
+
+        // Write through IoLoop
+        io_loop.write(&port_id, b"ATZ\r\n").await.unwrap();
+
+        // Verify mock captured the write
+        let written = write_capture.lock().unwrap();
+        assert_eq!(*written, b"ATZ\r\n");
+    }
+
+    #[tokio::test]
+    async fn test_read_from_mock_port() {
+        let mock = MockSerialPort::with_read_data(b"Hello from device");
+        let handle = SerialPortHandle::new_with_port(
+            "mock-tty".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        let io_loop = IoLoop::new();
+        let port_id = io_loop.port_manager.insert_handle(handle).await;
+
+        // Read through IoLoop
+        let mut buf = [0u8; 64];
+        let n = io_loop.read(&port_id, &mut buf).await.unwrap();
+        assert_eq!(&buf[..n], b"Hello from device");
+    }
+
+    #[tokio::test]
+    async fn test_write_then_read_roundtrip() {
+        // Simulate: write a command, then read the response
+        let mock = MockSerialPort::with_read_data(b"OK\r\n");
+        let write_capture = mock.write_capture_ref();
+        let handle = SerialPortHandle::new_with_port(
+            "mock-tty".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        let io_loop = IoLoop::new();
+        let port_id = io_loop.port_manager.insert_handle(handle).await;
+
+        // Write command
+        io_loop.write(&port_id, b"AT\r\n").await.unwrap();
+        assert_eq!(*write_capture.lock().unwrap(), b"AT\r\n");
+
+        // Read response
+        let mut buf = [0u8; 64];
+        let n = io_loop.read(&port_id, &mut buf).await.unwrap();
+        assert_eq!(&buf[..n], b"OK\r\n");
+    }
+
+    #[tokio::test]
+    async fn test_read_empty_port_returns_timeout() {
+        let mock = MockSerialPort::empty();
+        let handle = SerialPortHandle::new_with_port(
+            "mock-tty".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        let io_loop = IoLoop::new();
+        let port_id = io_loop.port_manager.insert_handle(handle).await;
+
+        // Read from empty port should timeout
+        let mut buf = [0u8; 64];
+        let result = io_loop.read(&port_id, &mut buf).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_write_to_nonexistent_port() {
+        let io_loop = IoLoop::new();
+        let result = io_loop.write("nonexistent", b"data").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_read_from_nonexistent_port() {
+        let io_loop = IoLoop::new();
+        let mut buf = [0u8; 64];
+        let result = io_loop.read("nonexistent", &mut buf).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_multiple_mock_ports() {
+        let mock1 = MockSerialPort::with_read_data(b"port1 data");
+        let mock2 = MockSerialPort::with_read_data(b"port2 data");
+
+        let handle1 = SerialPortHandle::new_with_port(
+            "mock-1".to_string(),
+            Box::new(mock1),
+            SerialConfig::default(),
+        );
+        let handle2 = SerialPortHandle::new_with_port(
+            "mock-2".to_string(),
+            Box::new(mock2),
+            SerialConfig::default(),
+        );
+
+        let io_loop = IoLoop::new();
+        let id1 = io_loop.port_manager.insert_handle(handle1).await;
+        let id2 = io_loop.port_manager.insert_handle(handle2).await;
+
+        // Read from both ports
+        let mut buf = [0u8; 64];
+        let n1 = io_loop.read(&id1, &mut buf).await.unwrap();
+        assert_eq!(&buf[..n1], b"port1 data");
+
+        let n2 = io_loop.read(&id2, &mut buf).await.unwrap();
+        assert_eq!(&buf[..n2], b"port2 data");
+    }
+
+    #[tokio::test]
+    async fn test_write_multiple_commands() {
+        let mock = MockSerialPort::empty();
+        let write_capture = mock.write_capture_ref();
+        let handle = SerialPortHandle::new_with_port(
+            "mock-tty".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        let io_loop = IoLoop::new();
+        let port_id = io_loop.port_manager.insert_handle(handle).await;
+
+        // Write multiple commands
+        io_loop.write(&port_id, b"AT\r\n").await.unwrap();
+        io_loop.write(&port_id, b"ATI\r\n").await.unwrap();
+        io_loop.write(&port_id, b"ATZ\r\n").await.unwrap();
+
+        let written = write_capture.lock().unwrap();
+        assert_eq!(*written, b"AT\r\nATI\r\nATZ\r\n");
+    }
+
+    #[tokio::test]
+    async fn test_push_data_after_creation() {
+        // Simulate data arriving after the port was opened
+        let mock = MockSerialPort::empty();
+        let mock_ref = mock.read_buffer_ref();
+        let handle = SerialPortHandle::new_with_port(
+            "mock-tty".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        let io_loop = IoLoop::new();
+        let port_id = io_loop.port_manager.insert_handle(handle).await;
+
+        // Push data after port creation
+        mock_ref.lock().unwrap().extend_from_slice(b"delayed data");
+
+        let mut buf = [0u8; 64];
+        let n = io_loop.read(&port_id, &mut buf).await.unwrap();
+        assert_eq!(&buf[..n], b"delayed data");
+    }
+
+    #[test]
+    fn test_io_event_variants() {
+        // Verify all IoEvent variants can be constructed
+        let events = vec![
+            IoEvent::DataReceived {
+                port_id: "p1".to_string(),
+                data: BytesMut::from(b"hello".as_slice()),
+            },
+            IoEvent::DataSent {
+                port_id: "p1".to_string(),
+                length: 5,
+            },
+            IoEvent::PortOpened {
+                port_id: "p1".to_string(),
+            },
+            IoEvent::PortClosed {
+                port_id: "p1".to_string(),
+            },
+            IoEvent::Error {
+                port_id: "p1".to_string(),
+                error: "test error".to_string(),
+            },
+        ];
+        assert_eq!(events.len(), 5);
+    }
+
+    #[test]
+    fn test_io_loop_config_custom() {
+        let config = IoLoopConfig {
+            buffer_size: 8192,
+            read_timeout_ms: 200,
+            event_channel_size: 50,
+        };
+        assert_eq!(config.buffer_size, 8192);
+        assert_eq!(config.read_timeout_ms, 200);
+        assert_eq!(config.event_channel_size, 50);
     }
 }

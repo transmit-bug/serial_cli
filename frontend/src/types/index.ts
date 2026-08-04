@@ -30,10 +30,23 @@ export interface PortStats {
   last_activity: number | null;
 }
 
+export interface ScriptMeta {
+  name?: string;
+  version?: string;
+  description?: string;
+  author?: string;
+  license?: string;
+  homepage?: string;
+  tags?: string[];
+  data_format?: string;
+  min_frame_size?: number;
+}
+
 export interface Script {
   name: string;
   description: string;
   built_in: boolean;
+  meta?: ScriptMeta;
 }
 
 export interface UserScriptInfo {

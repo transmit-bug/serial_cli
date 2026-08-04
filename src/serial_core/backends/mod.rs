@@ -5,6 +5,7 @@
 //! - NamedPipe backend (Windows)
 //! - Socat backend (cross-platform)
 
+pub mod mock;
 mod named_pipe;
 #[cfg(unix)]
 mod pty;

@@ -44,6 +44,17 @@ impl PortManager {
         }
     }
 
+    /// Insert a pre-built handle directly (for testing with mock ports).
+    ///
+    /// Returns the port_id that can be used with `get_port()`, `close_port()`, etc.
+    #[cfg(test)]
+    pub async fn insert_handle(&self, handle: SerialPortHandle) -> String {
+        let port_id = format!("mock-{}", uuid::Uuid::new_v4());
+        let mut ports_guard = self.ports.lock().await;
+        ports_guard.insert(port_id.clone(), Arc::new(Mutex::new(handle)));
+        port_id
+    }
+
     /// Create a new port manager with IoLoop enabled.
     ///
     /// When IoLoop is active, every port opened via [`open_port`](Self::open_port)
@@ -617,6 +628,30 @@ impl PortPtr {
 }
 
 impl SerialPortHandle {
+    /// Create a handle with a custom port implementation (for testing).
+    ///
+    /// This constructor allows injecting a mock port (e.g., [`MockSerialPort`](super::backends::mock::MockSerialPort))
+    /// for unit testing without a physical serial port.
+    pub fn new_with_port(
+        name: String,
+        port: Box<dyn serialport::SerialPort>,
+        config: SerialConfig,
+    ) -> Self {
+        let (data_tx, _data_rx) = broadcast::channel::<Vec<u8>>(32);
+        Self {
+            name,
+            port,
+            config,
+            excess_buffer: Vec::new(),
+            data_tx,
+            script_engine: None,
+            dtr_state: false,
+            rts_state: false,
+            #[cfg(unix)]
+            signal_controller: crate::serial_core::signals::UnixSignalController::new(),
+        }
+    }
+
     /// Get the port device name (e.g., `/dev/ttyUSB0`).
     pub fn name(&self) -> &str {
         &self.name
@@ -1037,5 +1072,90 @@ mod tests {
         assert_eq!(config.baudrate, 57600);
         assert_eq!(config.databits, 7);
         assert!(matches!(config.parity, Parity::Even));
+    }
+}
+
+// Additional tests for dependency injection via new_with_port
+#[cfg(test)]
+mod mock_port_tests {
+    use super::*;
+    use crate::serial_core::backends::mock::MockSerialPort;
+
+    #[test]
+    fn test_serial_port_handle_with_mock() {
+        let mock = MockSerialPort::with_read_data(b"Hello from mock");
+        let mut handle = SerialPortHandle::new_with_port(
+            "test-port".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        let mut buf = [0u8; 32];
+        let n = handle.read(&mut buf).unwrap();
+        assert_eq!(&buf[..n], b"Hello from mock");
+    }
+
+    #[test]
+    fn test_serial_port_handle_write_with_mock() {
+        let mock = MockSerialPort::empty();
+        let mock_ref = mock.write_capture_ref();
+        let mut handle = SerialPortHandle::new_with_port(
+            "test-port".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        handle.write(b"ATZ\r\n").unwrap();
+        assert_eq!(*mock_ref.lock().unwrap(), b"ATZ\r\n");
+    }
+
+    #[test]
+    fn test_serial_port_handle_write_intercepted_by_empty() {
+        // When script returns empty, write should return 0 bytes
+        let mock = MockSerialPort::empty();
+        let mut handle = SerialPortHandle::new_with_port(
+            "test-port".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        // No script attached, so data passes through
+        let written = handle.write(b"test").unwrap();
+        assert_eq!(written, 4);
+    }
+
+    #[test]
+    fn test_serial_port_handle_flush_with_mock() {
+        let mock = MockSerialPort::with_read_data(b"data");
+        let mut handle = SerialPortHandle::new_with_port(
+            "test-port".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+
+        // Flush should clear the buffer
+        handle.flush().unwrap();
+
+        let mut buf = [0u8; 32];
+        let result = handle.read(&mut buf);
+        // After flush, read should timeout since buffer is empty
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_serial_port_handle_name_and_config() {
+        let mock = MockSerialPort::empty();
+        let config = SerialConfig {
+            baudrate: 9600,
+            ..Default::default()
+        };
+        let handle = SerialPortHandle::new_with_port(
+            "my-port".to_string(),
+            Box::new(mock),
+            config,
+        );
+
+        assert_eq!(handle.name(), "my-port");
+        assert_eq!(handle.config().baudrate, 9600);
     }
 }

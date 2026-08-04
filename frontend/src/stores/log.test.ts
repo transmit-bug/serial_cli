@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { tauriApi } from "@/lib/tauri-api";
 import { useLogStore } from "@/stores/log";
-import { invoke } from "@tauri-apps/api/core";
 
-vi.mock("@tauri-apps/api/core");
+vi.mock("@/lib/tauri-api", () => ({
+  tauriApi: {
+    readLogs: vi.fn(),
+    clearLogs: vi.fn(),
+  },
+}));
 
 describe("useLogStore", () => {
   beforeEach(() => {
@@ -21,17 +26,17 @@ describe("useLogStore", () => {
       "2026-05-26 WARN slow query",
       "2026-05-26 ERROR connection failed",
     ];
-    vi.mocked(invoke).mockResolvedValueOnce(fakeLogs);
+    vi.mocked(tauriApi.readLogs).mockResolvedValueOnce(fakeLogs);
 
     await useLogStore.getState().loadLogs();
 
-    expect(invoke).toHaveBeenCalledWith("read_logs", { maxLines: 2000 });
+    expect(tauriApi.readLogs).toHaveBeenCalledWith(2000);
     expect(useLogStore.getState().lines).toEqual(fakeLogs);
     expect(useLogStore.getState().loading).toBe(false);
   });
 
   it("handles load error gracefully", async () => {
-    vi.mocked(invoke).mockRejectedValueOnce(new Error("file not found"));
+    vi.mocked(tauriApi.readLogs).mockRejectedValueOnce(new Error("file not found"));
 
     await useLogStore.getState().loadLogs();
 
@@ -41,11 +46,11 @@ describe("useLogStore", () => {
 
   it("clears logs via backend", async () => {
     useLogStore.setState({ lines: ["log1", "log2"] });
-    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+    vi.mocked(tauriApi.clearLogs).mockResolvedValueOnce(undefined);
 
     await useLogStore.getState().clearLogs();
 
-    expect(invoke).toHaveBeenCalledWith("clear_logs");
+    expect(tauriApi.clearLogs).toHaveBeenCalled();
     expect(useLogStore.getState().lines).toEqual([]);
   });
 
