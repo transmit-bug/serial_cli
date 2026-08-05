@@ -8,6 +8,7 @@ import { useUIStore } from "@/stores/ui";
 import { ConnectionBar } from "./ConnectionBar";
 import { RightPanel } from "./RightPanel";
 import { RxViewer } from "./RxViewer";
+import { SignalPanel } from "./SignalPanel";
 import { TxSender } from "./TxSender";
 
 interface DataEventPayload {
@@ -48,6 +49,9 @@ export function TerminalWorkbench() {
   return (
     <div className="flex flex-col h-full">
       <ConnectionBar />
+
+      {/* Modem signal control (DTR/RTS/CTS/DSR) for the active port */}
+      <SignalPanel portId={activePortId} />
 
       {/* Port tabs */}
       {connectedPorts.length > 0 && (

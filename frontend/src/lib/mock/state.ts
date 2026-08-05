@@ -12,6 +12,19 @@ import type {
   VirtualPortInfo,
   VirtualPortStats,
 } from "@/types";
+import { mockEmit } from "./events";
+
+/** Simulated modem signal state for a port (mock mode only). */
+export interface MockSignalState {
+  dtr: boolean;
+  rts: boolean;
+  cts: boolean;
+  dsr: boolean;
+}
+
+export function defaultSignals(): MockSignalState {
+  return { dtr: true, rts: true, cts: false, dsr: false };
+}
 
 interface PortEntry {
   info: PortInfo;
@@ -22,6 +35,7 @@ interface PortEntry {
   packetsSent: number;
   packetsReceived: number;
   lastActivity: number | null;
+  sniffing: boolean;
 }
 
 interface VirtualPortEntry {
@@ -34,6 +48,8 @@ export class MockState {
   ports = new Map<string, PortEntry>();
   scripts: Script[] = [];
   userScripts = new Map<string, UserScriptInfo>();
+  /** Full content of saved user scripts, so the editor can restore them. */
+  userScriptContents = new Map<string, string>();
   attachedScripts = new Map<string, string>(); // portId -> scriptSource
   config: ConfigData;
   presets: ConnectionPreset[] = [];
@@ -41,6 +57,12 @@ export class MockState {
   virtualPorts = new Map<string, VirtualPortEntry>();
   logs: string[] = [];
   hotReloadEnabled = false;
+  /** Ports currently "sniffing" (simulated receive loop active). */
+  sniffingPorts = new Set<string>();
+  /** Interval handles for the simulated receive loops. */
+  sniffTimers = new Map<string, ReturnType<typeof setInterval>>();
+  /** Simulated modem signal state per port id. */
+  signals = new Map<string, MockSignalState>();
 
   constructor() {
     // Seed fake ports
@@ -58,6 +80,7 @@ export class MockState {
       packetsSent: 0,
       packetsReceived: 0,
       lastActivity: null,
+      sniffing: false,
     });
     this.ports.set("/dev/ttyUSB1", {
       info: {
@@ -73,6 +96,7 @@ export class MockState {
       packetsSent: 0,
       packetsReceived: 0,
       lastActivity: null,
+      sniffing: false,
     });
 
     // Seed built-in scripts
@@ -162,6 +186,7 @@ export class MockState {
         packetsSent: 0,
         packetsReceived: 0,
         lastActivity: null,
+        sniffing: false,
       });
     }
   }
@@ -224,7 +249,7 @@ export class MockState {
   }
 
   // Virtual port operations
-  createVirtualPort(id: string, backend: string): void {
+  createVirtualPort(id: string, backend: string, monitor = false): void {
     const now = Date.now();
     const info: VirtualPortInfo = {
       id,
@@ -248,7 +273,7 @@ export class MockState {
       last_error: null,
       capture_packets: 0,
       capture_bytes: 0,
-      monitoring: false,
+      monitoring: monitor,
     };
     this.virtualPorts.set(id, { info, stats, capturedPackets: [] });
   }
@@ -259,6 +284,72 @@ export class MockState {
       entry.info.running = false;
       entry.stats.running = false;
     }
+  }
+
+  /** Append a captured packet to a virtual port pair (monitoring enabled). */
+  captureVirtualPacket(
+    id: string,
+    direction: "AtoB" | "BtoA",
+    data: number[],
+  ): void {
+    const entry = this.virtualPorts.get(id);
+    if (!entry || data.length === 0) return;
+    entry.capturedPackets.push({
+      direction,
+      data,
+      timestamp_millis: Date.now(),
+    });
+    entry.stats.capture_packets += 1;
+    entry.stats.capture_bytes += data.length;
+  }
+
+  // Simulated serial receive
+
+  /**
+   * Simulate incoming data on a port: updates RX stats and emits the
+   * `data-received` event exactly like the real backend sniffer does.
+   */
+  simulateReceive(portId: string, data: number[]): void {
+    if (data.length === 0) return;
+    const entry = this.ports.get(portId);
+    if (entry) {
+      entry.bytesReceived += data.length;
+      entry.packetsReceived += 1;
+      entry.lastActivity = Date.now();
+    }
+    mockEmit("data-received", {
+      port_id: portId,
+      data,
+      timestamp: Date.now(),
+      direction: "rx",
+    });
+  }
+
+  // Signal control simulation
+
+  setSignal(
+    portId: string,
+    signal: "dtr" | "rts",
+    enable: boolean,
+  ): MockSignalState {
+    const current = this.signals.get(portId) ?? defaultSignals();
+    const next = { ...current, [signal]: enable };
+    this.signals.set(portId, next);
+    return next;
+  }
+
+  getSignals(portId: string): MockSignalState {
+    return this.signals.get(portId) ?? defaultSignals();
+  }
+
+  // User script content
+
+  saveScriptContent(name: string, content: string): void {
+    this.userScriptContents.set(name, content);
+  }
+
+  getScriptContent(name: string): string | null {
+    return this.userScriptContents.get(name) ?? null;
   }
 }
 

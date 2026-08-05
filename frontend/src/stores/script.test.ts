@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useScriptStore } from "./script";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tauriApi } from "@/lib/tauri-api";
+import { useScriptStore } from "./script";
 
 // Mock tauriApi
 vi.mock("@/lib/tauri-api", () => ({
@@ -11,6 +11,7 @@ vi.mock("@/lib/tauri-api", () => ({
     reloadScript: vi.fn(),
     bindScript: vi.fn(),
     listUserScripts: vi.fn(),
+    readUserScriptContent: vi.fn(),
     saveUserScript: vi.fn(),
     deleteUserScript: vi.fn(),
   },
@@ -199,7 +200,9 @@ describe("useScriptStore", () => {
           modified: 1234567890,
         },
       ];
-      mockTauriApi.listUserScripts.mockResolvedValueOnce(mockUserScripts as any);
+      mockTauriApi.listUserScripts.mockResolvedValueOnce(
+        mockUserScripts as any,
+      );
 
       await useScriptStore.getState().loadUserScripts();
 
@@ -217,7 +220,7 @@ describe("useScriptStore", () => {
   });
 
   describe("openUserScript", () => {
-    it("should fetch script content and set currentScript", async () => {
+    it("should read script content through the API and set currentScript", async () => {
       useScriptStore.setState({
         userScripts: [
           {
@@ -228,9 +231,9 @@ describe("useScriptStore", () => {
           },
         ],
       });
-      mockFetch.mockResolvedValueOnce({
-        text: () => Promise.resolve("function on_recv(data) return data end"),
-      });
+      mockTauriApi.readUserScriptContent.mockResolvedValueOnce(
+        "function on_recv(data) return data end",
+      );
 
       await useScriptStore.getState().openUserScript("my_script");
 
@@ -249,7 +252,7 @@ describe("useScriptStore", () => {
       expect(useScriptStore.getState().currentScript).toBeNull();
     });
 
-    it("should set empty content on fetch error", async () => {
+    it("should fall back to file fetch when API read fails", async () => {
       useScriptStore.setState({
         userScripts: [
           {
@@ -260,6 +263,36 @@ describe("useScriptStore", () => {
           },
         ],
       });
+      mockTauriApi.readUserScriptContent.mockRejectedValueOnce(
+        new Error("Not found"),
+      );
+      mockFetch.mockResolvedValueOnce({
+        text: () => Promise.resolve("-- fallback content"),
+      });
+
+      await useScriptStore.getState().openUserScript("my_script");
+
+      expect(useScriptStore.getState().currentScript).toEqual({
+        name: "my_script",
+        content: "-- fallback content",
+      });
+      expect(useScriptStore.getState().isDirty).toBe(false);
+    });
+
+    it("should set empty content when both paths fail", async () => {
+      useScriptStore.setState({
+        userScripts: [
+          {
+            name: "my_script",
+            path: "/path/my_script.lua",
+            size: 100,
+            modified: 1234567890,
+          },
+        ],
+      });
+      mockTauriApi.readUserScriptContent.mockRejectedValueOnce(
+        new Error("Not found"),
+      );
       mockFetch.mockRejectedValueOnce(new Error("File not found"));
 
       await useScriptStore.getState().openUserScript("my_script");

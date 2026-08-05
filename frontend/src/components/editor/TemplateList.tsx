@@ -329,7 +329,10 @@ export function TemplateList({ onLoadTemplate }: TemplateListProps) {
             <button
               key={tpl.name}
               className="w-full text-left px-2 py-1.5 rounded text-xs bg-surface hover:bg-surface-hover transition"
-              onClick={() => onLoadTemplate(tpl.content, "script")}
+              onClick={() => {
+                onLoadTemplate(tpl.content, "script");
+                setExpandedScripts(false);
+              }}
             >
               <div className="font-medium">{t(tpl.labelKey)}</div>
               <div className="text-[10px] text-text-muted">
@@ -354,7 +357,10 @@ export function TemplateList({ onLoadTemplate }: TemplateListProps) {
             <button
               key={tpl.name}
               className="w-full text-left px-2 py-1.5 rounded text-xs bg-surface hover:bg-surface-hover transition"
-              onClick={() => onLoadTemplate(tpl.content, "protocol")}
+              onClick={() => {
+                onLoadTemplate(tpl.content, "protocol");
+                setExpandedProtocols(false);
+              }}
             >
               <div className="font-medium">{t(tpl.labelKey)}</div>
               <div className="text-[10px] text-text-muted">

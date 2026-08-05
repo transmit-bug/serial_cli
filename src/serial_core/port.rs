@@ -826,6 +826,42 @@ impl SerialPortHandle {
         self.rts_state
     }
 
+    /// Read the CTS (Clear to Send) input line state from the hardware.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the platform cannot read the
+    /// signal (e.g. the port does not expose modem-status lines).
+    pub fn read_cts(&mut self) -> Result<bool> {
+        self.port
+            .read_clear_to_send()
+            .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
+    }
+
+    /// Read the DSR (Data Set Ready) input line state from the hardware.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SerialError::Serial`] if the platform cannot read the
+    /// signal (e.g. the port does not expose modem-status lines).
+    pub fn read_dsr(&mut self) -> Result<bool> {
+        self.port
+            .read_data_set_ready()
+            .map_err(|e| SerialError::Serial(SerialPortError::IoError(e.to_string())))
+    }
+
+    /// Human-readable name of the signal-control platform backend.
+    pub fn signal_platform(&self) -> &str {
+        #[cfg(unix)]
+        {
+            self.signal_controller.platform_name()
+        }
+        #[cfg(not(unix))]
+        {
+            "unsupported"
+        }
+    }
+
     /// Write raw bytes to the serial port. Returns the number of bytes written.
     ///
     /// Data flow: raw data → script `on_send()` → protocol `encode()` → serial port.

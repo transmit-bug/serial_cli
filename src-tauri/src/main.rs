@@ -87,6 +87,9 @@ async fn main() {
             commands::serial::read_data,
             commands::serial::start_sniffing,
             commands::serial::stop_sniffing,
+            commands::serial::set_dtr,
+            commands::serial::set_rts,
+            commands::serial::get_signals,
             // Serial script engine commands
             commands::serial_script::attach_script,
             commands::serial_script::detach_script,
@@ -104,6 +107,7 @@ async fn main() {
             commands::script::validate_script,
             commands::script::validate_script_file,
             commands::script::list_user_scripts,
+            commands::script::read_user_script,
             commands::script::save_user_script,
             commands::script::delete_user_script,
             commands::script::bind_script,

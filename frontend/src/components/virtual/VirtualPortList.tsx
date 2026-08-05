@@ -1,8 +1,9 @@
 import { Check, Copy, Plus, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { formatBytes } from "@/lib/utils";
+import { useSettingsStore } from "@/stores/settings";
 import { useVirtualPortStore } from "@/stores/virtualPort";
 import type { VirtualPortInfo } from "@/types";
 
@@ -68,9 +69,36 @@ export function VirtualPortList() {
 function CreateForm() {
   const { t } = useTranslation();
   const { createPort, setCreateFormOpen } = useVirtualPortStore();
+  const { config, loadConfig, updateConfig } = useSettingsStore();
   const [backend, setBackend] = useState("pty");
-  const [monitor, setMonitor] = useState(true);
+  const [monitor, setMonitor] = useState(
+    config?.virtual_ports.monitor ?? false,
+  );
   const [bufferSize, setBufferSize] = useState(8192);
+
+  // Keep the checkbox in sync with config.virtual_ports.monitor
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  useEffect(() => {
+    if (config) {
+      setMonitor(config.virtual_ports.monitor);
+    }
+  }, [config]);
+
+  const handleMonitorChange = useCallback(
+    (checked: boolean) => {
+      setMonitor(checked);
+      if (config) {
+        updateConfig({
+          ...config,
+          virtual_ports: { ...config.virtual_ports, monitor: checked },
+        });
+      }
+    },
+    [config, updateConfig],
+  );
 
   const handleCreate = useCallback(async () => {
     try {
@@ -117,7 +145,7 @@ function CreateForm() {
         <input
           type="checkbox"
           checked={monitor}
-          onChange={(e) => setMonitor(e.target.checked)}
+          onChange={(e) => handleMonitorChange(e.target.checked)}
           className="rounded border-border"
         />
         {t("virtual.enableMonitor")}

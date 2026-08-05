@@ -69,6 +69,9 @@ export function EditorPage() {
 
   const [isDragging, setIsDragging] = useState(false);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
+  const [validationState, setValidationState] = useState<
+    "idle" | "validating" | "valid" | "error"
+  >("idle");
 
   // ─── Drag & Drop ───
 
@@ -232,10 +235,13 @@ export function EditorPage() {
 
   const handleValidate = useCallback(async () => {
     if (!currentScript) return;
+    setValidationState("validating");
     try {
       if (fileType === "script") {
         // Use detailed validation for scripts
-        const result = await tauriApi.validateScriptDetailed(currentScript.content);
+        const result = await tauriApi.validateScriptDetailed(
+          currentScript.content,
+        );
         if (result.warnings && result.warnings.length > 0) {
           setValidationWarnings(result.warnings);
         } else {
@@ -251,7 +257,9 @@ export function EditorPage() {
         setValidationWarnings([]);
         toast.success(t("scripts.validateSuccess"));
       }
+      setValidationState("valid");
     } catch (e) {
+      setValidationState("error");
       toast.error(String(e));
     }
   }, [currentScript, fileType, protocolNameInput, t]);
@@ -356,10 +364,17 @@ export function EditorPage() {
 
         <button
           onClick={handleValidate}
-          disabled={!currentScript}
-          className="px-2 py-1 rounded text-xs text-text-muted hover:text-text disabled:opacity-50"
+          disabled={!currentScript || validationState === "validating"}
+          className={`px-2 py-1 rounded text-xs disabled:opacity-50 transition-colors ${
+            validationState === "valid"
+              ? "bg-success/20 text-success"
+              : validationState === "error"
+                ? "bg-danger/20 text-danger"
+                : "text-text-muted hover:text-text"
+          }`}
         >
-          ✓ {t("common.validate")}
+          {validationState === "validating" ? "⋯ " : "✓ "}
+          {t("common.validate")}
         </button>
         <button
           onClick={handleRun}
@@ -592,9 +607,12 @@ export function EditorPage() {
                       language="lua"
                       theme={theme === "light" ? "light" : "vs-dark"}
                       value={currentScript?.content ?? ""}
-                      onChange={(value) =>
-                        value !== undefined && updateContent(value)
-                      }
+                      onChange={(value) => {
+                        if (value !== undefined) {
+                          updateContent(value);
+                          setValidationState("idle");
+                        }
+                      }}
                       options={{
                         fontSize: 13,
                         fontFamily: '"JetBrains Mono", "Fira Code", monospace',

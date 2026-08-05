@@ -18,6 +18,7 @@ import type {
   ScriptValidationResult,
   SerialConfig,
   ServerStatus,
+  SignalStatus,
   UiAction,
   UserScriptInfo,
   ValidationError,
@@ -75,6 +76,17 @@ export const tauriApi = {
   startSniffing: (portId: string) => call<void>("start_sniffing", { portId }),
   stopSniffing: (portId: string) => call<void>("stop_sniffing", { portId }),
 
+  // Signal commands
+  setDtr: (portId: string, enable: boolean) =>
+    call<SignalStatus>("set_dtr", { portId, enable }),
+  setRts: (portId: string, enable: boolean) =>
+    call<SignalStatus>("set_rts", { portId, enable }),
+  getSignals: (portId: string) => call<SignalStatus>("get_signals", { portId }),
+
+  // Mock-only: inject one incoming frame
+  simulateReceive: (portId: string, data: number[]) =>
+    call<void>("simulate_receive", { portId, data }),
+
   // Script commands
   listScripts: () => call<Script[]>("list_scripts"),
   loadScript: (path: string) => call<Script>("load_script", { path }),
@@ -89,6 +101,8 @@ export const tauriApi = {
   validateScriptFile: (path: string) =>
     call<void>("validate_script_file", { path }),
   listUserScripts: () => call<UserScriptInfo[]>("list_user_scripts"),
+  readUserScriptContent: (name: string) =>
+    call<string>("read_user_script", { name }),
   saveUserScript: (name: string, content: string) =>
     call<void>("save_user_script", { name, content }),
   deleteUserScript: (name: string) =>

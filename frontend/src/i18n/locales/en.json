@@ -172,7 +172,8 @@
     "historyDown": "↓",
     "searchMatchCount": "{{matched}} / {{total}}",
     "searchRegex": ".*",
-    "searchCaseSensitive": "Aa"
+    "searchCaseSensitive": "Aa",
+    "signals": "Signals"
   },
   "txSender": {
     "freeSend": "Free Send",

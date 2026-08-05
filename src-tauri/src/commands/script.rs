@@ -237,6 +237,19 @@ pub async fn delete_user_script(name: String, _state: State<'_, AppState>) -> Re
     fs::remove_file(&script_path).map_err(|e| format!("Failed to delete script: {}", e))
 }
 
+/// Read the full content of a saved user script.
+#[tauri::command]
+pub async fn read_user_script(name: String, _state: State<'_, AppState>) -> Result<String, String> {
+    let scripts_dir = get_user_scripts_dir()?;
+    let script_path = scripts_dir.join(format!("{}.lua", name));
+
+    if !script_path.exists() {
+        return Err(format!("Script not found: {}", name));
+    }
+
+    fs::read_to_string(&script_path).map_err(|e| format!("Failed to read script: {}", e))
+}
+
 // ── Port-Script Binding ──────────────────────────────────────────────────────
 
 /// Attach a script to an open port (by name, via ScriptManager)

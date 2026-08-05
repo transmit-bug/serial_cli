@@ -6,7 +6,8 @@ export const virtualPortHandlers: Record<string, Handler> = {
     const cfg = config as any;
     const id = cfg?.name ?? `vp-${Date.now()}`;
     const backend = cfg?.backend ?? "pty";
-    state.createVirtualPort(id, backend);
+    const monitor = cfg?.monitor ?? false;
+    state.createVirtualPort(id, backend, monitor);
     return id;
   },
 
@@ -50,12 +51,16 @@ export const virtualPortHandlers: Record<string, Handler> = {
     return entry?.capturedPackets ?? [];
   },
 
-  send_to_virtual_port: ({ id, data }, state) => {
+  send_to_virtual_port: ({ id, portEnd, data }, state) => {
     const bytes = (data as number[]) || [];
     const entry = state.virtualPorts.get(id as string);
     if (entry) {
       entry.stats.bytes_bridged += bytes.length;
       entry.stats.packets_bridged += 1;
+      if (entry.stats.monitoring && bytes.length > 0) {
+        const direction = portEnd === "b" ? "AtoB" : "BtoA";
+        state.captureVirtualPacket(id as string, direction, bytes);
+      }
     }
     return bytes.length;
   },

@@ -102,11 +102,19 @@ export const useScriptStore = create<ScriptStore>()((set, get) => ({
     if (!info) return;
 
     try {
-      const response = await fetch(`file://${info.path}`);
-      const content = await response.text();
+      // Preferred path: read through the backend so saved content always
+      // round-trips (mock mode stores content in MockState).
+      const content = await tauriApi.readUserScriptContent(name);
       set({ currentScript: { name, content }, isDirty: false });
     } catch {
-      set({ currentScript: { name, content: "" }, isDirty: false });
+      // Fallback: some setups may serve the scripts directory directly.
+      try {
+        const response = await fetch(`file://${info.path}`);
+        const content = await response.text();
+        set({ currentScript: { name, content }, isDirty: false });
+      } catch {
+        set({ currentScript: { name, content: "" }, isDirty: false });
+      }
     }
   },
 

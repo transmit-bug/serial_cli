@@ -8,10 +8,95 @@
 
 use crate::state::app_state::{AppState, DataSniffer, PortStatsTracker};
 use log::{debug, error, info};
+use serial_cli::serial_core::SerialPortHandle;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, State};
+
+/// Signal status snapshot for a serial port.
+#[derive(serde::Serialize)]
+pub struct SignalStatus {
+    pub dtr: bool,
+    pub rts: bool,
+    /// CTS readback; `null` when the platform cannot read it.
+    pub cts: Option<bool>,
+    /// DSR readback; `null` when the platform cannot read it.
+    pub dsr: Option<bool>,
+    pub platform: String,
+}
+
+/// Build a [`SignalStatus`] snapshot from a locked port handle.
+async fn snapshot_signals(
+    port_handle: tokio::sync::MutexGuard<'_, SerialPortHandle>,
+) -> SignalStatus {
+    let mut handle = port_handle;
+    let dtr = handle.dtr_enabled();
+    let rts = handle.rts_enabled();
+    let cts = handle.read_cts().ok();
+    let dsr = handle.read_dsr().ok();
+    let platform = handle.signal_platform().to_string();
+    SignalStatus {
+        dtr,
+        rts,
+        cts,
+        dsr,
+        platform,
+    }
+}
+
+/// Set the DTR (Data Terminal Ready) output signal for a port.
+#[tauri::command]
+pub async fn set_dtr(
+    port_id: String,
+    enable: bool,
+    state: State<'_, AppState>,
+) -> Result<SignalStatus, String> {
+    let manager = state.port_manager.lock().await;
+    let port_handle = manager
+        .get_port(&port_id)
+        .await
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    let mut handle = port_handle.lock().await;
+    handle
+        .set_dtr(enable)
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    Ok(snapshot_signals(handle).await)
+}
+
+/// Set the RTS (Request to Send) output signal for a port.
+#[tauri::command]
+pub async fn set_rts(
+    port_id: String,
+    enable: bool,
+    state: State<'_, AppState>,
+) -> Result<SignalStatus, String> {
+    let manager = state.port_manager.lock().await;
+    let port_handle = manager
+        .get_port(&port_id)
+        .await
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    let mut handle = port_handle.lock().await;
+    handle
+        .set_rts(enable)
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    Ok(snapshot_signals(handle).await)
+}
+
+/// Read the current DTR/RTS/CTS/DSR signal state for a port.
+#[tauri::command]
+pub async fn get_signals(
+    port_id: String,
+    state: State<'_, AppState>,
+) -> Result<SignalStatus, String> {
+    let manager = state.port_manager.lock().await;
+    let port_handle = manager
+        .get_port(&port_id)
+        .await
+        .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
+    let handle = port_handle.lock().await;
+    Ok(snapshot_signals(handle).await)
+}
 
 /// Send data to a serial port
 #[tauri::command]

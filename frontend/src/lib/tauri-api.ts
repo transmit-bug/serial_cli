@@ -7,12 +7,13 @@ import type {
   PortInfo,
   PortStatus,
   Script,
-  ScriptValidationResult,
-  ServerStatus,
-  UserScriptInfo,
   ScriptStatus,
+  ScriptValidationResult,
   SerialConfig,
+  ServerStatus,
+  SignalStatus,
   UiAction,
+  UserScriptInfo,
   ValidationError,
   VirtualPortInfo,
   VirtualPortStats,
@@ -35,6 +36,14 @@ export const tauriApi = {
   startSniffing: (portId: string) => invoke<void>("start_sniffing", { portId }),
   stopSniffing: (portId: string) => invoke<void>("stop_sniffing", { portId }),
 
+  // Signal commands
+  setDtr: (portId: string, enable: boolean) =>
+    invoke<SignalStatus>("set_dtr", { portId, enable }),
+  setRts: (portId: string, enable: boolean) =>
+    invoke<SignalStatus>("set_rts", { portId, enable }),
+  getSignals: (portId: string) =>
+    invoke<SignalStatus>("get_signals", { portId }),
+
   // Script commands (unified protocol + script management)
   listScripts: () => invoke<Script[]>("list_scripts"),
   loadScript: (path: string) => invoke<Script>("load_script", { path }),
@@ -50,6 +59,8 @@ export const tauriApi = {
   validateScriptFile: (path: string) =>
     invoke<void>("validate_script_file", { path }),
   listUserScripts: () => invoke<UserScriptInfo[]>("list_user_scripts"),
+  readUserScriptContent: (name: string) =>
+    invoke<string>("read_user_script", { name }),
   saveUserScript: (name: string, content: string) =>
     invoke<void>("save_user_script", { name, content }),
   deleteUserScript: (name: string) =>
@@ -77,12 +88,20 @@ export const tauriApi = {
   listScriptActions: (portId: string) =>
     invoke<UiAction[]>("list_script_actions", { portId }),
   callScriptFunction: (portId: string, functionName: string, args?: string) =>
-    invoke<string>("call_script_function", { portId, functionName, args: args ?? null }),
+    invoke<string>("call_script_function", {
+      portId,
+      functionName,
+      args: args ?? null,
+    }),
 
   // Standalone script UI actions
   listStandaloneScriptActions: (scriptSource: string) =>
     invoke<UiAction[]>("list_standalone_script_actions", { scriptSource }),
-  callStandaloneScriptFunction: (scriptSource: string, functionName: string, args?: string) =>
+  callStandaloneScriptFunction: (
+    scriptSource: string,
+    functionName: string,
+    args?: string,
+  ) =>
     invoke<string>("call_standalone_script_function", {
       scriptSource,
       functionName,

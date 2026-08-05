@@ -110,6 +110,16 @@ export interface CapturedPacket {
   timestamp_millis: number;
 }
 
+/** Modem signal state returned by the signal-control commands. */
+export interface SignalStatus {
+  dtr: boolean;
+  rts: boolean;
+  cts: boolean | null;
+  dsr: boolean | null;
+  /** Platform name ("linux", "macos", "mock", ...). */
+  platform: string;
+}
+
 export interface CreateVirtualPortConfig {
   name?: string;
   backend: string;
