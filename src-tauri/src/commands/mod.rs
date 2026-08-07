@@ -9,6 +9,7 @@
 pub mod config;
 pub mod export;
 pub mod port;
+pub mod remote;
 pub mod script;
 pub mod script_ui_actions;
 pub mod serial;

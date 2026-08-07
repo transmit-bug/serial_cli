@@ -2,6 +2,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  MonitorUp,
   Server,
   Settings,
   Split,
@@ -18,6 +19,7 @@ const NAV_ITEMS: { page: PageName; icon: typeof Terminal; labelKey: string }[] =
     { page: "virtual", icon: Split, labelKey: "nav.virtual" },
     { page: "editor", icon: Code2, labelKey: "nav.editor" },
     { page: "server", icon: Server, labelKey: "nav.server" },
+    { page: "remote", icon: MonitorUp, labelKey: "nav.remote" },
     { page: "settings", icon: Settings, labelKey: "nav.settings" },
   ];
 

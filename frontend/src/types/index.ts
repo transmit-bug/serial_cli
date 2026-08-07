@@ -200,6 +200,7 @@ export type PageName =
   | "virtual"
   | "editor"
   | "server"
+  | "remote"
   | "settings";
 
 export interface ScriptValidationResult {
@@ -222,6 +223,48 @@ export interface ServerStatus {
   total_requests: number;
   total_errors: number;
   connections: ServerConnectionInfo[];
+}
+
+// ── Remote devices (LAN daemon access) ───────────────────────────────────
+
+export interface RemoteDevice {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  created_at: number;
+}
+
+export interface RemotePortInfo {
+  port_name: string;
+  port_type: string;
+}
+
+export interface RemoteOpenResult {
+  connection_id: string;
+  port: string;
+  protocol: string | null;
+}
+
+export interface RemoteRecvResult {
+  /** hex-encoded bytes */
+  data: string;
+  bytes_read: number;
+  timeout: boolean;
+}
+
+export interface RemoteServerStats {
+  connections: { active: number; max: number };
+  max_connections: number;
+  total_requests: number;
+  total_errors: number;
+  started_at: number;
+}
+
+export interface RemoteConnectionInfo {
+  connection_id: string;
+  port_id: string | null;
+  protocol: string | null;
 }
 
 export type ConnectionStatus =

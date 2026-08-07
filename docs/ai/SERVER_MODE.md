@@ -36,6 +36,15 @@ Options: `--bind <ip>` narrows the listening interface, `--no-tcp` disables TCP 
 
 > ⚠️ **No authentication in v1.** TCP remote access is designed for trusted corporate LANs. Authentication (token handshake) is tracked as a follow-up issue.
 
+### GUI remote devices
+
+The Tauri GUI has a **Remote Devices** page (sidebar → 远程设备) for operating remote Daemons without touching the CLI:
+
+1. Add a device (name + IP + port, persisted locally) and hit **Test connection** to verify the Daemon is reachable.
+2. Select the device to open its workbench: list Ports, open one (with baud rate), and send/receive data on the resulting Connection.
+
+All GUI operations go through the library's [`RemoteRpcClient`] (newline-framed JSON-RPC over TCP, one connection per call).
+
 ---
 
 ## Quick Start

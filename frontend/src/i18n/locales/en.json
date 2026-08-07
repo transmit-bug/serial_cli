@@ -80,7 +80,8 @@
     "virtual": "Virtual Ports",
     "editor": "Editor",
     "server": "Server",
-    "settings": "Settings"
+    "settings": "Settings",
+    "remote": "Remote"
   },
   "rightPanel": {
     "stats": "Stats",
@@ -133,7 +134,8 @@
     "label": "Label",
     "data": "Data",
     "addCommand": "Add Command",
-    "newCommand": "New Command"
+    "edit": "Edit",
+    "delete": "Delete"
   },
   "terminal": {
     "rxViewer": "RX Data",
@@ -194,14 +196,6 @@
     "timeout": "Timeout",
     "loop": "Repeat",
     "executingStep": "Step {{current}}/{{total}}"
-  },
-  "quickSend": {
-    "editCommand": "Edit Command",
-    "label": "Label",
-    "data": "Data",
-    "addCommand": "Add Command",
-    "edit": "Edit",
-    "delete": "Delete"
   },
   "virtual": {
     "title": "Virtual Serial Ports",
@@ -391,5 +385,34 @@
   "statusbar": {
     "connectedInfo": "Connected {{port}} @ {{baud}}",
     "noConnection": "Disconnected"
+  },
+  "remote": {
+    "title": "Remote Devices",
+    "refresh": "Refresh",
+    "addDevice": "Add Device",
+    "editDevice": "Edit Device",
+    "deviceList": "Device List",
+    "noDevices": "No remote devices yet. Click “Add Device” to register a target device (name + IP + port).",
+    "selectToOperate": "Click to open this device's workbench",
+    "online": "Online",
+    "unknown": "Unknown",
+    "testConnection": "Test connection",
+    "workbench": "Device Workbench",
+    "openPort": "Open remote port",
+    "selectPort": "Select port",
+    "open": "Open",
+    "connections": "Remote Connections",
+    "noConnections": "No connections",
+    "use": "Use",
+    "close": "Close connection",
+    "sendData": "Send Data",
+    "txPlaceholder": "hex, e.g. 010300000002c40b",
+    "send": "Send",
+    "receiveData": "Receive Data",
+    "receive": "Receive",
+    "rxPlaceholder": "Received data will appear here…",
+    "deviceName": "Device Name",
+    "host": "IP / Hostname",
+    "port": "Port"
   }
 }

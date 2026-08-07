@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { EditorPage } from "@/components/editor/EditorPage";
 import { ServerPage } from "@/components/server/ServerPage";
+import { RemotePage } from "@/components/remote/RemotePage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { TerminalWorkbench } from "@/components/terminal/TerminalWorkbench";
 import { VirtualPortsPage } from "@/components/virtual/VirtualPortsPage";
@@ -19,6 +20,7 @@ const PAGES = {
   virtual: VirtualPortsPage,
   editor: EditorPage,
   server: ServerPage,
+  remote: RemotePage,
   settings: SettingsPage,
 } as const;
 

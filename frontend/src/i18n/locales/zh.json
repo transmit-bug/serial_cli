@@ -80,7 +80,8 @@
     "virtual": "虚拟端口",
     "editor": "编辑器",
     "server": "服务器",
-    "settings": "设置"
+    "settings": "设置",
+    "remote": "远程设备"
   },
   "rightPanel": {
     "stats": "统计",
@@ -133,7 +134,8 @@
     "label": "标签",
     "data": "数据",
     "addCommand": "添加命令",
-    "newCommand": "新建命令"
+    "edit": "编辑",
+    "delete": "删除"
   },
   "terminal": {
     "rxViewer": "接收数据",
@@ -194,14 +196,6 @@
     "timeout": "超时",
     "loop": "重复",
     "executingStep": "第 {{current}}/{{total}} 步"
-  },
-  "quickSend": {
-    "editCommand": "编辑命令",
-    "label": "标签",
-    "data": "数据",
-    "addCommand": "添加命令",
-    "edit": "编辑",
-    "delete": "删除"
   },
   "virtual": {
     "title": "虚拟串口",
@@ -389,5 +383,34 @@
   "statusbar": {
     "connectedInfo": "已连接 {{port}} @ {{baud}}",
     "noConnection": "未连接"
+  },
+  "remote": {
+    "title": "远程设备",
+    "refresh": "刷新",
+    "addDevice": "添加设备",
+    "editDevice": "编辑设备",
+    "deviceList": "设备列表",
+    "noDevices": "还没有远程设备。点击“添加设备”把目标设备加入列表（名称 + IP + 端口）。",
+    "selectToOperate": "点击进入该设备的操作台",
+    "online": "在线",
+    "unknown": "未测",
+    "testConnection": "测试连接",
+    "workbench": "设备操作台",
+    "openPort": "打开远程串口",
+    "selectPort": "选择串口",
+    "open": "打开",
+    "connections": "远程连接",
+    "noConnections": "暂无连接",
+    "use": "使用",
+    "close": "关闭连接",
+    "sendData": "发送数据",
+    "txPlaceholder": "hex，如 010300000002c40b",
+    "send": "发送",
+    "receiveData": "接收数据",
+    "receive": "接收",
+    "rxPlaceholder": "接收到的数据会显示在这里…",
+    "deviceName": "设备名称",
+    "host": "IP / 主机名",
+    "port": "端口"
   }
 }

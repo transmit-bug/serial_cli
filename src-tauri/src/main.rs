@@ -147,6 +147,18 @@ async fn main() {
             commands::server::start_server,
             commands::server::stop_server,
             commands::server::get_server_status,
+            // Remote device commands
+            commands::remote::get_remote_devices,
+            commands::remote::add_remote_device,
+            commands::remote::update_remote_device,
+            commands::remote::delete_remote_device,
+            commands::remote::test_remote_device,
+            commands::remote::remote_port_list,
+            commands::remote::remote_open_port,
+            commands::remote::remote_close_connection,
+            commands::remote::remote_send_data,
+            commands::remote::remote_recv_data,
+            commands::remote::remote_connection_list,
         ])
         .setup(|app| {
             // Setup event system

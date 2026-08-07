@@ -763,6 +763,48 @@ async fn e2e_tcp_large_frame_round_trip() {
     );
 }
 
+/// Test T8: Library `RemoteRpcClient` (used by the GUI) talks to a TCP daemon
+#[tokio::test]
+#[ignore]
+async fn e2e_tcp_library_client() {
+    use serial_cli::server::client::RemoteRpcClient;
+
+    let socket_path = unique_socket_path("tcp_client");
+    let port = next_tcp_port();
+    let server = start_server(&socket_path, Some(port));
+
+    if wait_for_tcp(port, server_startup_timeout_secs())
+        .await
+        .is_err()
+    {
+        stop_server(server, &socket_path);
+        panic!("Server did not start in time");
+    }
+
+    let client = RemoteRpcClient::new("127.0.0.1", port).expect("client resolves");
+
+    let stats = client.server_stats().await.expect("server_stats");
+    assert!(stats.max_connections >= 1);
+    assert!(stats.total_requests >= 1);
+
+    let ports = client.port_list().await.expect("port_list");
+    assert!(ports.len() >= 0);
+
+    let conns = client.connection_list().await.expect("connection_list");
+    assert!(conns.is_empty(), "no connections yet");
+
+    // Error path: unknown method surfaces as an error with the server message
+    let err = client
+        .call::<serde_json::Value>("nonexistent_method", serde_json::json!({}))
+        .await
+        .err()
+        .expect("unknown method should error");
+
+    stop_server(server, &socket_path);
+
+    assert!(err.to_string().contains("Method not found"), "got: {}", err);
+}
+
 /// Test T7: `server call --remote <ip:port>` CLI path reaches a remote daemon
 #[tokio::test]
 #[ignore]

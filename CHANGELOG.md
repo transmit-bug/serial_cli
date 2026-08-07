@@ -15,7 +15,9 @@ All notable changes to this project will be documented in this file.
   - Requests are now newline-terminated (line-framed protocol); the CLI client no longer relies on half-close
 - **Windows support for Server Mode** — the `cfg(windows)` gate is lifted; daemonization uses a detached-process spawn (`CREATE_NO_WINDOW`) instead of the Unix-only `daemonize` fork (which was also broken with tokio after fork — Unix now uses `setsid` detached spawn too)
 - **Daemon start fix** — `server start` no longer forks inside the tokio runtime (was crashing with "failed to wake I/O driver: Bad file descriptor"); it spawns a fresh `server daemon` process
-- **Tests** — `tests/e2e_server_tests.rs` extended to 16 cases over both transports (TCP lifecycle, concurrent clients, 100 KB frame, `--remote` CLI path); `rpc.rs` unit test for the busy-port error
+- **Remote client library** — `serial_cli::server::client::RemoteRpcClient` (TCP JSON-RPC client with typed helpers), used by the GUI
+- **GUI Remote Devices page** — device registry (name/IP/port, persisted in app data dir) + workbench: connect test, remote port list/open, send/receive on remote Connections
+- **Tests** — `tests/e2e_server_tests.rs` extended to 17 cases over both transports (TCP lifecycle, concurrent clients, 100 KB frame, `--remote` CLI path, library client); `rpc.rs` unit test for the busy-port error
 
 ### Unified Script System (2026-06-17)
 - **Merged Protocol and Hook Script** into a unified Script system
