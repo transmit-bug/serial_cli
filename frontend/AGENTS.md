@@ -10,7 +10,7 @@ Navigation is **store-driven** via `useUIStore.currentPage` (a `PageName` union)
 
 ### State Management
 
-10 Zustand stores in `src/stores/`, **no barrel export** — import directly from the file (e.g. `import { useConnectionStore } from "@/stores/connection"`).
+11 Zustand stores in `src/stores/`, **no barrel export** — import directly from the file (e.g. `import { useConnectionStore } from "@/stores/connection"`). The remote device store (`stores/remote.ts`) manages the device registry plus the workbench and per-connection streaming state (`streaming`, `rxBuffers`).
 
 **Patterns:**
 - Stores call `tauriApi` directly (no service layer, no React Query)
@@ -26,7 +26,7 @@ All Tauri communication goes through **`src/lib/tauri-api.ts`** — a single `ta
 1. **invoke (request/response):** `tauriApi.xxx()` → `invoke("command_name", { args })`
 2. **events (push from backend):** `useTauriEvent<T>(eventName, handler)` hook with auto-cleanup
 
-**Key events:** `data-received`, `data-sent`, `ports-changed`, `error-occurred`, `server-status-changed`
+**Key events:** `data-received`, `data-sent`, `ports-changed`, `error-occurred`, `server-status-changed`, plus remote-stream events `remote-data-received` / `remote-stream-error` / `remote-stream-closed` (listened via `setupRemoteDataListener()` in `stores/remote.ts`).
 
 ### Component Structure
 
@@ -35,6 +35,7 @@ components/
   layout/       — AppShell, Sidebar, StatusBar (app chrome)
   terminal/     — TerminalWorkbench (main page), ConnectionBar, RxViewer, TxSender
   virtual/      — Virtual port management
+  remote/       — RemotePage: LAN device registry + workbench (open port, send/recv, live stream)
   editor/       — Monaco-based Lua script editor
   server/       — Embedded JSON-RPC server UI
   settings/     — Single page, multi-tab

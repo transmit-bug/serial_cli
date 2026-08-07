@@ -33,11 +33,19 @@ An emulated serial port pair — writing to one end reads from the other. Backen
 _Avoid_: Virtual COM, loopback, pseudo-port
 
 **Daemon**:
-A background process that serves JSON-RPC 2.0 requests from clients (AI agents, scripts, other programs). Provides the same port/protocol operations as the CLI but over a persistent socket.
+A background process that serves JSON-RPC 2.0 requests from clients (AI agents, scripts, other programs). Provides the same port/protocol operations as the CLI over a persistent transport — Unix socket for local access and TCP (default `0.0.0.0:23333`) for LAN remote access.
 _Avoid_: Server, service
 
+**Remote Device**:
+A target device on the LAN running a Daemon, reachable at `ip:port`. The Tauri GUI keeps a saved device list (name / IP / port) and operates the device's Ports as if local.
+_Avoid_: Target, host, node
+
+**Remote Connection**:
+A Connection opened through a Remote Device's Daemon, manipulated via the same JSON-RPC surface as a local one (`port_open` returns a `connection_id`, then `port_send`/`port_recv`/`port_subscribe` operate on it).
+_Avoid_: Remote session, RPC session
+
 **Data Listener**:
-A background async task that continuously reads incoming data from an open connection and broadcasts it to subscribers. Without it, callers must poll for data.
+A background async task that continuously reads incoming data from an open connection and broadcasts it to subscribers. Without it, callers must poll for data. In server mode a reader is spawned per Port when a client subscribes (`port_subscribe`) and stopped on unsubscribe/close, so polling via `port_recv` stays intact for non-streaming clients.
 _Avoid_: IoLoop, read loop, background reader
 
 **Batch**:

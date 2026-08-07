@@ -24,6 +24,7 @@ Central `AppState` (`src/state/app_state.rs`) is `#[derive(Clone)]`:
 | `port_stats` | `Arc<Mutex<HashMap<String, Arc<PortStatsTracker>>>>` | Per-port counters (survives sniffer stop) |
 | `virtual_port_registry` | `Arc<RwLock<HashMap<String, VirtualSerialPair>>>` | Virtual port pairs |
 | `embedded_server` | `Arc<Mutex<Option<RunningEmbeddedServer>>>` | JSON-RPC server state |
+| `remote_streams` | `Arc<Mutex<HashMap<String, RemoteStreamHandle>>>` | Active remote data streams, keyed `device_id:connection_id` |
 
 **Locking discipline:** `port_manager.lock()` → get port handle → `port_handle.lock()` → I/O → drop locks. The sniffer pattern avoids holding `port_manager` during reads by cloning the `Arc<PortHandle>` once.
 
@@ -41,7 +42,7 @@ Empty `Vec<u8>` is a **disconnect sentinel** from read task to event loop. `Arc<
 
 `src/events/emitter.rs` uses Tauri 2.0 `Emitter` trait. Events are fire-and-forget — errors logged but never propagated.
 
-**Key events:** `data-received`, `data-sent`, `port-status-changed`, `ports-changed`, `virtual-port-created`, `virtual-port-stopped`, `server-status-changed`, `error-occurred`. All carry a `timestamp` field (Unix millis).
+**Key events:** `data-received`, `data-sent`, `port-status-changed`, `ports-changed`, `virtual-port-created`, `virtual-port-stopped`, `server-status-changed`, `error-occurred`, plus the remote-stream events `remote-data-received`, `remote-stream-error`, `remote-stream-closed`. All carry a `timestamp` field (Unix millis).
 
 ### Embedded Server Shares State
 
@@ -55,7 +56,14 @@ Background `tokio::spawn` task polls hardware ports every 2 seconds, diffs again
 
 ### Naming & Organization
 
-One file per domain in `src/commands/`: `port.rs`, `serial.rs`, `script.rs`, `config.rs`, `virtual_port.rs`, `server.rs`, `export.rs`, `window.rs`, `serial_script.rs`, `script_ui_actions.rs`. All registered in `main.rs` via `tauri::generate_handler![...]`.
+One file per domain in `src/commands/`: `port.rs`, `serial.rs`, `script.rs`, `config.rs`, `virtual_port.rs`, `server.rs`, `remote.rs`, `export.rs`, `window.rs`, `serial_script.rs`, `script_ui_actions.rs`. All registered in `main.rs` via `tauri::generate_handler![...]`.
+
+### Remote Devices & Streaming (`remote.rs`)
+
+`remote.rs` is the GUI bridge to a LAN Daemon:
+- **Device registry** — `get/add/update/delete_remote_device`, persisted as `remote_devices.json` in the app data dir.
+- **Remote RPC** — `test_remote_device`, `remote_port_list/open_port/close_connection/send_data/recv_data/connection_list`; each call builds a fresh [`RemoteRpcClient`] (library `serial_cli::server::client`) so a rebooting target needs no reconnect logic.
+- **Streaming** — `start_remote_subscribe` spawns a [`RemoteDataStream`] task that forwards `port_data` pushes as `remote-data-received` Tauri events; `stop_remote_subscribe` cancels it. Handles live in `AppState.remote_streams`.
 
 ### Error Handling
 

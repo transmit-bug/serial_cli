@@ -260,21 +260,24 @@ serial-cli virtual stop <id>
 serial-cli config set virtual.backend socat
 ```
 
-### Server Mode — AI/Automation Workflow
+### Server Mode — AI/Automation Workflow & LAN Remote Access
 
 ```bash
-# Start the server daemon
+# Start the server daemon (Unix socket + TCP 0.0.0.0:23333)
 serial-cli server start
 
 # Check server status
 serial-cli server status
 
-# Make RPC calls
+# Make RPC calls (local — Unix socket first, TCP localhost fallback)
 serial-cli server call port_list '{}'
 serial-cli server call port_open '{"port": "/dev/ttyUSB0", "baudrate": 115200}'
 serial-cli server call port_send '{"connection_id": "xxx", "data": "AT"}'
-serial-cli server call port_recv '{"connection_id": "xxx", "length": 64}'
+serial-cli server call port_recv '{"connection_id": "xxx", "timeout": 1000}'
 serial-cli server call server_stats '{}'
+
+# Remote access — reach a device's Daemon from any workstation on the LAN
+serial-cli server call --remote 192.168.1.50:23333 port_list '{}'
 
 # Stop the server
 serial-cli server stop
@@ -284,6 +287,7 @@ serial-cli server stop
 - **AI agents** - Persistent connections reduce latency by 10-100x
 - **Automation workflows** - Long-running processes with connection pooling
 - **Multi-client scenarios** - Multiple agents share serial port connections
+- **Remote debugging** - Operate a target device's serial ports from your workstation (`server call --remote <ip:port>`); the Tauri GUI has a Remote Devices page for the same over a UI
 - **Protocol caching** - Custom protocols loaded once, available globally
 - **CI/CD pipelines** - Fast, repeatable serial operations
 
@@ -293,17 +297,18 @@ serial-cli server stop
 - **Memory**: ~10-20MB baseline footprint
 - **Protocols**: Load custom Lua protocols once, use across all clients
 
-**RPC Methods Available:**
+**Server options:** `--port <p>` (default 23333), `--bind <ip>` (default 0.0.0.0), `--no-tcp` (local-only), `--socket-path`, `--log`, `--max-connections`.
+
+**RPC Methods Available (identical over Unix socket and TCP):**
 - `port_list` - List available serial ports
 - `port_open` - Open a serial port (returns connection_id)
 - `port_close` - Close a serial port connection
 - `port_send` - Send data to an open port
-- `port_recv` - Receive data from an open port
-- `port_subscribe` - Subscribe to real-time data push notifications
-- `port_unsubscribe` - Unsubscribe from data push notifications
-- `protocol_list` - List available protocols
-- `protocol_load` - Load a custom protocol
-- `protocol_unload` - Unload a custom protocol
+- `port_recv` - Receive data from an open port (with timeout)
+- `port_subscribe` / `port_unsubscribe` - Real-time data push notifications
+- `script_list` - List available protocols
+- `script_load` - Load a custom protocol
+- `script_unload` - Unload a custom protocol
 - `connection_list` - List active connections
 - `server_stats` - Get server statistics
 

@@ -72,12 +72,13 @@ src/
 │   ├── executor.rs         # TaskExecutor
 │   └── monitor.rs          # TaskMonitor
 │
-├── server/                 # Server Mode daemon (JSON-RPC 2.0 over Unix socket)
+├── server/                 # Server Mode daemon (JSON-RPC 2.0 over Unix socket + TCP)
 │   ├── mod.rs              # Module root
-│   ├── rpc.rs              # JSON-RPC 2.0 dispatcher
-│   ├── listener.rs         # Unix socket listener
+│   ├── rpc.rs              # JSON-RPC 2.0 dispatcher (+ subscribe-driven port reader)
+│   ├── listener.rs         # Unix socket + TCP listeners (shared connection handler)
+│   ├── client.rs           # RemoteRpcClient / RemoteDataStream — TCP JSON-RPC client
 │   ├── state.rs            # ServerState (shared state, similar to Tauri AppState)
-│   └── session.rs          # Server session management (PID, socket path)
+│   └── session.rs          # Server session management (PID, socket path, TCP port)
 │
 └── monitoring/             # System monitoring
     └── windows.rs          # Windows-specific monitoring
