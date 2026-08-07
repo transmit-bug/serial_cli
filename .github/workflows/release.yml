@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94
 
       - name: Install git-cliff
         run: cargo install git-cliff
@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94
         with:
           targets: ${{ matrix.target }}
 
@@ -161,7 +161,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94
 
       - name: Install cargo-cyclonedx
         run: cargo install cargo-cyclonedx
@@ -324,7 +324,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94
 
       - name: Publish to crates.io
         env:

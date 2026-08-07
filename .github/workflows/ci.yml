@@ -21,7 +21,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        # Pinned deliberately: @stable moves every 6 weeks and new clippy lints
+        # (e.g. collapsible_match in 1.97) kept breaking `-D warnings` CI runs.
+        # Bump this only when intentionally adopting a newer toolchain.
+        uses: dtolnay/rust-toolchain@1.94
         with:
           components: rustfmt, clippy
 
@@ -107,7 +110,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94
         with:
           components: rustfmt, clippy
 
@@ -163,7 +166,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -218,7 +221,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94
         with:
           targets: ${{ matrix.target }}
 
@@ -254,7 +257,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94
 
       - name: Cache Cargo registry
         uses: actions/cache@v4

@@ -14,8 +14,8 @@ updates:
       - "dependencies"
       - "security"
     commit-message:
-      prefix: "Update"
-      include: "scope"
+      # conventional-commit style so commitlint passes
+      prefix: "chore(deps)"
     ignore:
       # 忽略某些不重要的更新
       - dependency-name: "libc"
@@ -34,4 +34,4 @@ updates:
       - "github-actions"
       - "dependencies"
     commit-message:
-      prefix: "Update"
+      prefix: "chore(deps)"

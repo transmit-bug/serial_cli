@@ -100,16 +100,14 @@ impl Completer for SerialCompleter {
                     return Ok((start, matches));
                 }
             }
-            "dtr" | "rts" => {
-                if parts.len() == 1 || (parts.len() == 2 && !trailing_space) {
-                    let partial = parts.get(1).copied().unwrap_or("");
-                    let matches: Vec<String> = SIGNAL_VALUES
-                        .iter()
-                        .filter(|s| s.starts_with(partial))
-                        .map(|s| s.to_string())
-                        .collect();
-                    return Ok((start, matches));
-                }
+            "dtr" | "rts" if parts.len() == 1 || (parts.len() == 2 && !trailing_space) => {
+                let partial = parts.get(1).copied().unwrap_or("");
+                let matches: Vec<String> = SIGNAL_VALUES
+                    .iter()
+                    .filter(|s| s.starts_with(partial))
+                    .map(|s| s.to_string())
+                    .collect();
+                return Ok((start, matches));
             }
             _ => {}
         }
