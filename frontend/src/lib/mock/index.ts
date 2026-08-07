@@ -13,6 +13,12 @@ import type {
   CreateVirtualPortConfig,
   PortInfo,
   PortStatus,
+  RemoteConnectionInfo,
+  RemoteDevice,
+  RemoteOpenResult,
+  RemotePortInfo,
+  RemoteRecvResult,
+  RemoteServerStats,
   Script,
   ScriptStatus,
   ScriptValidationResult,
@@ -29,6 +35,7 @@ import { configHandlers } from "./handlers/config";
 import { exportHandlers } from "./handlers/export";
 import { logHandlers } from "./handlers/log";
 import { portHandlers } from "./handlers/port";
+import { remoteHandlers } from "./handlers/remote";
 import { scriptHandlers } from "./handlers/script";
 import { serialHandlers } from "./handlers/serial";
 import { serialScriptHandlers } from "./handlers/serial-script";
@@ -39,6 +46,7 @@ import { state } from "./state";
 
 // Register all handlers
 registerHandlers(portHandlers);
+registerHandlers(remoteHandlers);
 registerHandlers(serialHandlers);
 registerHandlers(scriptHandlers);
 registerHandlers(serialScriptHandlers);
@@ -168,6 +176,41 @@ export const tauriApi = {
   startServer: () => call<ServerStatus>("start_server"),
   stopServer: () => call<void>("stop_server"),
   getServerStatus: () => call<ServerStatus>("get_server_status"),
+
+  // Remote device commands
+  getRemoteDevices: () => call<RemoteDevice[]>("get_remote_devices"),
+  addRemoteDevice: (name: string, host: string, port: number) =>
+    call<RemoteDevice[]>("add_remote_device", { name, host, port }),
+  updateRemoteDevice: (id: string, name: string, host: string, port: number) =>
+    call<RemoteDevice[]>("update_remote_device", { id, name, host, port }),
+  deleteRemoteDevice: (id: string) =>
+    call<RemoteDevice[]>("delete_remote_device", { id }),
+  testRemoteDevice: (deviceId: string) =>
+    call<RemoteServerStats>("test_remote_device", { deviceId }),
+  remotePortList: (deviceId: string) =>
+    call<RemotePortInfo[]>("remote_port_list", { deviceId }),
+  remoteOpenPort: (deviceId: string, port: string, baudrate?: number) =>
+    call<RemoteOpenResult>("remote_open_port", { deviceId, port, baudrate }),
+  remoteCloseConnection: (deviceId: string, connectionId: string) =>
+    call<void>("remote_close_connection", { deviceId, connectionId }),
+  remoteSendData: (deviceId: string, connectionId: string, data: number[]) =>
+    call<number>("remote_send_data", { deviceId, connectionId, data }),
+  remoteRecvData: (
+    deviceId: string,
+    connectionId: string,
+    timeoutMs?: number,
+  ) =>
+    call<RemoteRecvResult>("remote_recv_data", {
+      deviceId,
+      connectionId,
+      timeoutMs,
+    }),
+  remoteConnectionList: (deviceId: string) =>
+    call<RemoteConnectionInfo[]>("remote_connection_list", { deviceId }),
+  startRemoteSubscribe: (deviceId: string, connectionId: string) =>
+    call<void>("start_remote_subscribe", { deviceId, connectionId }),
+  stopRemoteSubscribe: (deviceId: string, connectionId: string) =>
+    call<void>("stop_remote_subscribe", { deviceId, connectionId }),
 
   // Config commands
   getConfig: () => call<ConfigData>("get_config"),

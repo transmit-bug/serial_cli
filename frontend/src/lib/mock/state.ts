@@ -4,6 +4,7 @@ import type {
   ConnectionPreset,
   PortInfo,
   PortStatus,
+  RemoteDevice,
   Script,
   ScriptStatus,
   SerialConfig,
@@ -63,6 +64,15 @@ export class MockState {
   sniffTimers = new Map<string, ReturnType<typeof setInterval>>();
   /** Simulated modem signal state per port id. */
   signals = new Map<string, MockSignalState>();
+
+  // Remote devices (LAN daemon simulation)
+  remoteDevices: RemoteDevice[] = [];
+  remoteConnections = new Map<string, string>(); // connection_id -> port
+  private remoteConnCounter = 0;
+  private remoteStreamTimers = new Map<
+    string,
+    ReturnType<typeof setInterval>
+  >();
 
   constructor() {
     // Seed fake ports
@@ -163,6 +173,24 @@ export class MockState {
       total_errors: 0,
       connections: [],
     };
+
+    // Seed remote devices
+    this.remoteDevices = [
+      {
+        id: "dev-rpi",
+        name: "RPi Lab Board",
+        host: "192.168.1.50",
+        port: 23333,
+        created_at: Math.floor(Date.now() / 1000) - 86400,
+      },
+      {
+        id: "dev-bench",
+        name: "Test Bench",
+        host: "192.168.1.60",
+        port: 23333,
+        created_at: Math.floor(Date.now() / 1000) - 3600,
+      },
+    ];
   }
 
   // Port operations
@@ -340,6 +368,76 @@ export class MockState {
 
   getSignals(portId: string): MockSignalState {
     return this.signals.get(portId) ?? defaultSignals();
+  }
+
+  // Remote device operations (LAN daemon simulation)
+
+  addRemoteDevice(name: string, host: string, port: number): RemoteDevice {
+    const device: RemoteDevice = {
+      id: `dev-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      host,
+      port,
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    this.remoteDevices.push(device);
+    return device;
+  }
+
+  updateRemoteDevice(
+    id: string,
+    name: string,
+    host: string,
+    port: number,
+  ): void {
+    const device = this.remoteDevices.find((d) => d.id === id);
+    if (device) {
+      device.name = name;
+      device.host = host;
+      device.port = port;
+    }
+  }
+
+  deleteRemoteDevice(id: string): void {
+    this.remoteDevices = this.remoteDevices.filter((d) => d.id !== id);
+  }
+
+  openRemoteConnection(port: string): string {
+    this.remoteConnCounter += 1;
+    const connectionId = `mock-conn-${this.remoteConnCounter}`;
+    this.remoteConnections.set(connectionId, port);
+    return connectionId;
+  }
+
+  closeRemoteConnection(connectionId: string): void {
+    this.remoteConnections.delete(connectionId);
+    this.stopRemoteStream(connectionId);
+  }
+
+  /** Simulated streaming: emit remote-data-received every 2s. */
+  startRemoteStream(deviceId: string, connectionId: string): void {
+    if (this.remoteStreamTimers.has(connectionId)) return;
+    const timer = setInterval(() => {
+      const data = `OK 000${Math.floor(Math.random() * 10)}\r\n`;
+      mockEmit("remote-data-received", {
+        device_id: deviceId,
+        connection_id: connectionId,
+        data: Array.from(new TextEncoder().encode(data))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join(""),
+        bytes_read: data.length,
+        timestamp: Math.floor(Date.now() / 1000),
+      });
+    }, 2000);
+    this.remoteStreamTimers.set(connectionId, timer);
+  }
+
+  stopRemoteStream(connectionId: string): void {
+    const timer = this.remoteStreamTimers.get(connectionId);
+    if (timer) {
+      clearInterval(timer);
+      this.remoteStreamTimers.delete(connectionId);
+    }
   }
 
   // User script content
