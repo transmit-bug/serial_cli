@@ -188,10 +188,60 @@ jobs:
       - name: Run integration tests
         run: cargo test --test '*' --all-features -- --skip e2e_
 
-      - name: Run E2E tests (macOS only, allow failure initially)
-        if: matrix.os == 'macos-latest'
+      - name: Run E2E server tests (allow failure initially)
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
         continue-on-error: true
         run: cargo test --test e2e_server_tests --all-features -- --ignored
+
+  # Phase 2b: Cross-platform build verification
+  # Windows: verifies the Server Mode code paths (daemon spawn, TCP client)
+  # that only exist in the CLI binary — lib tests alone never compile them.
+  # Linux ARM64: validates the embedded target-device story (Raspberry Pi etc.)
+  cross-build:
+    name: Cross Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-cli
+            os: windows-latest
+            check: cargo check --bin serial-cli --all-features
+          - name: linux-arm64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            check: cross check --bin serial-cli --all-features --target aarch64-unknown-linux-gnu
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Use vendored LuaJIT (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo "LUAJIT_NO_PKG_CONFIG=1" >> $env:GITHUB_ENV
+          echo "MLUA_LUAJIT_SYS=1" >> $env:GITHUB_ENV
+
+      - name: Install cross (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        uses: taiki-e/install-action@cross
+
+      - name: Check serial-cli binary compiles
+        run: ${{ matrix.check }}
 
   # Phase 4: Documentation build verification
   doc-build:
@@ -225,7 +275,7 @@ jobs:
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [quality, frontend-tests, unit-tests, integration-tests, doc-build]
+    needs: [quality, frontend-tests, unit-tests, integration-tests, cross-build, doc-build]
     if: always()
 
     steps:
@@ -235,6 +285,7 @@ jobs:
                 "${{ needs.frontend-tests.result }}" == "success" && \
                 "${{ needs.unit-tests.result }}" == "success" && \
                 "${{ needs.integration-tests.result }}" == "success" && \
+                "${{ needs.cross-build.result }}" == "success" && \
                 "${{ needs.doc-build.result }}" == "success" ]]; then
             echo "✅ All CI checks passed"
             exit 0
@@ -244,6 +295,7 @@ jobs:
             echo "Frontend tests: ${{ needs.frontend-tests.result }}"
             echo "Unit tests: ${{ needs.unit-tests.result }}"
             echo "Integration tests: ${{ needs.integration-tests.result }}"
+            echo "Cross build: ${{ needs.cross-build.result }}"
             echo "Doc build: ${{ needs.doc-build.result }}"
             exit 1
           fi
