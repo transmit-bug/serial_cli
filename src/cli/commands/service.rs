@@ -196,7 +196,7 @@ fn systemd_unit_content(exe: &Path, daemon_args: &[String], user_mode: bool) -> 
     };
     let exec = format!(
         "{} {}",
-        exe.display(),
+        shell_quote(&exe.display().to_string()),
         daemon_args
             .iter()
             .map(|a| shell_quote(a))
