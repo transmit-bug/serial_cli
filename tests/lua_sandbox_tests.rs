@@ -92,9 +92,7 @@ fn test_no_callbacks_warning() {
     "#;
     let warnings = ScriptManager::validate_script_detailed(script);
     assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("No callbacks defined")),
+        warnings.iter().any(|w| w.contains("No callbacks defined")),
         "Should warn about missing callbacks"
     );
 }
@@ -109,9 +107,7 @@ fn test_partial_callbacks_no_warning() {
     "#;
     let warnings = ScriptManager::validate_script_detailed(script);
     assert!(
-        !warnings
-            .iter()
-            .any(|w| w.contains("No callbacks defined")),
+        !warnings.iter().any(|w| w.contains("No callbacks defined")),
         "Should not warn when at least one callback exists"
     );
 }
@@ -211,12 +207,14 @@ fn test_lua_allocation_basic() {
     // 验证 Lua 可以正常分配内存
     let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
     let engine = ScriptEngine::new(script_manager).unwrap();
-    let result = engine.execute_string(r#"
+    let result = engine.execute_string(
+        r#"
         local t = {}
         for i = 1, 10000 do
             t[i] = string.rep("x", 100)
         end
-    "#);
+    "#,
+    );
     assert!(result.is_ok(), "Basic allocation should succeed");
 }
 
@@ -230,13 +228,15 @@ fn test_script_execution_completes_quickly() {
     // 验证正常脚本可以快速完成
     let script_manager = Arc::new(Mutex::new(ScriptManager::new()));
     let engine = ScriptEngine::new(script_manager).unwrap();
-    let result = engine.execute_string(r#"
+    let result = engine.execute_string(
+        r#"
         local sum = 0
         for i = 1, 1000 do
             sum = sum + i
         end
         assert(sum == 500500)
-    "#);
+    "#,
+    );
     assert!(result.is_ok(), "Quick script should complete");
 }
 
@@ -252,12 +252,14 @@ fn test_scriptengine_does_not_register_os() {
     engine.bindings.register_all_apis().unwrap();
 
     // 验证注册的安全 API 可用
-    let result = engine.execute_string(r#"
+    let result = engine.execute_string(
+        r#"
         assert(type(log_info) == "function")
         assert(type(json_encode) == "function")
         assert(type(hex_encode) == "function")
         assert(type(sleep_ms) == "function")
-    "#);
+    "#,
+    );
     assert!(result.is_ok(), "Registered APIs should be available");
 }
 
@@ -311,9 +313,7 @@ fn test_validate_script_multiple_issues() {
         "Should detect dangerous function"
     );
     assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("No callbacks defined")),
+        warnings.iter().any(|w| w.contains("No callbacks defined")),
         "Should detect missing callbacks"
     );
 }

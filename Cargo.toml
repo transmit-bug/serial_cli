@@ -62,7 +62,6 @@ tokio-util = { version = "0.7", features = ["codec", "rt", "io"] }
 tokio-stream = "0.1"
 futures = "0.3"
 sysinfo = "0.32"
-daemonize = "0.5"
 
 [dev-dependencies]
 # Testing

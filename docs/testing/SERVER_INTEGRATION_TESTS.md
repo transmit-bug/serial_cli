@@ -111,3 +111,28 @@ test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 - 添加端口管理集成测试
 - 考虑添加性能基准测试
 - 考虑添加压力测试（高并发场景）
+
+---
+
+## TCP 远程访问（LAN）e2e 测试
+
+`tests/e2e_server_tests.rs` 已扩展为**双传输** e2e 套件（16 个用例，`cargo test --test e2e_server_tests -- --ignored`）：
+
+- `E2EClient` 泛型化，同一套 JSON-RPC 客户端跑 Unix socket 与 TCP 两种传输
+- 保留原有 9 个 Unix socket 用例（修复了陈旧用例：`protocol_list` → `script_list`，并补上缺失的 `\n` 行结束符——行分帧协议要求请求以 `\n` 结尾，否则服务端 `LinesCodec` 会等待 EOF）
+
+### TCP 新增用例（7 个）
+
+| 用例 | 覆盖点 |
+|------|--------|
+| `e2e_tcp_server_starts_and_accepts_connections` | `server daemon --port` 启动 + TCP 可连接 |
+| `e2e_tcp_responds_to_port_list` | TCP 上 port_list 完整往返 |
+| `e2e_tcp_returns_error_for_invalid_json` | TCP 上 -32700 解析错误 |
+| `e2e_tcp_multiple_sequential_calls` | TCP 持久连接多次调用 |
+| `e2e_tcp_two_concurrent_clients` | 双客户端并发（tokio::join!）| 
+| `e2e_tcp_large_frame_round_trip` | ~100KB 请求帧（验证 1MB 帧上限，原 8KB 默认会被切断）|
+| `e2e_tcp_cli_remote_call` | `server call --remote ip:port` CLI 路径 |
+
+### 单元测试补充
+
+`src/server/rpc.rs` 新增 `test_port_open_busy_error_names_holding_connection`：注入 mock 端口 + 模拟持有连接，验证 `port_open` 返回 `-32000` 且错误信息包含持有该端口的 connection_id（端口占用人性化错误）。

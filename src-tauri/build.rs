@@ -12,8 +12,7 @@ fn main() {
     // 通过 Attributes 设置精确的 capabilities 路径（指向具体文件而非目录），
     // 避免 tauri-build 默认 emit `cargo:rerun-if-changed=capabilities`（目录），
     // 目录 mtime 变化会导致 Cargo 不必要地重新编译。
-    let attrs = Attributes::new()
-        .capabilities_path_pattern("./capabilities/**/*");
+    let attrs = Attributes::new().capabilities_path_pattern("./capabilities/**/*");
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=tauri.conf.json");

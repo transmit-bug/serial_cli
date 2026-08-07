@@ -186,14 +186,7 @@ mod tests {
 
     #[test]
     fn test_cli_run_script() {
-        let cli = Cli::try_parse_from([
-            "serial-cli",
-            "run",
-            "test.lua",
-            "arg1",
-            "arg2",
-        ])
-        .unwrap();
+        let cli = Cli::try_parse_from(["serial-cli", "run", "test.lua", "arg1", "arg2"]).unwrap();
         match cli.command.unwrap() {
             Commands::Run { script, args } => {
                 assert_eq!(script, "test.lua");
@@ -220,7 +213,10 @@ mod tests {
         let cli = Cli::try_parse_from(["serial-cli", "script", "list"]).unwrap();
         match cli.command.unwrap() {
             Commands::Script { script_command } => {
-                assert!(matches!(script_command, ScriptCommand::List { detailed: false }));
+                assert!(matches!(
+                    script_command,
+                    ScriptCommand::List { detailed: false }
+                ));
             }
             _ => panic!("Expected Script command"),
         }
@@ -228,8 +224,7 @@ mod tests {
 
     #[test]
     fn test_cli_script_list_detailed() {
-        let cli =
-            Cli::try_parse_from(["serial-cli", "script", "list", "--detailed"]).unwrap();
+        let cli = Cli::try_parse_from(["serial-cli", "script", "list", "--detailed"]).unwrap();
         match cli.command.unwrap() {
             Commands::Script { script_command } => match script_command {
                 ScriptCommand::List { detailed } => assert!(detailed),
@@ -241,8 +236,7 @@ mod tests {
 
     #[test]
     fn test_cli_script_load() {
-        let cli =
-            Cli::try_parse_from(["serial-cli", "script", "load", "my_script.lua"]).unwrap();
+        let cli = Cli::try_parse_from(["serial-cli", "script", "load", "my_script.lua"]).unwrap();
         match cli.command.unwrap() {
             Commands::Script { script_command } => match script_command {
                 ScriptCommand::Load { path, name } => {
@@ -260,7 +254,10 @@ mod tests {
         let cli = Cli::try_parse_from(["serial-cli", "config", "show"]).unwrap();
         match cli.command.unwrap() {
             Commands::Config { config_command } => {
-                assert!(matches!(config_command, ConfigCommand::Show { json: false }));
+                assert!(matches!(
+                    config_command,
+                    ConfigCommand::Show { json: false }
+                ));
             }
             _ => panic!("Expected Config command"),
         }
@@ -268,14 +265,8 @@ mod tests {
 
     #[test]
     fn test_cli_config_set() {
-        let cli = Cli::try_parse_from([
-            "serial-cli",
-            "config",
-            "set",
-            "serial.baudrate",
-            "9600",
-        ])
-        .unwrap();
+        let cli = Cli::try_parse_from(["serial-cli", "config", "set", "serial.baudrate", "9600"])
+            .unwrap();
         match cli.command.unwrap() {
             Commands::Config { config_command } => match config_command {
                 ConfigCommand::Set { key, value } => {
@@ -296,11 +287,16 @@ mod tests {
                 ServerCommand::Start {
                     socket_path,
                     port,
+                    bind,
+                    no_tcp,
                     log,
                     max_connections,
+                    ..
                 } => {
                     assert!(socket_path.is_none());
                     assert!(port.is_none());
+                    assert!(bind.is_none());
+                    assert!(!no_tcp);
                     assert!(log.is_none());
                     assert_eq!(max_connections, 10);
                 }
@@ -354,10 +350,13 @@ mod tests {
                     method,
                     args,
                     stdin,
+                    remote,
+                    ..
                 } => {
                     assert_eq!(method, "port_open");
                     assert!(args.contains("ttyUSB0"));
                     assert!(!stdin);
+                    assert!(remote.is_none());
                 }
                 _ => panic!("Expected Call"),
             },
@@ -367,20 +366,12 @@ mod tests {
 
     #[test]
     fn test_cli_virtual_create() {
-        let cli = Cli::try_parse_from([
-            "serial-cli",
-            "virtual",
-            "create",
-            "--backend",
-            "pty",
-        ])
-        .unwrap();
+        let cli =
+            Cli::try_parse_from(["serial-cli", "virtual", "create", "--backend", "pty"]).unwrap();
         match cli.command.unwrap() {
             Commands::Virtual { virtual_command } => match virtual_command {
                 VirtualCommand::Create {
-                    backend,
-                    monitor,
-                    ..
+                    backend, monitor, ..
                 } => {
                     assert_eq!(backend, "pty");
                     assert!(!monitor);
@@ -393,7 +384,8 @@ mod tests {
 
     #[test]
     fn test_cli_global_flags() {
-        let cli = Cli::try_parse_from(["serial-cli", "--json", "--verbose", "port", "list"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["serial-cli", "--json", "--verbose", "port", "list"]).unwrap();
         assert!(cli.json);
         assert!(cli.verbose);
     }
@@ -419,9 +411,7 @@ mod tests {
         match cli.command.unwrap() {
             Commands::Sniff { sniff_command } => match sniff_command {
                 SniffCommand::Start {
-                    port,
-                    max_packets,
-                    ..
+                    port, max_packets, ..
                 } => {
                     assert_eq!(port, "/dev/ttyUSB0");
                     assert_eq!(max_packets, 100);
@@ -446,9 +436,7 @@ mod tests {
         .unwrap();
         match cli.command.unwrap() {
             Commands::Port { port_command } => match port_command {
-                PortCommand::Send {
-                    base64, data, ..
-                } => {
+                PortCommand::Send { base64, data, .. } => {
                     assert!(base64);
                     assert_eq!(data, "SGVsbG8=");
                 }

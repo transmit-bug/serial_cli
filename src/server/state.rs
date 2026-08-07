@@ -7,6 +7,7 @@ use crate::serial_core::PortManager;
 use crate::state_factory::CoreManagers;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -56,8 +57,11 @@ pub struct ServerConfig {
     /// Unix socket path
     pub socket_path: Option<PathBuf>,
 
-    /// TCP port (alternative to Unix socket)
+    /// TCP port for LAN remote access (alternative to Unix socket)
     pub tcp_port: Option<u16>,
+
+    /// Address to bind the TCP listener to
+    pub tcp_bind: IpAddr,
 
     /// Max concurrent connections
     pub max_connections: usize,
@@ -191,6 +195,7 @@ impl Default for ServerConfig {
         Self {
             socket_path: Some(default_socket_path()),
             tcp_port: None,
+            tcp_bind: IpAddr::from([0, 0, 0, 0]),
             max_connections: 10,
             log_path: default_log_path(),
             idle_timeout_secs: 300, // 5 minutes

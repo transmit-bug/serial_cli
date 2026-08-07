@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Remote Serial Access over LAN (2026-08-07)
+- **TCP transport for Server Mode** — Daemon now listens on TCP (default `0.0.0.0:23333`) alongside the Unix socket; same newline-framed JSON-RPC over both transports
+  - `server start --port <p> --bind <ip> --no-tcp` — TCP on by default, bind address configurable, `--no-tcp` for local-only
+  - `server call --remote <ip:port>` — reach a remote device's Daemon from any workstation
+  - `server status` shows the TCP port
+  - Max frame size raised from 8 KiB to 1 MiB (`LinesCodec`), so hex-encoded serial reads of 4 KiB+ round-trip intact
+  - `port_open` on an already-open Port returns a human-readable error naming the holding connection
+  - Requests are now newline-terminated (line-framed protocol); the CLI client no longer relies on half-close
+- **Windows support for Server Mode** — the `cfg(windows)` gate is lifted; daemonization uses a detached-process spawn (`CREATE_NO_WINDOW`) instead of the Unix-only `daemonize` fork (which was also broken with tokio after fork — Unix now uses `setsid` detached spawn too)
+- **Daemon start fix** — `server start` no longer forks inside the tokio runtime (was crashing with "failed to wake I/O driver: Bad file descriptor"); it spawns a fresh `server daemon` process
+- **Tests** — `tests/e2e_server_tests.rs` extended to 16 cases over both transports (TCP lifecycle, concurrent clients, 100 KB frame, `--remote` CLI path); `rpc.rs` unit test for the busy-port error
+
 ### Unified Script System (2026-06-17)
 - **Merged Protocol and Hook Script** into a unified Script system
   - Removed `src/protocol/` directory (12 files)

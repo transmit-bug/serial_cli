@@ -98,5 +98,8 @@ fn test_serial_config_clone() {
 
     let cloned = config.clone();
     assert_eq!(cloned.baudrate, config.baudrate);
-    assert_eq!(format!("{:?}", cloned.parity), format!("{:?}", config.parity));
+    assert_eq!(
+        format!("{:?}", cloned.parity),
+        format!("{:?}", config.parity)
+    );
 }

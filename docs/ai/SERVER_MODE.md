@@ -16,6 +16,25 @@ Server Mode is a persistent daemon that provides a JSON-RPC 2.0 interface for se
 - **Protocol persistence** - Custom scripts loaded once, available globally
 - **AI-friendly API** - Standard JSON-RPC 2.0 interface
 - **Multi-client support** - Multiple AI agents can share connections
+- **LAN remote access** - TCP transport lets clients on the same network operate a device's serial ports remotely (`server call --remote ip:port`)
+
+---
+
+## Remote Access (TCP)
+
+`server start` listens on TCP **0.0.0.0:23333** by default (in addition to the local Unix socket), so a target device on the same LAN can be reached from any workstation:
+
+```bash
+# On the target device (Linux board, industrial PC, ...):
+serial-cli server start --port 23333
+
+# From your workstation (Windows/macOS/Linux):
+serial-cli server call --remote 192.168.1.50:23333 port_list '{}'
+```
+
+Options: `--bind <ip>` narrows the listening interface, `--no-tcp` disables TCP entirely. The JSON-RPC contract is byte-identical over Unix socket and TCP, so any existing script works remotely by adding `--remote`.
+
+> ⚠️ **No authentication in v1.** TCP remote access is designed for trusted corporate LANs. Authentication (token handshake) is tracked as a follow-up issue.
 
 ---
 
@@ -338,7 +357,7 @@ serial-cli server start \
   --socket-path /tmp/custom.sock     # Custom socket path
 ```
 
-**Note:** Server Mode currently supports only Unix sockets (named pipes on Windows). TCP socket support is planned for a future release.
+**Note:** Server Mode listens on TCP (default `0.0.0.0:23333`) plus the Unix socket (Linux/macOS). Requests are newline-framed JSON-RPC; each request line is terminated with `\n`.
 
 The server socket path defaults to a platform-specific location (typically `~/.cache/serial_cli/serial-cli.sock` on Linux, or the equivalent on other platforms).
 
@@ -484,9 +503,10 @@ class SerialPortTool(BaseTool):
 
 ## Security Considerations
 
-### Unix Socket Permissions
+### Transport Security
 
-The Unix socket is created with `0600` permissions (user read/write only). This ensures only the user who started the server can connect to it.
+- **Unix socket**: created with `0600` permissions (user read/write only) — local access only.
+- **TCP**: binds `0.0.0.0:23333` by default for LAN remote access. **No authentication in v1** — only expose it where the network is trusted, or narrow it with `--bind` / disable with `--no-tcp`.
 
 ### Connection Limits
 
@@ -502,12 +522,12 @@ Idle connections are automatically closed after 5 minutes (configurable) to prev
 
 Planned features for future releases:
 
+- [ ] Authentication and encryption for TCP access
 - [ ] WebSocket support for real-time data streaming
-- [ ] TCP socket support (in addition to Unix socket)
-- [ ] Authentication and encryption
 - [ ] Connection pooling
 - [ ] Performance metrics and monitoring
 - [ ] Official Python/TypeScript SDKs
+- [ ] mDNS device discovery for the GUI
 
 ---
 

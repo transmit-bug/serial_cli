@@ -38,6 +38,7 @@ async fn test_server_config_customization() {
     let config = ServerConfig {
         socket_path: Some("/tmp/test-serial-cli.sock".into()),
         tcp_port: None,
+        tcp_bind: std::net::IpAddr::from([0, 0, 0, 0]),
         max_connections: 5,
         log_path: "/tmp/test-server.log".into(),
         idle_timeout_secs: 60,
@@ -148,6 +149,7 @@ async fn test_max_connections_limit() {
     let config = ServerConfig {
         socket_path: None,
         tcp_port: None,
+        tcp_bind: std::net::IpAddr::from([0, 0, 0, 0]),
         max_connections: 2,
         log_path: "/tmp/test-server.log".into(),
         idle_timeout_secs: 300,

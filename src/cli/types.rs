@@ -203,9 +203,17 @@ pub enum ServerCommand {
         #[arg(long)]
         socket_path: Option<String>,
 
-        /// TCP port (alternative to Unix socket)
+        /// TCP port for LAN remote access (default: 23333)
         #[arg(long)]
         port: Option<u16>,
+
+        /// Bind address for the TCP listener (default: 0.0.0.0)
+        #[arg(long)]
+        bind: Option<String>,
+
+        /// Disable the TCP listener (local access only)
+        #[arg(long)]
+        no_tcp: bool,
 
         /// Log file path
         #[arg(long)]
@@ -234,5 +242,32 @@ pub enum ServerCommand {
         /// Use stdin for args (useful for piping)
         #[arg(long)]
         stdin: bool,
+
+        /// Remote daemon address (e.g., 192.168.1.50:23333).
+        /// When omitted, targets the local daemon session.
+        #[arg(long)]
+        remote: Option<String>,
+    },
+
+    /// (Internal) Run daemon in the foreground.
+    /// Used by e2e tests and the Windows detached-spawn path — not for
+    /// direct user invocation.
+    #[command(hide = true, name = "daemon")]
+    Daemon {
+        /// Unix socket path
+        #[arg(long)]
+        socket_path: Option<String>,
+
+        /// TCP port (off unless explicitly provided)
+        #[arg(long)]
+        port: Option<u16>,
+
+        /// Bind address for the TCP listener (default: 0.0.0.0)
+        #[arg(long)]
+        bind: Option<String>,
+
+        /// Log file path
+        #[arg(long)]
+        log: Option<String>,
     },
 }

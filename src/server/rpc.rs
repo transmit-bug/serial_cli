@@ -3,6 +3,7 @@
 //! Handles incoming JSON-RPC requests and dispatches to appropriate method handlers.
 //! Uses typed parameter structs for automatic serde deserialization.
 
+use crate::error::{SerialError, SerialPortError};
 use crate::serial_core::SerialConfig;
 use crate::server::session::ServerSessionManager;
 use crate::server::state::{ConnectionContext, ServerState};
@@ -224,14 +225,42 @@ impl RpcDispatcher {
             ..Default::default()
         };
 
-        let port_id = self
+        let port_id = match self
             .state
             .port_manager
             .lock()
             .await
             .open_port(&params.port, config)
             .await
-            .map_err(|e| (-32603, e.to_string(), None))?;
+        {
+            Ok(port_id) => port_id,
+            Err(e) => {
+                // Enrich port-busy errors with the holding connection so the
+                // remote client understands why the open failed.
+                if let SerialError::Serial(SerialPortError::PortBusyWithHelp(_)) = &e {
+                    let holder = {
+                        let connections = self.state.connections.read().await;
+                        connections
+                            .values()
+                            .find(|c| {
+                                c.port_id.as_ref().is_some_and(|pid| {
+                                    pid.starts_with(&format!("{}-", params.port))
+                                })
+                            })
+                            .map(|c| c.connection_id.clone())
+                    };
+                    let msg = match holder {
+                        Some(connection_id) => format!(
+                            "Port {} is already in use by connection {}",
+                            params.port, connection_id
+                        ),
+                        None => format!("Port {} is already in use", params.port),
+                    };
+                    return Err((-32000, msg, None));
+                }
+                return Err((-32603, e.to_string(), None));
+            }
+        };
 
         // Attach script to the port handle if one was requested
         if let Some(ref script_name) = params.protocol {
@@ -740,7 +769,10 @@ mod tests {
 
         let json_str = response.trim_end();
         let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        assert!(json["result"].is_object(), "server_stats should return an object");
+        assert!(
+            json["result"].is_object(),
+            "server_stats should return an object"
+        );
     }
 
     #[tokio::test]
@@ -776,7 +808,10 @@ mod tests {
 
         let json_str = response.trim_end();
         let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        assert!(json["result"].is_object(), "connection_list should return an object");
+        assert!(
+            json["result"].is_object(),
+            "connection_list should return an object"
+        );
     }
 
     #[tokio::test]
@@ -790,6 +825,61 @@ mod tests {
         let response = dispatcher.handle_request(request).await;
         assert!(response.contains(r#""jsonrpc":"2.0""#));
         assert!(response.contains(r#""id":5"#));
+    }
+
+    #[tokio::test]
+    async fn test_port_open_busy_error_names_holding_connection() {
+        use crate::serial_core::backends::mock::MockSerialPort;
+        use crate::serial_core::{SerialConfig, SerialPortHandle};
+        use crate::server::state::ConnectionContext;
+        use std::time::SystemTime;
+
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state.clone());
+
+        // Pre-open: inject a mock handle named ttyTEST so `open_port` hits
+        // the duplicate-open (busy) check before touching the OS.
+        let mock = MockSerialPort::empty();
+        let handle = SerialPortHandle::new_with_port(
+            "ttyTEST".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+        state.port_manager.lock().await.insert_handle(handle).await;
+
+        // Simulate an existing Connection holding this port.
+        let ctx = ConnectionContext {
+            connection_id: "conn-abc".to_string(),
+            port_id: Some("ttyTEST-1234".to_string()),
+            protocol_name: None,
+            created_at: SystemTime::now(),
+            last_activity: SystemTime::now(),
+            subscribed: false,
+        };
+        state.add_connection(ctx).await.unwrap();
+
+        let response = dispatcher
+            .handle_request(
+                r#"{"jsonrpc":"2.0","method":"port_open","params":{"port":"ttyTEST"},"id":1}"#,
+            )
+            .await;
+
+        assert!(
+            response.contains("already in use"),
+            "response: {}",
+            response
+        );
+        assert!(
+            response.contains("conn-abc"),
+            "should name the holding connection: {}",
+            response
+        );
+        assert!(
+            response.contains(r#""code":-32000"#),
+            "response: {}",
+            response
+        );
     }
 
     #[tokio::test]

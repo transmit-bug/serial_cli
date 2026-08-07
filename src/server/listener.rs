@@ -1,8 +1,16 @@
-//! Unix socket listener for server mode
+//! Listener implementations for server mode
 //!
 //! Accepts client connections and dispatches requests to the RPC handler.
 //! Uses `LinesCodec` for proper message framing and `CancellationToken`
 //! for graceful shutdown.
+//!
+//! Two transports share one connection handler and one RPC dispatcher:
+//!
+//! - **Unix socket** (Unix only): local access for the same machine, `0600`
+//!   permissions so only the owning user can connect.
+//! - **TCP** (cross-platform): LAN remote access for the Daemon. Clients on
+//!   the same network connect to `ip:port` and speak the same newline-framed
+//!   JSON-RPC 2.0 protocol.
 
 use crate::error::Result;
 use crate::server::rpc::RpcDispatcher;
@@ -11,11 +19,68 @@ use futures::SinkExt;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::UnixListener;
+use tokio::net::TcpListener;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{Framed, LinesCodec};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
+
+/// Maximum JSON-RPC frame size in bytes.
+///
+/// `LinesCodec`'s default (8 KiB) is too small for serial traffic: a 4 KiB
+/// read becomes an 8 KiB hex string plus JSON envelope. 1 MiB covers
+/// realistic bursts; oversized frames fail with a framing error rather than
+/// being silently truncated.
+const MAX_FRAME_BYTES: usize = 1024 * 1024;
+
+#[cfg(unix)]
+use tokio::net::UnixListener;
+
+/// Run the TCP server for LAN remote access.
+///
+/// Binds to `bind_addr` and accepts clients until the provided
+/// `CancellationToken` is cancelled. Each accepted connection is handled by
+/// [`handle_connection`], which serves JSON-RPC requests and forwards
+/// subscribed data pushes.
+pub async fn run_tcp_server(
+    state: ServerState,
+    bind_addr: std::net::SocketAddr,
+    token: CancellationToken,
+) -> Result<()> {
+    let listener = TcpListener::bind(bind_addr).await?;
+    info!("Server listening on TCP: {}", listener.local_addr()?);
+
+    let rpc = Arc::new(RpcDispatcher::new(state.clone()));
+
+    loop {
+        tokio::select! {
+            _ = token.cancelled() => {
+                info!("Shutdown signal received, stopping TCP accept loop");
+                break;
+            }
+            result = listener.accept() => {
+                match result {
+                    Ok((stream, addr)) => {
+                        info!("Accepted TCP connection from {}", addr);
+                        let rpc = Arc::clone(&rpc);
+                        let state = state.clone();
+                        let token = token.clone();
+
+                        tokio::spawn(async move {
+                            handle_connection(stream, rpc, state, token).await;
+                        });
+                    }
+                    Err(e) => {
+                        error!("Failed to accept TCP connection: {}", e);
+                    }
+                }
+            }
+        }
+    }
+
+    info!("TCP server stopped");
+    Ok(())
+}
 
 /// Run the Unix socket server with graceful shutdown support.
 ///
@@ -23,6 +88,7 @@ use tracing::{error, info};
 /// is terminated by `\n`. This handles partial reads and message batching.
 ///
 /// The server stops when the provided `CancellationToken` is cancelled.
+#[cfg(unix)]
 pub async fn run_socket_server(
     state: ServerState,
     socket_path: PathBuf,
@@ -81,7 +147,7 @@ pub async fn run_socket_server(
     Ok(())
 }
 
-/// Handle a single client connection.
+/// Handle a single client connection (shared by Unix socket and TCP).
 ///
 /// Uses `LinesCodec` to frame messages: each line (terminated by `\n`)
 /// is one JSON-RPC request/response. Simultaneously listens for
@@ -92,7 +158,7 @@ async fn handle_connection(
     state: ServerState,
     _conn_token: CancellationToken,
 ) {
-    let mut framed = Framed::new(stream, LinesCodec::new());
+    let mut framed = Framed::new(stream, LinesCodec::new_with_max_length(MAX_FRAME_BYTES));
     let mut data_rx = state.data_push_tx.subscribe();
 
     loop {

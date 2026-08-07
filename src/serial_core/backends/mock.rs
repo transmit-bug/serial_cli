@@ -144,7 +144,10 @@ impl Read for MockSerialPort {
         // Check read limit first
         if let Some(limit) = self.read_limit {
             if *bytes_read >= limit {
-                return Err(io::Error::new(io::ErrorKind::WouldBlock, "read limit reached"));
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "read limit reached",
+                ));
             }
             let remaining = limit - *bytes_read;
             let to_read = remaining.min(read_buf.len()).min(buf.len());
@@ -178,7 +181,10 @@ impl Read for &MockSerialPort {
 
         if let Some(limit) = self.read_limit {
             if *bytes_read >= limit {
-                return Err(io::Error::new(io::ErrorKind::WouldBlock, "read limit reached"));
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "read limit reached",
+                ));
             }
             let remaining = limit - *bytes_read;
             let to_read = remaining.min(read_buf.len()).min(buf.len());

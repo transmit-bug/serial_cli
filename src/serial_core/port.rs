@@ -1185,11 +1185,7 @@ mod mock_port_tests {
             baudrate: 9600,
             ..Default::default()
         };
-        let handle = SerialPortHandle::new_with_port(
-            "my-port".to_string(),
-            Box::new(mock),
-            config,
-        );
+        let handle = SerialPortHandle::new_with_port("my-port".to_string(), Box::new(mock), config);
 
         assert_eq!(handle.name(), "my-port");
         assert_eq!(handle.config().baudrate, 9600);
