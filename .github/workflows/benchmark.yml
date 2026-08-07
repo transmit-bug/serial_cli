@@ -39,13 +39,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libudev-dev libluajit-5.1-dev
 
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache Cargo build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
@@ -60,7 +60,7 @@ jobs:
           cargo bench --bench startup -- --save-baseline default
 
       - name: Download previous benchmark baseline
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: target/criterion-baseline
           key: ${{ runner.os }}-criterion-baseline
@@ -182,7 +182,7 @@ jobs:
 
       - name: Upload baseline cache
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: target/criterion-baseline
           key: ${{ runner.os }}-criterion-baseline
