@@ -1328,8 +1328,9 @@ mod tests {
         }
 
         let lua = mlua::Lua::new();
-        // Configure package.path to include our temp dir
-        let dir_str = dir.to_string_lossy();
+        // Configure package.path to include our temp dir (forward slashes:
+        // backslashes would be parsed as Lua escape sequences on Windows)
+        let dir_str = dir.to_string_lossy().replace('\\', "/");
         lua.load(&format!(
             "package.path = package.path .. ';{dir_str}/?.lua'"
         ))

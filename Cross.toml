@@ -1,28 +1,10 @@
-# Cross-compilation configuration for cross tool
-# See https://github.com/cross-rs/cross#configuration
-
-[build]
-# Default build options
-xargo = false
-default-target = "x86_64-unknown-linux-gnu"
-
-# Windows targets (using GNU toolchain for better cross-platform support)
-[target.x86_64-pc-windows-gnu]
-image = "ghcr.io/cross-rs/x86_64-pc-windows-gnu:latest"
-
-[target.x86_64-pc-windows-gnullvm]
-image = "ghcr.io/cross-rs/x86_64-pc-windows-gnullvm:latest"
-
-# Linux targets
-[target.x86_64-unknown-linux-gnu]
-image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:latest"
-
+# Cross-compilation config (used by the `cross` CLI for the ARM64 CI job).
+# The default cross-rs aarch64 image does not ship libudev for the target,
+# which makes libudev-sys fail pkg-config. Install it in the container before
+# building.
 [target.aarch64-unknown-linux-gnu]
-image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:latest"
-
-# macOS targets (these are typically built natively)
-[target.x86_64-apple-darwin]
-# No cross image needed - build natively on macOS
-
-[target.aarch64-apple-darwin]
-# No cross image needed - build natively on macOS
+pre-build = [
+    "dpkg --add-architecture arm64",
+    "apt-get update",
+    "apt-get install -y libudev-dev:arm64 pkg-config",
+]

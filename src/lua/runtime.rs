@@ -89,7 +89,9 @@ pub fn configure_package_path(lua: &Lua) {
         .iter()
         .filter(|p| p.is_dir())
         .map(|p| {
-            let dir = p.to_string_lossy();
+            // Normalize to forward slashes: Lua interprets backslashes in
+            // package.path strings as escape sequences (fails on Windows).
+            let dir = p.to_string_lossy().replace('\\', "/");
             format!("{dir}/?.lua")
         })
         .collect();

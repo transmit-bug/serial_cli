@@ -55,6 +55,7 @@
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4",
     "@testing-library/react": "^16",
+    "@testing-library/user-event": "^14.6.3",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
