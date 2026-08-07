@@ -78,7 +78,7 @@ EOF
 }
 
 update_homebrew() {
-    local tap_repo="https://github.com/zazac-zhang/serial-cli-homebrew.git"
+    local tap_repo="https://github.com/transmit-bug/serial-cli-homebrew.git"
     local tmp_dir
     tmp_dir=$(mktemp -d)
 
@@ -127,7 +127,7 @@ EOF
 }
 
 update_scoop() {
-    local bucket_repo="https://github.com/zazac-zhang/serial-cli-scoop.git"
+    local bucket_repo="https://github.com/transmit-bug/serial-cli-scoop.git"
     local tmp_dir
     tmp_dir=$(mktemp -d)
 

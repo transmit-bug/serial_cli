@@ -270,4 +270,33 @@ pub enum ServerCommand {
         #[arg(long)]
         log: Option<String>,
     },
+
+    /// Install/remove daemon auto-start on boot
+    /// (systemd on Linux, launchd on macOS, Task Scheduler on Windows)
+    Service {
+        #[command(subcommand)]
+        service_command: ServiceCommand,
+    },
+}
+
+/// Daemon auto-start (service) management
+#[derive(clap::Subcommand)]
+pub enum ServiceCommand {
+    /// Install daemon auto-start on boot
+    Install {
+        /// TCP port for the daemon (default: 23333)
+        #[arg(long)]
+        port: Option<u16>,
+
+        /// Bind address for the TCP listener (default: 0.0.0.0)
+        #[arg(long)]
+        bind: Option<String>,
+
+        /// Disable the TCP listener (local access only)
+        #[arg(long)]
+        no_tcp: bool,
+    },
+
+    /// Remove daemon auto-start registration
+    Uninstall,
 }

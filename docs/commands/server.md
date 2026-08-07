@@ -138,6 +138,35 @@ echo '{"port": "/dev/ttyUSB0"}' | serial-cli server call port_open --stdin
 
 Internal foreground entry point used by `server start` (and by the e2e test suite). Not intended for direct user invocation.
 
+### `server service install` / `server service uninstall`
+
+Registers (or removes) daemon **auto-start on boot**, per platform:
+
+- **Linux** — systemd unit. As root: `/etc/systemd/system/serial-cli.service` (system mode); otherwise `~/.config/systemd/user/` (user mode, prints an `enable-linger` tip for boot-without-login)
+- **macOS** — launchd LaunchAgent `~/Library/LaunchAgents/com.serial-cli.daemon.plist` (loaded via `launchctl bootstrap`)
+- **Windows** — Task Scheduler task `SerialCLIDaemon` running at startup
+
+```bash
+# Register auto-start with defaults (TCP 23333, bind 0.0.0.0)
+serial-cli server service install
+
+# Custom port / local-only
+serial-cli server service install --port 25000 --bind 127.0.0.1
+serial-cli server service install --no-tcp
+
+# Remove auto-start
+serial-cli server service uninstall
+```
+
+> The service only *registers* auto-start; it does not start the daemon
+> immediately. Start once with `serial-cli server start` (or reboot).
+
+> **Alternative (Linux)**: the `.deb` package ships the same unit at
+> `/usr/lib/systemd/system/serial-cli.service` — enable it with
+> `sudo systemctl enable --now serial-cli`. A unit written by
+> `server service install` (in `/etc/systemd/system/`) takes precedence
+> over the packaged one.
+
 ## Session Management
 
 The server stores session metadata to track the daemon process:

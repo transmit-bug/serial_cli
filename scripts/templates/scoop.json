@@ -1,0 +1,12 @@
+{
+  "version": "${VERSION_NUM}",
+  "description": "Universal serial port CLI tool",
+  "homepage": "https://github.com/transmit-bug/serial_cli",
+  "license": "MIT OR Apache-2.0",
+  "url": "https://github.com/transmit-bug/serial_cli/releases/download/${VERSION}/serial-cli-windows-x86_64.exe",
+  "hash": "${SHA256}",
+  "bin": "serial-cli.exe",
+  "post_install": [
+    "Write-Host \"Serial CLI ${VERSION_NUM} installed successfully!\""
+  ]
+}

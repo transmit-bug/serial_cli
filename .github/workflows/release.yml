@@ -118,6 +118,16 @@ jobs:
             strip target/${{ matrix.target }}/release/serial-cli
           fi
 
+      - name: Build .deb package (Linux x86_64)
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo install cargo-deb --locked
+          # cargo-deb packs target/release by default; stage the cross-built binary there
+          cp target/${{ matrix.target }}/release/serial-cli target/release/serial-cli
+          cargo deb --no-build
+          cp target/debian/*.deb target/${{ matrix.target }}/release/serial-cli-linux-x86_64.deb
+          ls -lh target/${{ matrix.target }}/release/serial-cli-linux-x86_64.deb
+
       - name: Prepare artifacts
         shell: bash
         run: |
@@ -128,6 +138,11 @@ jobs:
             cp serial-cli ${{ matrix.artifact_name }}
           fi
           chmod +x ${{ matrix.artifact_name }} || true
+          # Installer scripts ship once (from the ubuntu x86_64 job)
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ] && [ "${{ matrix.target }}" = "x86_64-unknown-linux-gnu" ]; then
+            cp ${{ github.workspace }}/scripts/install.sh serial-cli-install.sh
+            cp ${{ github.workspace }}/scripts/install.ps1 serial-cli-install.ps1
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -225,10 +240,30 @@ jobs:
 
             📦 **安装方式**
 
+            ### 快速安装（脚本，自动检测系统）
+            ```bash
+            curl -fsSL https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.sh | sh
+            # 可选：注册开机自启动（systemd / launchd / 计划任务）
+            curl -fsSL https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.sh | sh -s -- --service
+            ```
+            Windows (PowerShell):
+            ```powershell
+            Invoke-WebRequest https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.ps1 -OutFile install.ps1
+            .\install.ps1 -Service
+            ```
+
+            ### Linux (Debian/Ubuntu/树莓派)
+            ```bash
+            wget https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-linux-x86_64.deb
+            sudo dpkg -i serial-cli-linux-x86_64.deb   # 或 sudo apt install ./serial-cli-linux-x86_64.deb
+            # 开机自启守护进程（随包附 systemd unit）:
+            sudo systemctl enable --now serial-cli
+            ```
+
             ### Linux
             ```bash
             # 下载并安装
-            wget https://github.com/zazac-zhang/serial_cli/releases/latest/download/serial-cli-linux-x86_64
+            wget https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-linux-x86_64
             chmod +x serial-cli-linux-x86_64
             sudo mv serial-cli-linux-x86_64 /usr/local/bin/serial-cli
 
@@ -239,7 +274,7 @@ jobs:
             ### macOS
             ```bash
             # 下载并安装
-            curl -L https://github.com/zazac-zhang/serial_cli/releases/latest/download/serial-cli-macos-arm64 -o serial-cli
+            curl -L https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-macos-arm64 -o serial-cli
             chmod +x serial-cli
             sudo mv serial-cli /usr/local/bin/
 
@@ -250,7 +285,7 @@ jobs:
             ### Windows
             ```powershell
             # 下载
-            # https://github.com/zazac-zhang/serial_cli/releases/latest/download/serial-cli-windows-x86_64.exe
+            # https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-windows-x86_64.exe
 
             # 验证校验和
             certutil -hashfile serial-cli-windows-x86_64.exe SHA256
@@ -269,14 +304,14 @@ jobs:
             - `bom.json` — CycloneDX JSON format
             - `bom.xml` — CycloneDX XML format
 
-            📚 **文档**: [USAGE.md](https://github.com/zazac-zhang/serial_cli/blob/master/USAGE.md)
+            📚 **文档**: [USAGE.md](https://github.com/transmit-bug/serial_cli/blob/master/USAGE.md)
 
-            🐛 **Bug报告**: [Issues](https://github.com/zazac-zhang/serial_cli/issues)
+            🐛 **Bug报告**: [Issues](https://github.com/transmit-bug/serial_cli/issues)
 
-            💬 **讨论**: [Discussions](https://github.com/zazac-zhang/serial_cli/discussions)
+            💬 **讨论**: [Discussions](https://github.com/transmit-bug/serial_cli/discussions)
 
             ---
-            **完整变更日志**: https://github.com/zazac-zhang/serial_cli/compare/${{ steps.prev-tag.outputs.tag }}...${{ github.ref_name }}
+            **完整变更日志**: https://github.com/transmit-bug/serial_cli/compare/${{ steps.prev-tag.outputs.tag }}...${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -316,9 +351,9 @@ jobs:
       - name: Calculate SHA256 checksums
         id: sha
         run: |
-          curl -sL "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64" -o serial-cli-linux
-          curl -sL "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-windows-x86_64.exe" -o serial-cli.exe
-          curl -sL "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64.tar.gz" -o serial-cli.tar.gz || true
+          curl -sL "https://github.com/transmit-bug/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64" -o serial-cli-linux
+          curl -sL "https://github.com/transmit-bug/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-windows-x86_64.exe" -o serial-cli.exe
+          curl -sL "https://github.com/transmit-bug/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-linux-x86_64.tar.gz" -o serial-cli.tar.gz || true
           echo "linux=$(sha256sum serial-cli-linux | awk '{print $1}')" >> $GITHUB_OUTPUT
           echo "windows=$(sha256sum serial-cli.exe | awk '{print $1}')" >> $GITHUB_OUTPUT
           echo "source=$(sha256sum serial-cli.tar.gz 2>/dev/null || echo 'manual')" >> $GITHUB_OUTPUT
@@ -327,36 +362,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          TAP_REPO="https://github.com/zazac-zhang/serial-cli-homebrew.git"
+          TAP_REPO="https://github.com/transmit-bug/serial-cli-homebrew.git"
           TMP_DIR=$(mktemp -d)
           git clone "$TAP_REPO" "$TMP_DIR"
           cd "$TMP_DIR"
           FORMULA_FILE="Formula/serial-cli.rb"
-          if [ -f "$FORMULA_FILE" ]; then
-            sed -i.bak "s/v{version}/${{ steps.release.outputs.version }}/g" "$FORMULA_FILE"
-            sed -i.bak "s/{sha256_from_release}/${{ steps.sha.outputs.linux }}/g" "$FORMULA_FILE"
-            rm -f "$FORMULA_FILE.bak"
-          else
-            mkdir -p Formula
-            cat > "$FORMULA_FILE" << 'RUBY'
-class SerialCli < Formula
-  desc "Universal serial port CLI tool optimized for AI interaction"
-  homepage "https://github.com/zazac-zhang/serial_cli"
-  url "https://github.com/zazac-zhang/serial_cli/archive/refs/tags/${VERSION}.tar.gz"
-  sha256 "${SHA256}"
-  license any_of: ["MIT", "Apache-2.0"]
-  depends_on "rust" => :build
-  def install
-    system "cargo", "install", "--path", "."
-  end
-  test do
-    system "#{bin}/serial-cli", "--version"
-  end
-end
-RUBY
-            sed -i "s/\${VERSION}/${{ steps.release.outputs.version }}/g" "$FORMULA_FILE"
-            sed -i "s/\${SHA256}/${{ steps.sha.outputs.linux }}/g" "$FORMULA_FILE"
+          mkdir -p Formula
+          if [ ! -f "$FORMULA_FILE" ]; then
+            cp "$GITHUB_WORKSPACE/scripts/templates/homebrew.rb" "$FORMULA_FILE"
           fi
+          sed -i "s/\${VERSION}/${{ steps.release.outputs.version }}/g" "$FORMULA_FILE"
+          sed -i "s/\${SHA256}/${{ steps.sha.outputs.linux }}/g" "$FORMULA_FILE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "$FORMULA_FILE"
@@ -368,25 +384,15 @@ RUBY
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          BUCKET_REPO="https://github.com/zazac-zhang/serial-cli-scoop.git"
+          BUCKET_REPO="https://github.com/transmit-bug/serial-cli-scoop.git"
           TMP_DIR=$(mktemp -d)
           git clone "$BUCKET_REPO" "$TMP_DIR"
           cd "$TMP_DIR"
           mkdir -p bucket
-          cat > "bucket/serial-cli.json" << EOF
-{
-  "version": "${{ steps.release.outputs.version_num }}",
-  "description": "Universal serial port CLI tool",
-  "homepage": "https://github.com/zazac-zhang/serial_cli",
-  "license": "MIT OR Apache-2.0",
-  "url": "https://github.com/zazac-zhang/serial_cli/releases/download/${{ steps.release.outputs.version }}/serial-cli-windows-x86_64.exe",
-  "hash": "${{ steps.sha.outputs.windows }}",
-  "bin": "serial-cli.exe",
-  "post_install": [
-    "Write-Host \"Serial CLI ${{ steps.release.outputs.version_num }} installed successfully!\""
-  ]
-}
-EOF
+          cp "$GITHUB_WORKSPACE/scripts/templates/scoop.json" "bucket/serial-cli.json"
+          sed -i "s/\${VERSION_NUM}/${{ steps.release.outputs.version_num }}/g" "bucket/serial-cli.json"
+          sed -i "s/\${VERSION}/${{ steps.release.outputs.version }}/g" "bucket/serial-cli.json"
+          sed -i "s/\${SHA256}/${{ steps.sha.outputs.windows }}/g" "bucket/serial-cli.json"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "bucket/serial-cli.json"
@@ -396,46 +402,14 @@ EOF
 
       - name: Generate AUR files
         run: |
-          VERSION="${{ steps.release.outputs.version }}"
-          VERSION_NUM="${VERSION#v}"
+          VERSION_NUM="${{ steps.release.outputs.version_num }}"
           SHA="${{ steps.sha.outputs.source }}"
           mkdir -p aur
-          cat > "aur/PKGBUILD" << EOF
-pkgname=serial-cli
-pkgver=$VERSION_NUM
-pkgrel=1
-pkgdesc="Universal serial port CLI tool optimized for AI interaction"
-arch=('x86_64' 'aarch64')
-url="https://github.com/zazac-zhang/serial_cli"
-license=('MIT' 'Apache')
-depends=('gcc-libs')
-makedepends=('cargo')
-source=("\$pkgname-\$pkgver.tar.gz::https://github.com/zazac-zhang/serial_cli/archive/refs/tags/v\$pkgver.tar.gz")
-sha256sums=('$SHA')
-build() {
-  cd "\$pkgname-\$pkgver"
-  cargo build --release
-}
-package() {
-  cd "\$pkgname-\$pkgver"
-  install -Dm755 "target/release/serial-cli" "\$pkgdir/usr/bin/serial-cli"
-}
-EOF
-          cat > "aur/.SRCINFO" << EOF
-pkgbase = serial-cli
-pkgdesc = Universal serial port CLI tool optimized for AI interaction
-pkgver = $VERSION_NUM
-pkgrel = 1
-url = https://github.com/zazac-zhang/serial_cli
-arch = x86_64
-arch = aarch64
-license = MIT
-license = Apache
-depends = gcc-libs
-makedepends = cargo
-source = serial-cli-$VERSION_NUM.tar.gz::https://github.com/zazac-zhang/serial_cli/archive/refs/tags/v$VERSION_NUM.tar.gz
-sha256sums = $SHA
-EOF
+          sed -e "s/\${VERSION_NUM}/$VERSION_NUM/g" -e "s/\${SHA256}/$SHA/g" \
+            "$GITHUB_WORKSPACE/scripts/templates/PKGBUILD" > aur/PKGBUILD
+          sed -e "s/\${VERSION_NUM}/$VERSION_NUM/g" -e "s/\${SHA256}/$SHA/g" \
+            "$GITHUB_WORKSPACE/scripts/templates/.SRCINFO" > aur/.SRCINFO
+
 
       - name: Upload AUR files
         uses: actions/upload-artifact@v4

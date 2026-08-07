@@ -788,7 +788,8 @@ async fn e2e_tcp_library_client() {
     assert!(stats.total_requests >= 1);
 
     let ports = client.port_list().await.expect("port_list");
-    assert!(ports.len() >= 0);
+    assert!(ports.iter().all(|p| !p.port_name.is_empty()));
+    assert!(ports.len() <= 4096, "sane upper bound");
 
     let conns = client.connection_list().await.expect("connection_list");
     assert!(conns.is_empty(), "no connections yet");

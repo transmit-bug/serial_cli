@@ -78,6 +78,11 @@ pub async fn handle_server_command(cmd: ServerCommand, _json_output: bool) -> Re
             let bind_addr = parse_bind_addr(&bind);
             run_daemon(socket_path, port, bind_addr, log_path, 10, 300).await?;
         }
+        ServerCommand::Service { service_command } => {
+            println!("Server Auto-Start:");
+            println!();
+            super::service::handle_service_command(service_command)?;
+        }
     }
     Ok(())
 }

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Packaging & Daemon Auto-Start (2026-08-07)
+- **`.deb` package** for Debian/Ubuntu/Raspberry Pi — built in the release pipeline via `cargo-deb`, ships `/usr/bin/serial-cli` plus a systemd unit (`/usr/lib/systemd/system/serial-cli.service`); enable with `sudo systemctl enable --now serial-cli`
+- **Cross-platform installer scripts** — `scripts/install.sh` (Linux/macOS) and `scripts/install.ps1` (Windows) auto-detect OS/arch, resolve the latest release from the GitHub API, verify SHA-256 checksums, and install; uploaded to every release as `serial-cli-install.sh` / `serial-cli-install.ps1`. Both support a `SERIAL_CLI_RELEASE_URL` override for self-hosted mirrors
+- **`server service install|uninstall`** — registers/removes daemon auto-start on boot: systemd unit (Linux, system or user mode), launchd LaunchAgent (macOS), Task Scheduler task (Windows)
+- **Release pipeline fixes** — all artifacts now publish to `transmit-bug/serial_cli` (was `zazac-zhang/serial_cli`); release notes gained script + deb install instructions; Homebrew/Scoop/AUR templates extracted to `scripts/templates/` (previously inlined heredocs that broke YAML parsing)
+
 ### Remote Serial Access over LAN (2026-08-07)
 - **TCP transport for Server Mode** — Daemon now listens on TCP (default `0.0.0.0:23333`) alongside the Unix socket; same newline-framed JSON-RPC over both transports
   - `server start --port <p> --bind <ip> --no-tcp` — TCP on by default, bind address configurable, `--no-tcp` for local-only

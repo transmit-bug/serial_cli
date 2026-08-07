@@ -1,0 +1,34 @@
+# Serial CLI daemon — systemd unit shipped with the .deb package.
+#
+# After installing the package, enable auto-start on boot with:
+#   sudo systemctl enable --now serial-cli
+#
+# To customize (e.g. TCP port / bind address), use an override instead of
+# editing this file:
+#   sudo systemctl edit serial-cli
+#   [Service]
+#   ExecStart=
+#   ExecStart=/usr/bin/serial-cli server daemon --port 25000 --bind 0.0.0.0
+#
+# Note: `serial-cli server service install` writes a user/system unit with
+# your exact flags to /etc/systemd/system/ (or ~/.config/systemd/user/),
+# which takes precedence over this packaged unit.
+
+[Unit]
+Description=Serial CLI daemon (LAN remote serial access)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/serial-cli server daemon --port 23333 --bind 0.0.0.0
+Restart=on-failure
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

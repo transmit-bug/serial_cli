@@ -112,5 +112,23 @@ strip = true
 [package.metadata.docs.rs]
 all-features = true
 
+# cargo-deb packaging (used by the release pipeline to build .deb for
+# Debian/Ubuntu/Raspberry Pi target devices)
+[package.metadata.deb]
+name = "serial-cli"
+maintainer = "Serial CLI maintainers <serial-cli@transmit-bug.dev>"
+copyright = "2026 Serial CLI contributors"
+license-file = ["LICENSE-MIT", "LICENSE-APACHE"]
+extended-description = """Serial CLI is a Rust-based serial port communication tool with embedded LuaJIT
+scripting, optimized for AI/automation workflows. Supports multiple protocols
+(Modbus RTU/ASCII, AT Commands, line-based, custom Lua) with structured JSON
+output, plus a server mode for LAN remote serial access."""
+section = "utils"
+priority = "optional"
+assets = [
+  ["target/release/serial-cli", "usr/bin/", "755"],
+  ["packaging/serial-cli.service", "usr/lib/systemd/system/", "644"],
+]
+
 [package.metadata.cross]
 # Cross-compilation configuration

@@ -35,6 +35,29 @@ cargo install --path .
 # Or download pre-built binaries
 # Visit: https://github.com/transmit-bug/serial_cli/releases
 
+# Or install via script (auto-detects OS/arch, verifies SHA-256)
+curl -fsSL https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.sh | sh
+# Windows (PowerShell):
+#   Invoke-WebRequest https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.ps1 -OutFile install.ps1; .\install.ps1
+
+# Or install the .deb (Debian/Ubuntu/Raspberry Pi)
+wget https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-linux-x86_64.deb
+sudo apt install ./serial-cli-linux-x86_64.deb
+```
+
+### Daemon auto-start on boot (可选开机自启)
+
+```bash
+# Register the daemon to start on boot (systemd / launchd / Task Scheduler)
+serial-cli server service install [--port 23333] [--bind 0.0.0.0]
+
+# Linux: the .deb also ships a systemd unit — enable it directly
+sudo systemctl enable --now serial-cli
+
+# Remove auto-start
+serial-cli server service uninstall
+```
+
 # Clone repository
 git clone <repository-url>
 cd serial_cli

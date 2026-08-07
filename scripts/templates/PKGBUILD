@@ -1,0 +1,19 @@
+pkgname=serial-cli
+pkgver=${VERSION_NUM}
+pkgrel=1
+pkgdesc="Universal serial port CLI tool optimized for AI interaction"
+arch=('x86_64' 'aarch64')
+url="https://github.com/transmit-bug/serial_cli"
+license=('MIT' 'Apache')
+depends=('gcc-libs')
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/transmit-bug/serial_cli/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('${SHA256}')
+build() {
+  cd "$pkgname-$pkgver"
+  cargo build --release
+}
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 "target/release/serial-cli" "$pkgdir/usr/bin/serial-cli"
+}

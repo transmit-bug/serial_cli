@@ -7,6 +7,7 @@ pub mod parsers;
 pub mod port;
 pub mod script;
 pub mod server;
+pub mod service;
 pub mod sniff;
 pub mod virtual_port;
 
