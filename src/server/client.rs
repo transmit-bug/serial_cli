@@ -17,6 +17,9 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 /// Connect timeout for remote daemons (LAN)
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -63,6 +66,202 @@ pub struct RemoteConnectionInfo {
     pub port_id: Option<String>,
     #[serde(default)]
     pub protocol: Option<String>,
+}
+
+/// One `port_data` push notification received on a stream
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RemoteStreamData {
+    pub connection_id: String,
+    /// Hex-encoded bytes
+    pub data_hex: String,
+    pub bytes_read: usize,
+    pub timestamp: u64,
+}
+
+/// Event yielded by [`RemoteDataStream`]
+#[derive(Debug, Clone)]
+pub enum RemoteStreamEvent {
+    /// A data push notification
+    Data(RemoteStreamData),
+    /// The subscribe request failed (e.g. unknown connection id)
+    Error(String),
+}
+
+/// Persistent streaming client for a remote connection's data pushes.
+///
+/// Opens one TCP connection, sends `port_subscribe`, then yields every
+/// `port_data` notification as it arrives. The connection stays open until
+/// [`RemoteDataStream::close`], EOF, or an error.
+#[derive(Debug)]
+pub struct RemoteDataStream {
+    addr: SocketAddr,
+    connection_id: String,
+    rx: mpsc::Receiver<RemoteStreamEvent>,
+    shutdown: Option<CancellationToken>,
+    task: JoinHandle<()>,
+}
+
+impl RemoteDataStream {
+    /// Connect, subscribe, and start streaming. The subscribe response is
+    /// processed in the background task; failures surface as
+    /// [`RemoteStreamEvent::Error`] on [`recv`](Self::recv).
+    pub async fn connect(addr: SocketAddr, connection_id: &str) -> Result<Self> {
+        let mut stream = tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect(addr))
+            .await
+            .map_err(|_| {
+                SerialError::Io(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("Connection to {} timed out", addr),
+                ))
+            })?
+            .map_err(|e| {
+                SerialError::Io(io::Error::new(
+                    io::ErrorKind::NotConnected,
+                    format!("Failed to connect to {}: {}", addr, e),
+                ))
+            })?;
+
+        let request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "port_subscribe",
+            "params": { "connection_id": connection_id },
+            "id": 1,
+        });
+        let line = format!(
+            "{}\n",
+            serde_json::to_string(&request).map_err(|e| {
+                SerialError::Io(io::Error::other(format!("Serialize subscribe: {}", e)))
+            })?
+        );
+        stream
+            .write_all(line.as_bytes())
+            .await
+            .map_err(|e| SerialError::Io(io::Error::other(format!("Send subscribe: {}", e))))?;
+
+        let (tx, rx) = mpsc::channel::<RemoteStreamEvent>(256);
+        let token = CancellationToken::new();
+        let task = tokio::spawn(run_stream(
+            stream,
+            connection_id.to_string(),
+            tx,
+            token.clone(),
+        ));
+
+        Ok(Self {
+            addr,
+            connection_id: connection_id.to_string(),
+            rx,
+            shutdown: Some(token),
+            task,
+        })
+    }
+
+    /// Target daemon address
+    pub fn addr(&self) -> SocketAddr {
+        self.addr
+    }
+
+    /// Connection id this stream is subscribed to
+    pub fn connection_id(&self) -> &str {
+        &self.connection_id
+    }
+
+    /// Wait for the next stream event. Returns `None` when the stream ends.
+    pub async fn recv(&mut self) -> Option<RemoteStreamEvent> {
+        self.rx.recv().await
+    }
+
+    /// Unsubscribe and close the stream.
+    pub async fn close(mut self) {
+        if let Some(token) = self.shutdown.take() {
+            token.cancel();
+        }
+        // Give the task a moment to send unsubscribe and flush
+        let _ = tokio::time::timeout(Duration::from_millis(300), &mut self.task).await;
+    }
+}
+
+/// Background reader: forwards `port_data` notifications and surfaces errors.
+async fn run_stream(
+    mut stream: TcpStream,
+    connection_id: String,
+    tx: mpsc::Sender<RemoteStreamEvent>,
+    token: CancellationToken,
+) {
+    let mut buf: Vec<u8> = Vec::new();
+    let mut tmp = [0u8; 4096];
+
+    loop {
+        tokio::select! {
+            _ = token.cancelled() => {
+                // Best-effort unsubscribe before closing
+                let req = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "method": "port_unsubscribe",
+                    "params": { "connection_id": connection_id },
+                    "id": 2,
+                });
+                let _ = stream
+                    .write_all(format!("{}\n", req).as_bytes())
+                    .await;
+                break;
+            }
+            r = stream.read(&mut tmp) => {
+                match r {
+                    Ok(0) => break, // EOF — remote closed the connection
+                    Ok(n) => {
+                        buf.extend_from_slice(&tmp[..n]);
+                        while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
+                            let mut line: Vec<u8> = buf.drain(..=pos).collect();
+                            line.pop(); // strip \n
+                            let line = String::from_utf8_lossy(&line);
+                            if let Ok(v) = serde_json::from_str::<Value>(&line) {
+                                match v.get("method").and_then(|m| m.as_str()) {
+                                    Some("port_data") => {
+                                        if let Some(params) = v.get("params").cloned() {
+                                            if let Ok(data) =
+                                                serde_json::from_value::<RemoteStreamData>(params)
+                                            {
+                                                if tx
+                                                    .send(RemoteStreamEvent::Data(data))
+                                                    .await
+                                                    .is_err()
+                                                {
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        // Response to subscribe/unsubscribe
+                                        if let Some(err) = v.get("error") {
+                                            if !err.is_null() {
+                                                let msg = err
+                                                    .get("message")
+                                                    .and_then(|m| m.as_str())
+                                                    .unwrap_or("RPC error")
+                                                    .to_string();
+                                                let _ = tx
+                                                    .send(RemoteStreamEvent::Error(msg))
+                                                    .await;
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx
+                            .send(RemoteStreamEvent::Error(e.to_string()))
+                            .await;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Daemon statistics

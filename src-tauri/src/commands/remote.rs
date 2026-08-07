@@ -247,3 +247,116 @@ pub async fn remote_connection_list(
     let client = client_for(&device)?;
     client.connection_list().await.map_err(|e| e.to_string())
 }
+
+// ── Remote data streaming (subscribe) ────────────────────────────────────
+
+/// Start streaming `port_data` notifications for a remote connection.
+///
+/// Opens a persistent TCP connection, subscribes, and forwards every data
+/// push to the frontend as a `remote-data-received` Tauri event. The stream
+/// stops on EOF, error, or [`stop_remote_subscribe`].
+#[tauri::command]
+pub async fn start_remote_subscribe(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    device_id: String,
+    connection_id: String,
+) -> Result<(), String> {
+    use serial_cli::server::client::{RemoteDataStream, RemoteStreamEvent};
+    use tauri::Emitter;
+
+    let key = format!("{}:{}", device_id, connection_id);
+
+    // Idempotent: already streaming
+    if state.remote_streams.lock().await.contains_key(&key) {
+        return Ok(());
+    }
+
+    let device = find_device(&app, &device_id)?;
+    let addr = RemoteRpcClient::new(&device.host, device.port)
+        .map_err(|e| e.to_string())?
+        .addr();
+
+    let stream = RemoteDataStream::connect(addr, &connection_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let cancel_token = tokio_util::sync::CancellationToken::new();
+    let task_token = cancel_token.clone();
+    let app2 = app.clone();
+    let key2 = key.clone();
+    let device_id2 = device_id.clone();
+    let connection_id2 = connection_id.clone();
+
+    let task = tokio::spawn(async move {
+        let mut stream = stream;
+        loop {
+            tokio::select! {
+                _ = task_token.cancelled() => break,
+                event = stream.recv() => {
+                    match event {
+                        Some(RemoteStreamEvent::Data(data)) => {
+                            let payload = serde_json::json!({
+                                "device_id": device_id2,
+                                "connection_id": connection_id2,
+                                "data": data.data_hex,
+                                "bytes_read": data.bytes_read,
+                                "timestamp": data.timestamp,
+                            });
+                            let _ = app2.emit("remote-data-received", payload);
+                        }
+                        Some(RemoteStreamEvent::Error(msg)) => {
+                            let _ = app2.emit(
+                                "remote-stream-error",
+                                serde_json::json!({
+                                    "device_id": device_id2,
+                                    "connection_id": connection_id2,
+                                    "message": msg,
+                                }),
+                            );
+                            break;
+                        }
+                        None => {
+                            let _ = app2.emit(
+                                "remote-stream-closed",
+                                serde_json::json!({
+                                    "device_id": device_id2,
+                                    "connection_id": connection_id2,
+                                }),
+                            );
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        // Clean up our own registry entry
+        if let Some(state) = app2.try_state::<AppState>() {
+            state.remote_streams.lock().await.remove(&key2);
+        }
+    });
+
+    state.remote_streams.lock().await.insert(
+        key,
+        crate::state::app_state::RemoteStreamHandle { cancel_token, task },
+    );
+
+    Ok(())
+}
+
+/// Stop streaming data for a remote connection.
+#[tauri::command]
+pub async fn stop_remote_subscribe(
+    state: State<'_, AppState>,
+    _app: AppHandle,
+    device_id: String,
+    connection_id: String,
+) -> Result<(), String> {
+    let key = format!("{}:{}", device_id, connection_id);
+    let handle = state.remote_streams.lock().await.remove(&key);
+    if let Some(handle) = handle {
+        handle.cancel_token.cancel();
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle.task).await;
+    }
+    Ok(())
+}

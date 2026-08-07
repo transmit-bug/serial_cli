@@ -411,6 +411,8 @@
     "rxPlaceholder": "接收到的数据会显示在这里…",
     "deviceName": "设备名称",
     "host": "IP / 主机名",
-    "port": "端口"
+    "port": "端口",
+    "startStream": "开始监听",
+    "stopStream": "停止监听"
   }
 }

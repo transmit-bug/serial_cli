@@ -413,6 +413,8 @@
     "rxPlaceholder": "Received data will appear here…",
     "deviceName": "Device Name",
     "host": "IP / Hostname",
-    "port": "Port"
+    "port": "Port",
+    "startStream": "Start stream",
+    "stopStream": "Stop stream"
   }
 }

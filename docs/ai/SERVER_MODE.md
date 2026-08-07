@@ -45,6 +45,16 @@ The Tauri GUI has a **Remote Devices** page (sidebar → 远程设备) for opera
 
 All GUI operations go through the library's [`RemoteRpcClient`] (newline-framed JSON-RPC over TCP, one connection per call).
 
+#### Real-time streaming
+
+To watch incoming data live instead of polling, select a remote Connection and hit **开始监听 (Start stream)**. This:
+
+1. opens a persistent TCP connection and sends `port_subscribe`;
+2. spawns a reader on the server for that Port, so `port_data` pushes actually flow (the always-on IoLoop stays off, keeping `port_recv` polling intact for non-streaming clients);
+3. forwards each push to the GUI as a `remote-data-received` Tauri event, appended to the RX panel.
+
+Streaming stops on 停止监听, connection close, device switch, or page leave.
+
 ---
 
 ## Quick Start

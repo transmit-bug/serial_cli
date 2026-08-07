@@ -669,6 +669,15 @@ impl SerialPortHandle {
         self.data_tx.subscribe()
     }
 
+    /// Push received raw data to the broadcast channel.
+    ///
+    /// Used by background readers (e.g. the server-mode reader spawned when a
+    /// client subscribes to data pushes) to feed subscribers without holding
+    /// the port lock.
+    pub fn push_received_data(&self, data: Vec<u8>) {
+        let _ = self.data_tx.send(data);
+    }
+
     /// Attach a Lua script engine to this port.
     ///
     /// The script's `on_open` hook is called immediately with the port name and config.

@@ -295,45 +295,7 @@ impl RpcDispatcher {
             .map_err(|e| (-32603, e.to_string(), None))?;
 
         // Subscribe to port data for push notifications
-        {
-            let port_manager = self.state.port_manager.lock().await;
-            if let Ok(port_handle) = port_manager.get_port(&port_id).await {
-                let handle = port_handle.lock().await;
-                let mut data_rx = handle.subscribe_data();
-                let connection_id_clone = connection_id.clone();
-                let data_push_tx = self.state.data_push_tx.clone();
-
-                // Spawn a task to forward data to the broadcast channel
-                tokio::spawn(async move {
-                    loop {
-                        match data_rx.recv().await {
-                            Ok(data) => {
-                                let data_hex = data
-                                    .iter()
-                                    .map(|b| format!("{:02x}", b))
-                                    .collect::<String>();
-                                let push_event = crate::server::state::DataPushEvent {
-                                    connection_id: connection_id_clone.clone(),
-                                    data_hex,
-                                    bytes_read: data.len(),
-                                    timestamp: std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_secs(),
-                                };
-                                let _ = data_push_tx.send(push_event);
-                            }
-                            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                                tracing::warn!("Data receiver lagged, missed {} messages", n);
-                            }
-                            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                                break;
-                            }
-                        }
-                    }
-                });
-            }
-        }
+        spawn_data_push_forwarder(&self.state, &port_id, &connection_id).await;
 
         Ok(serde_json::json!({
             "connection_id": connection_id,
@@ -353,6 +315,7 @@ impl RpcDispatcher {
             .ok_or((-32603, "Connection not found".to_string(), None))?;
 
         if let Some(port_id) = ctx.port_id {
+            stop_port_reader(&self.state, &port_id).await;
             self.state
                 .port_manager
                 .lock()
@@ -498,6 +461,14 @@ impl RpcDispatcher {
         }
 
         ctx.subscribed = true;
+        let port_id = ctx.port_id.clone();
+        drop(connections);
+
+        // Spawn the port reader that feeds data pushes (idempotent)
+        if let Some(pid) = port_id {
+            ensure_port_reader(&self.state, &pid).await;
+        }
+
         Ok(serde_json::json!({
             "subscribed": true,
         }))
@@ -519,6 +490,14 @@ impl RpcDispatcher {
         ))?;
 
         ctx.subscribed = false;
+        let port_id = ctx.port_id.clone();
+        drop(connections);
+
+        // Stop the port reader feeding this connection's pushes
+        if let Some(pid) = port_id {
+            stop_port_reader(&self.state, &pid).await;
+        }
+
         Ok(serde_json::json!({
             "subscribed": false,
         }))
@@ -628,6 +607,107 @@ impl RpcDispatcher {
 fn parse_params<T: for<'de> Deserialize<'de>>(params: Option<Value>) -> Result<T, MethodError> {
     let params = params.ok_or((-32602, "Missing params".to_string(), None))?;
     serde_json::from_value(params).map_err(|e| (-32602, format!("Invalid params: {}", e), None))
+}
+
+/// Spawn a background reader for a port that feeds the data-push broadcast
+/// channel, so `port_data` notifications actually flow when a client
+/// subscribes. The reader stops when the connection unsubscribes or closes.
+/// Idempotent — one reader per port.
+async fn ensure_port_reader(state: &ServerState, port_id: &str) {
+    let mut readers = state.port_readers.lock().await;
+    if readers.contains_key(port_id) {
+        return;
+    }
+
+    let port_handle = match state.port_manager.lock().await.get_port(port_id).await {
+        Ok(handle) => handle,
+        Err(_) => return,
+    };
+
+    let token = tokio_util::sync::CancellationToken::new();
+    let task_token = token.clone();
+    let handle = port_handle.clone();
+    let state = state.clone();
+    let task_port_id = port_id.to_string();
+
+    tokio::spawn(async move {
+        let mut buffer = vec![0u8; 4096];
+        loop {
+            tokio::select! {
+                _ = task_token.cancelled() => break,
+                _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+            }
+
+            let n = {
+                let mut handle = handle.lock().await;
+                match handle.read(&mut buffer) {
+                    Ok(n) => n,
+                    Err(_) => break,
+                }
+            };
+
+            if n > 0 {
+                let data = buffer[..n].to_vec();
+                let handle = handle.lock().await;
+                handle.push_received_data(data);
+            }
+        }
+        // Clean up registry entry when the reader exits
+        state.port_readers.lock().await.remove(&task_port_id);
+    });
+
+    readers.insert(port_id.to_string(), token);
+}
+
+/// Stop the background reader for a port (if any).
+async fn stop_port_reader(state: &ServerState, port_id: &str) {
+    if let Some(token) = state.port_readers.lock().await.remove(port_id) {
+        token.cancel();
+    }
+}
+
+/// Spawn a task that forwards a port's raw data into the server-wide
+/// `data_push_tx` broadcast channel, tagged with the owning connection.
+async fn spawn_data_push_forwarder(state: &ServerState, port_id: &str, connection_id: &str) {
+    let port_manager = state.port_manager.lock().await;
+    let port_handle = match port_manager.get_port(port_id).await {
+        Ok(handle) => handle,
+        Err(_) => return,
+    };
+    drop(port_manager);
+
+    let mut data_rx = port_handle.lock().await.subscribe_data();
+    let connection_id = connection_id.to_string();
+    let data_push_tx = state.data_push_tx.clone();
+
+    tokio::spawn(async move {
+        loop {
+            match data_rx.recv().await {
+                Ok(data) => {
+                    let data_hex = data
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<String>();
+                    let push_event = crate::server::state::DataPushEvent {
+                        connection_id: connection_id.clone(),
+                        data_hex,
+                        bytes_read: data.len(),
+                        timestamp: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs(),
+                    };
+                    let _ = data_push_tx.send(push_event);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    tracing::warn!("Data receiver lagged, missed {} messages", n);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    break;
+                }
+            }
+        }
+    });
 }
 
 /// Format SystemTime as ISO 8601 string
@@ -879,6 +959,76 @@ mod tests {
             response.contains(r#""code":-32000"#),
             "response: {}",
             response
+        );
+    }
+
+    #[tokio::test]
+    async fn test_port_subscribe_streams_data_push() {
+        use crate::serial_core::backends::mock::MockSerialPort;
+        use crate::serial_core::{SerialConfig, SerialPortHandle};
+        use crate::server::state::ConnectionContext;
+        use std::time::SystemTime;
+
+        let config = ServerConfig::default();
+        let state = ServerState::new(config).await;
+        let dispatcher = RpcDispatcher::new(state.clone());
+
+        // Inject a mock port with pre-loaded data
+        let mock = MockSerialPort::with_read_data(b"Hello");
+        let handle = SerialPortHandle::new_with_port(
+            "ttyTEST".to_string(),
+            Box::new(mock),
+            SerialConfig::default(),
+        );
+        let port_id = state.port_manager.lock().await.insert_handle(handle).await;
+
+        // Connection referencing the mock port
+        let ctx = ConnectionContext {
+            connection_id: "conn-1".to_string(),
+            port_id: Some(port_id.clone()),
+            protocol_name: None,
+            created_at: SystemTime::now(),
+            last_activity: SystemTime::now(),
+            subscribed: false,
+        };
+        state.add_connection(ctx).await.unwrap();
+
+        // The forwarder that normally spawns in port_open
+        spawn_data_push_forwarder(&state, &port_id, "conn-1").await;
+
+        // Listen for the server-wide push channel
+        let mut push_rx = state.data_push_tx.subscribe();
+
+        // Subscribe via the dispatcher — this spawns the port reader
+        let response = dispatcher
+            .handle_request(
+                r#"{"jsonrpc":"2.0","method":"port_subscribe","params":{"connection_id":"conn-1"},"id":1}"#,
+            )
+            .await;
+        assert!(response.contains("\"subscribed\":true"), "{}", response);
+
+        // The reader should read the mock data and push it end-to-end
+        let received = tokio::time::timeout(std::time::Duration::from_secs(3), push_rx.recv())
+            .await
+            .expect("data push should arrive");
+        match received {
+            Ok(push) => {
+                assert_eq!(push.connection_id, "conn-1");
+                assert_eq!(push.data_hex, "48656c6c6f", "Hello in hex");
+                assert_eq!(push.bytes_read, 5);
+            }
+            Err(_) => panic!("push channel closed unexpectedly"),
+        }
+
+        // Unsubscribe stops the reader
+        let _ = dispatcher
+            .handle_request(
+                r#"{"jsonrpc":"2.0","method":"port_unsubscribe","params":{"connection_id":"conn-1"},"id":2}"#,
+            )
+            .await;
+        assert!(
+            state.port_readers.lock().await.is_empty(),
+            "reader should be stopped after unsubscribe"
         );
     }
 

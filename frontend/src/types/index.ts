@@ -267,6 +267,21 @@ export interface RemoteConnectionInfo {
   protocol: string | null;
 }
 
+export interface RemoteDataEvent {
+  device_id: string;
+  connection_id: string;
+  /** hex-encoded bytes */
+  data: string;
+  bytes_read: number;
+  timestamp: number;
+}
+
+export interface RemoteStreamErrorEvent {
+  device_id: string;
+  connection_id: string;
+  message: string;
+}
+
 export type ConnectionStatus =
   | "disconnected"
   | "connecting"

@@ -10,7 +10,8 @@ pub mod session;
 pub mod state;
 
 pub use client::{
-    RemoteConnectionInfo, RemoteOpenResult, RemotePortInfo, RemoteRpcClient, RemoteServerStats,
+    RemoteConnectionInfo, RemoteDataStream, RemoteOpenResult, RemotePortInfo, RemoteRpcClient,
+    RemoteServerStats, RemoteStreamData, RemoteStreamEvent,
 };
 pub use session::{ServerSessionManager, ServerSessionMeta};
 pub use state::{ConnectionContext, ServerConfig, ServerState};

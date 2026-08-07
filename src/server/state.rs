@@ -13,6 +13,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 
 /// Data push event for subscribed clients
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -49,6 +50,13 @@ pub struct ServerState {
 
     /// Broadcast channel for data push notifications
     pub data_push_tx: broadcast::Sender<DataPushEvent>,
+
+    /// Active data-push reader tasks, keyed by port_id.
+    /// A reader is spawned when a client subscribes and stopped when the
+    /// connection unsubscribes or closes — it feeds the port's broadcast
+    /// channel so `port_data` notifications actually flow without enabling
+    /// the always-on IoLoop (which would starve `port_recv` polling).
+    pub port_readers: Arc<Mutex<HashMap<String, CancellationToken>>>,
 }
 
 /// Server configuration
@@ -110,6 +118,7 @@ impl ServerState {
             total_requests: Arc::new(AtomicU64::new(0)),
             total_errors: Arc::new(AtomicU64::new(0)),
             data_push_tx,
+            port_readers: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 

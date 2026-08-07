@@ -81,6 +81,7 @@ pub async fn start_server(
             total_requests: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             total_errors: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             data_push_tx,
+            port_readers: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
         }
     };
 

@@ -163,6 +163,10 @@ export const tauriApi = {
     }),
   remoteConnectionList: (deviceId: string) =>
     invoke<RemoteConnectionInfo[]>("remote_connection_list", { deviceId }),
+  startRemoteSubscribe: (deviceId: string, connectionId: string) =>
+    invoke<void>("start_remote_subscribe", { deviceId, connectionId }),
+  stopRemoteSubscribe: (deviceId: string, connectionId: string) =>
+    invoke<void>("stop_remote_subscribe", { deviceId, connectionId }),
 
   // Config commands
   getConfig: () => invoke<ConfigData>("get_config"),

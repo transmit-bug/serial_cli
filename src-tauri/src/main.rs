@@ -159,6 +159,8 @@ async fn main() {
             commands::remote::remote_send_data,
             commands::remote::remote_recv_data,
             commands::remote::remote_connection_list,
+            commands::remote::start_remote_subscribe,
+            commands::remote::stop_remote_subscribe,
         ])
         .setup(|app| {
             // Setup event system

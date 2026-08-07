@@ -17,7 +17,8 @@ All notable changes to this project will be documented in this file.
 - **Daemon start fix** — `server start` no longer forks inside the tokio runtime (was crashing with "failed to wake I/O driver: Bad file descriptor"); it spawns a fresh `server daemon` process
 - **Remote client library** — `serial_cli::server::client::RemoteRpcClient` (TCP JSON-RPC client with typed helpers), used by the GUI
 - **GUI Remote Devices page** — device registry (name/IP/port, persisted in app data dir) + workbench: connect test, remote port list/open, send/receive on remote Connections
-- **Tests** — `tests/e2e_server_tests.rs` extended to 17 cases over both transports (TCP lifecycle, concurrent clients, 100 KB frame, `--remote` CLI path, library client); `rpc.rs` unit test for the busy-port error
+- **Real-time data streaming** — `RemoteDataStream` (persistent subscribe client) + GUI stream toggle; data pushes now actually flow in server mode via a subscribe-driven port reader (spawned on `port_subscribe`, stopped on unsubscribe/close — keeps `port_recv` polling intact), forwarded as `remote-data-received` Tauri events
+- **Tests** — `tests/e2e_server_tests.rs` extended to 17 cases over both transports (TCP lifecycle, concurrent clients, 100 KB frame, `--remote` CLI path, library client); `rpc.rs` unit tests for the busy-port error and the full data-push chain (mock port → subscribe → push → unsubscribe)
 
 ### Unified Script System (2026-06-17)
 - **Merged Protocol and Hook Script** into a unified Script system

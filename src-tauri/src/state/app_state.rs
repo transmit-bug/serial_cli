@@ -89,6 +89,8 @@ pub struct AppState {
     pub scripts_dir: Option<PathBuf>,
     /// Embedded server state (None if not running)
     pub embedded_server: Arc<Mutex<Option<RunningEmbeddedServer>>>,
+    /// Active remote data streams, keyed by `device_id:connection_id`
+    pub remote_streams: Arc<Mutex<HashMap<String, RemoteStreamHandle>>>,
 }
 
 /// State for the embedded JSON-RPC server
@@ -103,6 +105,14 @@ pub struct RunningEmbeddedServer {
     pub listener_handle: JoinHandle<()>,
     /// Server state with shared managers
     pub server_state: serial_cli::server::ServerState,
+}
+
+/// Handle for an active remote data stream (GUI subscribe)
+pub struct RemoteStreamHandle {
+    /// Cancellation token to stop the stream
+    pub cancel_token: CancellationToken,
+    /// Forwarding task handle
+    pub task: JoinHandle<()>,
 }
 
 impl AppState {
@@ -125,6 +135,7 @@ impl AppState {
             virtual_port_registry: Arc::new(RwLock::new(HashMap::new())),
             scripts_dir,
             embedded_server: Arc::new(Mutex::new(None)),
+            remote_streams: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }

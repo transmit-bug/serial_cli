@@ -3,6 +3,7 @@ import {
   Pencil,
   Plug,
   Plus,
+  Radio,
   RefreshCw,
   Send,
   Trash2,
@@ -31,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRemoteStore } from "@/stores/remote";
+import { setupRemoteDataListener, useRemoteStore } from "@/stores/remote";
 
 const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
@@ -43,20 +44,6 @@ function hexToBytes(hex: string): number[] {
     bytes.push(parseInt(clean.slice(i, i + 2), 16));
   }
   return bytes;
-}
-
-function bytesToText(bytes: string): string {
-  const clean = bytes.replace(/\s+/g, "");
-  if (!/^[0-9a-fA-F]*$/.test(clean) || clean.length % 2 !== 0) return "";
-  const text: number[] = [];
-  for (let i = 0; i < clean.length; i += 2) {
-    text.push(parseInt(clean.slice(i, i + 2), 16));
-  }
-  return new TextDecoder()
-    .decode(new Uint8Array(text))
-    .split("")
-    .filter((ch) => ch.charCodeAt(0) >= 0x20 && ch.charCodeAt(0) !== 0x7f)
-    .join("");
 }
 
 export function RemotePage() {
@@ -81,7 +68,40 @@ export function RemotePage() {
     closeRemoteConnection,
     sendRemoteData,
     recvRemoteData,
+    startStream,
+    stopStream,
+    appendStreamData,
+    clearRx,
+    streaming,
+    rxBuffers,
   } = useRemoteStore();
+
+  // Workbench state
+  const [selectedPort, setSelectedPort] = useState("");
+  const [baudrate, setBaudrate] = useState("115200");
+  const [activeConnectionId, setActiveConnectionId] = useState("");
+  const [txText, setTxText] = useState("");
+  const [testStates, setTestStates] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    loadDevices();
+  }, [loadDevices]);
+
+  // Setup data-stream event listeners; stop streams on unmount
+  useEffect(() => {
+    const unlisten = setupRemoteDataListener();
+    return () => {
+      unlisten.then((un) => un());
+      const activeDeviceId = useRemoteStore.getState().activeDeviceId;
+      if (activeDeviceId) {
+        useRemoteStore.getState().stopDeviceStreams(activeDeviceId);
+      }
+    };
+  }, []);
+
+  const rxOutput = activeConnectionId
+    ? (rxBuffers[activeConnectionId] ?? "")
+    : "";
 
   // Device form dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -89,18 +109,6 @@ export function RemotePage() {
   const [name, setName] = useState("");
   const [host, setHost] = useState("");
   const [port, setPort] = useState("23333");
-
-  // Workbench state
-  const [selectedPort, setSelectedPort] = useState("");
-  const [baudrate, setBaudrate] = useState("115200");
-  const [activeConnectionId, setActiveConnectionId] = useState("");
-  const [txText, setTxText] = useState("");
-  const [rxOutput, setRxOutput] = useState("");
-  const [testStates, setTestStates] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    loadDevices();
-  }, [loadDevices]);
 
   const openAddDialog = () => {
     setEditingId(null);
@@ -148,7 +156,7 @@ export function RemotePage() {
     const result = await openRemotePort(selectedPort, parseInt(baudrate, 10));
     if (result) {
       setActiveConnectionId(result.connection_id);
-      setRxOutput("");
+      clearRx(result.connection_id);
     }
   };
 
@@ -160,13 +168,25 @@ export function RemotePage() {
   };
 
   const handleRecv = async () => {
-    if (!activeConnectionId) return;
+    if (!activeConnectionId || !activeDevice) return;
     const result = await recvRemoteData(activeConnectionId, 1000);
     if (result && result.bytes_read > 0) {
-      setRxOutput(
-        (prev) =>
-          `${new Date().toLocaleTimeString()} ${bytesToText(result.data) || result.data}\n${prev}`,
-      );
+      appendStreamData({
+        device_id: activeDevice.id,
+        connection_id: activeConnectionId,
+        data: result.data,
+        bytes_read: result.bytes_read,
+        timestamp: Math.floor(Date.now() / 1000),
+      });
+    }
+  };
+
+  const toggleStream = async () => {
+    if (!activeConnectionId) return;
+    if (streaming[activeConnectionId]) {
+      await stopStream(activeConnectionId);
+    } else {
+      await startStream(activeConnectionId);
     }
   };
 
@@ -432,15 +452,43 @@ export function RemotePage() {
                     <Label className="text-xs text-text-secondary">
                       {t("remote.receiveData")}
                     </Label>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRecv}
-                      disabled={!activeConnectionId}
-                    >
-                      <Download className="w-4 h-4 mr-1" />
-                      {t("remote.receive")}
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {activeConnectionId && (
+                        <Button
+                          variant={
+                            streaming[activeConnectionId]
+                              ? "default"
+                              : "outline"
+                          }
+                          size="sm"
+                          onClick={toggleStream}
+                        >
+                          <Radio className="w-4 h-4 mr-1" />
+                          {streaming[activeConnectionId]
+                            ? t("remote.stopStream")
+                            : t("remote.startStream")}
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRecv}
+                        disabled={!activeConnectionId}
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        {t("remote.receive")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          activeConnectionId && clearRx(activeConnectionId)
+                        }
+                        disabled={!activeConnectionId}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                   <pre className="min-h-24 max-h-48 overflow-y-auto p-3 rounded bg-surface border border-border text-xs font-mono text-text whitespace-pre-wrap">
                     {rxOutput || t("remote.rxPlaceholder")}
