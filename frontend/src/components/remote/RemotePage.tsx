@@ -143,6 +143,16 @@ export function RemotePage() {
     setTestStates((s) => ({ ...s, [id]: ok }));
   };
 
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<RemoteDevice | null>(null);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleteTarget(null);
+    await deleteDevice(id);
+  };
+
   const handleSelectDevice = async (id: string) => {
     if (activeDeviceId === id) {
       await selectDevice(null);
@@ -292,7 +302,7 @@ export function RemotePage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteDevice(device.id)}
+                    onClick={() => setDeleteTarget(device)}
                     title={t("common.delete")}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -499,6 +509,31 @@ export function RemotePage() {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("remote.confirmDeleteTitle")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-secondary">
+            {deleteTarget
+              ? t("remote.confirmDeleteBody", { name: deleteTarget.name })
+              : ""}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              {t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

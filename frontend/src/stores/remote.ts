@@ -267,7 +267,10 @@ export const useRemoteStore = create<RemoteState & RemoteActions>(
     },
 
     appendStreamData: (event) => {
-      const { connectionId } = event;
+      // Event contract is snake_case (matches the Rust backend + mock):
+      // { device_id, connection_id, data, bytes_read, timestamp }
+      const connectionId = event.connection_id;
+      if (!connectionId) return;
       const text = hexToText(event.data) || event.data;
       set((s) => ({
         rxBuffers: {

@@ -415,6 +415,8 @@
     "host": "IP / Hostname",
     "port": "Port",
     "startStream": "Start stream",
-    "stopStream": "Stop stream"
+    "stopStream": "Stop stream",
+    "confirmDeleteTitle": "Delete Device",
+    "confirmDeleteBody": "Delete device \"{{name}}\"? This cannot be undone."
   }
 }

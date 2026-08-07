@@ -413,6 +413,8 @@
     "host": "IP / 主机名",
     "port": "端口",
     "startStream": "开始监听",
-    "stopStream": "停止监听"
+    "stopStream": "停止监听",
+    "confirmDeleteTitle": "删除设备",
+    "confirmDeleteBody": "确定删除设备 \"{{name}}\" 吗？此操作不可撤销。"
   }
 }
