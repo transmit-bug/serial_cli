@@ -69,17 +69,8 @@ export const remoteHandlers: Record<string, Handler> = {
     return null;
   },
 
-  remote_send_data: (args, state) => {
+  remote_send_data: (args, _state) => {
     const data = Array.isArray(args.data) ? (args.data as number[]) : [];
-    // Echo a response through the stream if one is active
-    if (data.length > 0) {
-      const connectionId = String(args.connectionId);
-      const port = state.remoteConnections.get(connectionId);
-      if (port && state.remoteStreamTimers.has(connectionId)) {
-        // Injected via __MOCK_EMIT__ for manual testing; keep simple here
-        void port;
-      }
-    }
     return data.length;
   },
 

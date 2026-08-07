@@ -19,7 +19,7 @@ vi.mock("@/lib/tauri-api", () => ({
 
 // Mock global fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 
 const mockTauriApi = vi.mocked(tauriApi);
 
