@@ -76,7 +76,7 @@ impl ScriptManager {
             if file_path.exists() {
                 match std::fs::read_to_string(&file_path) {
                     Ok(source) => {
-                        tracing::info!(
+                        tracing::debug!(
                             "Loaded external protocol override: {} from {}",
                             name,
                             file_path.display()
@@ -131,7 +131,7 @@ impl ScriptManager {
                     .as_ref()
                     .and_then(|m| m.description.clone())
                     .unwrap_or_else(|| format!("Protocol script: {}", path.display()));
-                tracing::info!(
+                tracing::debug!(
                     "Discovered external protocol: {} from {}",
                     name,
                     path.display()

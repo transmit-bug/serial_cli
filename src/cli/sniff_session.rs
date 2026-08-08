@@ -178,9 +178,14 @@ pub fn spawn_sniff_daemon(
         port.to_string(),
         "--max-packets".to_string(),
         max_packets.to_string(),
-        "--hex".to_string(),
-        hex_display.to_string(),
     ];
+
+    // `--hex` is a boolean flag on the daemon subcommand — only pass it when
+    // hex display is requested. Passing `--hex false` would be rejected by
+    // clap as an unexpected argument.
+    if hex_display {
+        args.push("--hex".to_string());
+    }
 
     if let Some(out) = output {
         args.push("--output".to_string());
@@ -256,7 +261,10 @@ fn read_pipe(child: &mut std::process::Child) -> String {
 }
 
 /// Stop the active sniff session
-pub fn stop_active_session() -> Result<()> {
+///
+/// When `json_output` is true, suppress human-readable progress messages so
+/// stdout stays clean for the JSON result printed by the caller.
+pub fn stop_active_session(json_output: bool) -> Result<SniffSessionMeta> {
     if let Some(meta) = load_session()? {
         if !is_process_running(meta.pid) {
             // Process already dead, clean up
@@ -266,10 +274,12 @@ pub fn stop_active_session() -> Result<()> {
             )));
         }
 
-        println!(
-            "Stopping sniff session on port {} (PID {})...",
-            meta.port, meta.pid
-        );
+        if !json_output {
+            println!(
+                "Stopping sniff session on port {} (PID {})...",
+                meta.port, meta.pid
+            );
+        }
 
         stop_process(meta.pid)?;
 
@@ -277,7 +287,9 @@ pub fn stop_active_session() -> Result<()> {
         std::thread::sleep(std::time::Duration::from_millis(200));
 
         if is_process_running(meta.pid) {
-            println!("Process did not exit gracefully, sending SIGKILL...");
+            if !json_output {
+                println!("Process did not exit gracefully, sending SIGKILL...");
+            }
             #[cfg(unix)]
             {
                 // SAFETY: SIGKILL to force-terminate a non-responsive process
@@ -287,9 +299,11 @@ pub fn stop_active_session() -> Result<()> {
         }
 
         clear_session()?;
-        println!("Sniff session stopped successfully");
+        if !json_output {
+            println!("Sniff session stopped successfully");
+        }
 
-        Ok(())
+        Ok(meta)
     } else {
         Err(SerialError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,

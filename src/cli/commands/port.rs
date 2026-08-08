@@ -50,7 +50,7 @@ pub fn list_ports(json_output: bool) -> Result<()> {
             .map(|p| {
                 json!({
                     "port_name": p.port_name,
-                    "port_type": format!("{:?}", p.port_type),
+                    "port_type": p.port_type,
                 })
             })
             .collect();

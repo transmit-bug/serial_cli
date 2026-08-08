@@ -5,6 +5,10 @@
 //! - JSON and pretty-print output formats
 //! - Performance tracing with spans
 //! - Log filtering by target/module
+//!
+//! Logs are always written to **stderr** (never stdout) so stdout stays
+//! reserved for command results — including clean, parseable JSON with
+//! `--json`.
 
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -66,6 +70,9 @@ impl LoggingConfig {
     }
 
     /// Initialize logging with this configuration
+    ///
+    /// All log lines are written to **stderr**, never stdout, so machine
+    /// output (JSON responses, `port list`, etc.) stays parseable.
     pub fn init(&self) -> Result<(), Box<dyn std::error::Error>> {
         let filter = EnvFilter::try_from_default_env()
             .or_else(|_| EnvFilter::try_new(&self.level))
@@ -75,6 +82,7 @@ impl LoggingConfig {
             "json" => {
                 fmt()
                     .with_env_filter(filter)
+                    .with_writer(std::io::stderr)
                     .json()
                     .with_ansi(false)
                     .with_target(true)
@@ -84,6 +92,7 @@ impl LoggingConfig {
             "compact" => {
                 let builder = fmt()
                     .with_env_filter(filter)
+                    .with_writer(std::io::stderr)
                     .compact()
                     .with_ansi(self.with_colors)
                     .with_target(self.with_targets)
@@ -98,6 +107,7 @@ impl LoggingConfig {
                 // pretty format (default)
                 let builder = fmt()
                     .with_env_filter(filter)
+                    .with_writer(std::io::stderr)
                     .pretty()
                     .with_ansi(self.with_colors)
                     .with_target(self.with_targets)
@@ -115,7 +125,7 @@ impl LoggingConfig {
 }
 
 /// Initialize logging for CLI mode
-/// - Human-readable output to stdout
+/// - Human-readable output to **stderr** (stdout is reserved for results)
 /// - Respects RUST_LOG environment variable
 /// - Verbose flag overrides to debug level
 pub fn init_cli(verbose: bool) {
@@ -126,7 +136,7 @@ pub fn init_cli(verbose: bool) {
 }
 
 /// Initialize logging for JSON output mode
-/// - Machine-readable JSON lines
+/// - Machine-readable JSON lines on **stderr** (stdout carries one JSON doc)
 /// - Includes all metadata (timestamps, targets, threads)
 pub fn init_json(verbose: bool) {
     let mut config = LoggingConfig::from_env(verbose);

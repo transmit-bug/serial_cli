@@ -23,7 +23,9 @@ use crate::error::{Result, SerialError};
 /// - An active session is already running
 /// - Session metadata cannot be read or written
 /// - Captured data files cannot be accessed
-pub async fn handle_sniff_command(cmd: SniffCommand, _json_output: bool) -> Result<()> {
+pub async fn handle_sniff_command(cmd: SniffCommand, json_output: bool) -> Result<()> {
+    use serde_json::json;
+
     match cmd {
         SniffCommand::Start {
             port,
@@ -56,27 +58,53 @@ pub async fn handle_sniff_command(cmd: SniffCommand, _json_output: bool) -> Resu
                 display_format == "hex",
             )?;
 
-            println!(
-                "✓ Sniffing started on port: {} (PID: {})",
-                meta.port, meta.pid
-            );
-            if display {
-                println!("  Real-time display enabled");
-            }
-            if let Some(ref p) = meta.output_path {
-                println!("  Output file: {}", p.display());
-            }
-            let max_packets_str = if meta.max_packets == 0 {
-                "unlimited".to_string()
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "ok": true,
+                        "pid": meta.pid,
+                        "port": meta.port,
+                        "output": meta.output_path,
+                        "maxPackets": meta.max_packets,
+                        "hexDisplay": meta.hex_display,
+                    }))
+                    .unwrap()
+                );
             } else {
-                meta.max_packets.to_string()
-            };
-            println!("  Max packets:  {}", max_packets_str);
-            println!("  Use 'sniff stats' to view statistics");
-            println!("  Use 'sniff stop' to stop sniffing");
+                println!(
+                    "✓ Sniffing started on port: {} (PID: {})",
+                    meta.port, meta.pid
+                );
+                if display {
+                    println!("  Real-time display enabled");
+                }
+                if let Some(ref p) = meta.output_path {
+                    println!("  Output file: {}", p.display());
+                }
+                let max_packets_str = if meta.max_packets == 0 {
+                    "unlimited".to_string()
+                } else {
+                    meta.max_packets.to_string()
+                };
+                println!("  Max packets:  {}", max_packets_str);
+                println!("  Use 'sniff stats' to view statistics");
+                println!("  Use 'sniff stop' to stop sniffing");
+            }
         }
         SniffCommand::Stop => {
-            stop_active_session()?;
+            let meta = stop_active_session(json_output)?;
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "ok": true,
+                        "pid": meta.pid,
+                        "port": meta.port
+                    }))
+                    .unwrap()
+                );
+            }
         }
         SniffCommand::Stats => {
             let meta = get_session_stats()?;
@@ -88,29 +116,50 @@ pub async fn handle_sniff_command(cmd: SniffCommand, _json_output: bool) -> Resu
                     - meta.started_at,
             );
 
-            let max_packets_display = if meta.max_packets == 0 {
-                "unlimited".to_string()
+            if json_output {
+                let mut stats_json = json!({
+                    "port": meta.port,
+                    "pid": meta.pid,
+                    "startedAt": meta.started_at,
+                    "elapsedSecs": elapsed.as_secs(),
+                    "maxPackets": meta.max_packets,
+                    "hexDisplay": meta.hex_display,
+                });
+                if let Some(ref output) = meta.output_path {
+                    stats_json["outputFile"] = json!(output.display().to_string());
+                    stats_json["packetLines"] = if output.exists() {
+                        let content = read_captured_packets(output)?;
+                        json!(content.lines().count())
+                    } else {
+                        json!(0)
+                    };
+                }
+                println!("{}", serde_json::to_string_pretty(&stats_json).unwrap());
             } else {
-                meta.max_packets.to_string()
-            };
-            println!("Sniff session statistics:");
-            println!("  Port:         {}", meta.port);
-            println!("  PID:          {}", meta.pid);
-            println!("  Started:      {} ago", format_duration(elapsed));
-            println!("  Max packets:  {}", max_packets_display);
-            println!("  Hex display:  {}", meta.hex_display);
-
-            if let Some(ref output) = meta.output_path {
-                if output.exists() {
-                    let content = read_captured_packets(output)?;
-                    let line_count = content.lines().count();
-                    println!(
-                        "  Output file:  {} ({} lines)",
-                        output.display(),
-                        line_count
-                    );
+                let max_packets_display = if meta.max_packets == 0 {
+                    "unlimited".to_string()
                 } else {
-                    println!("  Output file:  {} (not yet written)", output.display());
+                    meta.max_packets.to_string()
+                };
+                println!("Sniff session statistics:");
+                println!("  Port:         {}", meta.port);
+                println!("  PID:          {}", meta.pid);
+                println!("  Started:      {} ago", format_duration(elapsed));
+                println!("  Max packets:  {}", max_packets_display);
+                println!("  Hex display:  {}", meta.hex_display);
+
+                if let Some(ref output) = meta.output_path {
+                    if output.exists() {
+                        let content = read_captured_packets(output)?;
+                        let line_count = content.lines().count();
+                        println!(
+                            "  Output file:  {} ({} lines)",
+                            output.display(),
+                            line_count
+                        );
+                    } else {
+                        println!("  Output file:  {} (not yet written)", output.display());
+                    }
                 }
             }
         }
@@ -122,7 +171,18 @@ pub async fn handle_sniff_command(cmd: SniffCommand, _json_output: bool) -> Resu
                 if session_output.exists() {
                     let content = read_captured_packets(session_output)?;
                     std::fs::write(&path, content).map_err(SerialError::Io)?;
-                    println!("✓ Captured packets saved to: {}", path.display());
+                    if json_output {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&json!({
+                                "ok": true,
+                                "path": path
+                            }))
+                            .unwrap()
+                        );
+                    } else {
+                        println!("✓ Captured packets saved to: {}", path.display());
+                    }
                 } else {
                     return Err(SerialError::Io(std::io::Error::new(
                         std::io::ErrorKind::NotFound,
