@@ -51,6 +51,11 @@ test:
 test-one name *args:
     cargo test {{name}} -- {{args}}
 
+# Run tests with full output
+[no-cd]
+test-verbose:
+    cargo test -- --nocapture
+
 # Auto-run tests on file changes
 test-watch:
     cargo watch -x test
@@ -140,8 +145,17 @@ build-windows:
         echo "⚠ cross not installed, skipping (cargo install cross)"
     fi
 
-# Full release: clean + build all platforms
-release: clean build-all
+# Build .deb package (Debian/Ubuntu/Raspberry Pi; ships a systemd unit)
+package-deb:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ "$(uname -s)" == Linux* ]] || { echo "⚠ .deb packaging is Linux-only"; exit 0; }
+    command -v cargo-deb &>/dev/null || cargo install cargo-deb --locked
+    cargo deb
+    echo "✓ .deb package: target/debian/serial-cli_*.deb"
+
+# Full release: clean + build all platforms + package
+release: clean build-all package-deb
     @echo "✓ Release builds complete"
 
 # ──────────────────────────────────────────────────────────────────────────────
