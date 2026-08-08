@@ -12,10 +12,26 @@ use tokio::sync::RwLock;
 use crate::cli::types::VirtualCommand;
 use crate::error::{Result, SerialError};
 use crate::serial_core::{BackendType, VirtualConfig, VirtualSerialPair};
+use serde_json::json;
 
 /// In-memory registry of active virtual port pairs, keyed by pair ID.
 static VIRTUAL_REGISTRY: Lazy<Arc<RwLock<HashMap<String, VirtualSerialPair>>>> =
     Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
+
+/// Stop and clean up all registered virtual port pairs.
+///
+/// Virtual pairs are process-scoped: the in-memory registry dies with the
+/// process. Backends that spawn external processes (socat) or create symlinks
+/// must not leave those behind when the CLI exits, so `main` invokes this
+/// before returning.
+pub async fn shutdown_all() {
+    let mut registry = VIRTUAL_REGISTRY.write().await;
+    for (_, pair) in registry.drain() {
+        if let Err(e) = pair.stop().await {
+            eprintln!("Warning: failed to stop virtual pair on exit: {}", e);
+        }
+    }
+}
 
 /// Dispatch a [`VirtualCommand`] to create, list, stop, or show stats for
 /// virtual serial port pairs.
@@ -25,7 +41,7 @@ static VIRTUAL_REGISTRY: Lazy<Arc<RwLock<HashMap<String, VirtualSerialPair>>>> =
 /// Returns [`SerialError::VirtualPort`] if the requested pair is not found
 /// or if the backend is unavailable on the current platform.
 /// Returns [`SerialError::UnsupportedBackend`] for invalid backend type strings.
-pub async fn handle_virtual_command(cmd: VirtualCommand, _json_output: bool) -> Result<()> {
+pub async fn handle_virtual_command(cmd: VirtualCommand, json_output: bool) -> Result<()> {
     match cmd {
         VirtualCommand::Create {
             backend,
@@ -99,20 +115,59 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, _json_output: bool) -> 
             let mut registry = VIRTUAL_REGISTRY.write().await;
             registry.insert(id.clone(), pair);
 
-            println!("✓ Virtual port pair created");
-            println!("  ID: {}", id);
-            println!("  Port A: {}", port_a);
-            println!("  Port B: {}", port_b);
-            println!("  Backend: {:?}", backend_type);
-            if monitor_enabled {
-                println!("  Monitoring: enabled (max {} packets)", max_packets_config);
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "id": id,
+                        "portA": port_a,
+                        "portB": port_b,
+                        "backend": backend_type.to_string(),
+                        "monitor": monitor_enabled,
+                        "maxPackets": max_packets_config,
+                    }))
+                    .unwrap()
+                );
+            } else {
+                println!("✓ Virtual port pair created");
+                println!("  ID: {}", id);
+                println!("  Port A: {}", port_a);
+                println!("  Port B: {}", port_b);
+                println!("  Backend: {:?}", backend_type);
+                if monitor_enabled {
+                    println!("  Monitoring: enabled (max {} packets)", max_packets_config);
+                }
             }
         }
 
         VirtualCommand::List => {
             let registry = VIRTUAL_REGISTRY.read().await;
 
-            if registry.is_empty() {
+            if json_output {
+                let mut items: Vec<serde_json::Value> = Vec::new();
+                for (id, pair) in registry.iter() {
+                    let stats = pair.stats().await;
+                    items.push(json!({
+                        "id": id,
+                        "portA": stats.port_a,
+                        "portB": stats.port_b,
+                        "backend": stats.backend.to_string(),
+                        "running": stats.running,
+                        "uptimeSecs": stats.uptime_secs,
+                        "bytesBridged": stats.bytes_bridged,
+                        "packetsBridged": stats.packets_bridged,
+                        "bridgeErrors": stats.bridge_errors,
+                    }));
+                }
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "pairs": items,
+                        "count": items.len()
+                    }))
+                    .unwrap()
+                );
+            } else if registry.is_empty() {
                 println!("No active virtual port pairs");
                 println!();
                 println!("Create a virtual pair with:");
@@ -146,7 +201,20 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, _json_output: bool) -> 
 
             if let Some(pair) = registry.remove(&id) {
                 match pair.stop().await {
-                    Ok(_) => println!("✓ Virtual pair stopped"),
+                    Ok(_) => {
+                        if json_output {
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&json!({
+                                    "ok": true,
+                                    "id": id
+                                }))
+                                .unwrap()
+                            );
+                        } else {
+                            println!("✓ Virtual pair stopped");
+                        }
+                    }
                     Err(e) => {
                         eprintln!("⚠ Error stopping virtual pair: {}", e);
                         return Err(e);
@@ -167,25 +235,44 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, _json_output: bool) -> 
 
             if let Some(pair) = registry.get(&id) {
                 let stats = pair.stats().await;
-                println!("Virtual pair statistics:");
-                println!("  ID: {}", stats.id);
-                println!("  Port A: {}", stats.port_a);
-                println!("  Port B: {}", stats.port_b);
-                println!("  Backend: {:?}", stats.backend);
-                println!(
-                    "  Status: {}",
-                    if stats.running { "Running" } else { "Stopped" }
-                );
-                println!("  Uptime: {}s", stats.uptime_secs);
-                println!("  Bytes bridged: {}", stats.bytes_bridged);
-                println!("  Packets bridged: {}", stats.packets_bridged);
-                println!("  Bridge errors: {}", stats.bridge_errors);
+                if json_output {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "id": stats.id,
+                            "portA": stats.port_a,
+                            "portB": stats.port_b,
+                            "backend": stats.backend.to_string(),
+                            "running": stats.running,
+                            "uptimeSecs": stats.uptime_secs,
+                            "bytesBridged": stats.bytes_bridged,
+                            "packetsBridged": stats.packets_bridged,
+                            "bridgeErrors": stats.bridge_errors,
+                            "lastError": stats.last_error,
+                        }))
+                        .unwrap()
+                    );
+                } else {
+                    println!("Virtual pair statistics:");
+                    println!("  ID: {}", stats.id);
+                    println!("  Port A: {}", stats.port_a);
+                    println!("  Port B: {}", stats.port_b);
+                    println!("  Backend: {:?}", stats.backend);
+                    println!(
+                        "  Status: {}",
+                        if stats.running { "Running" } else { "Stopped" }
+                    );
+                    println!("  Uptime: {}s", stats.uptime_secs);
+                    println!("  Bytes bridged: {}", stats.bytes_bridged);
+                    println!("  Packets bridged: {}", stats.packets_bridged);
+                    println!("  Bridge errors: {}", stats.bridge_errors);
 
-                if let Some(ref error) = stats.last_error {
-                    println!("  Last error: {}", error);
+                    if let Some(ref error) = stats.last_error {
+                        println!("  Last error: {}", error);
+                    }
                 }
             } else {
-                eprintln!("\u{2717} Virtual pair not found: {}", id);
+                eprintln!("✗ Virtual pair not found: {}", id);
                 println!("Use 'serial-cli virtual list' to see active pairs");
                 return Err(SerialError::VirtualPort(format!(
                     "Virtual pair not found: {}",

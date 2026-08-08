@@ -204,7 +204,7 @@ impl RpcDispatcher {
             .map(|p| {
                 serde_json::json!({
                     "port_name": p.port_name,
-                    "port_type": format!("{:?}", p.port_type),
+                    "port_type": p.port_type,
                 })
             })
             .collect();

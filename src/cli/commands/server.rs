@@ -27,7 +27,7 @@ pub const DEFAULT_TCP_PORT: u16 = 23333;
 pub const DEFAULT_BIND_ADDR: &str = "0.0.0.0";
 
 /// Dispatch a [`ServerCommand`] to the appropriate handler.
-pub async fn handle_server_command(cmd: ServerCommand, _json_output: bool) -> Result<()> {
+pub async fn handle_server_command(cmd: ServerCommand, json_output: bool) -> Result<()> {
     match cmd {
         ServerCommand::Start {
             socket_path,
@@ -47,14 +47,15 @@ pub async fn handle_server_command(cmd: ServerCommand, _json_output: bool) -> Re
                 bind,
                 log,
                 max_connections,
+                json_output,
             )
             .await?;
         }
         ServerCommand::Stop => {
-            stop_server().await?;
+            stop_server(json_output).await?;
         }
         ServerCommand::Status => {
-            show_server_status().await?;
+            show_server_status(json_output).await?;
         }
         ServerCommand::Call {
             method,
@@ -98,13 +99,27 @@ async fn start_server(
     bind: Option<String>,
     log: Option<String>,
     max_connections: usize,
+    json_output: bool,
 ) -> Result<()> {
     // Check if server is already running
     if let Ok(Some(meta)) = ServerSessionManager::load_session() {
         if ServerSessionManager::is_process_running(meta.pid) {
-            println!("Server is already running (PID: {})", meta.pid);
-            println!("  Socket: {}", meta.socket_path.display());
-            println!("  Use 'server stop' to stop the server first.");
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "ok": false,
+                        "error": "Server already running",
+                        "pid": meta.pid,
+                        "socket": meta.socket_path.display().to_string(),
+                    }))
+                    .unwrap()
+                );
+            } else {
+                println!("Server is already running (PID: {})", meta.pid);
+                println!("  Socket: {}", meta.socket_path.display());
+                println!("  Use 'server stop' to stop the server first.");
+            }
             return Err(SerialError::Io(io::Error::new(
                 io::ErrorKind::AddrInUse,
                 "Server already running",
@@ -131,19 +146,34 @@ async fn start_server(
     // Wait for the child to report a live session
     wait_for_daemon_session(&socket_path, max_connections).await?;
 
-    println!("Server started successfully");
-    println!(
-        "  PID: {}",
-        ServerSessionManager::load_session()?.unwrap().pid
-    );
-    println!("  Socket: {}", socket_path.display());
-    println!("  TCP: {}", tcp_desc(tcp_port, bind_addr));
-    println!("  Log: {}", log_path.display());
-    println!("  Max connections: {}", max_connections);
-    println!();
-    println!("Use 'server status' to check server status.");
-    println!("Use 'server call <method> <args>' to send RPC requests.");
-    println!("Use 'server call --remote <ip:port> <method> <args>' for remote devices.");
+    if json_output {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "ok": true,
+                "pid": ServerSessionManager::load_session()?.unwrap().pid,
+                "socket": socket_path.display().to_string(),
+                "tcp": tcp_desc(tcp_port, bind_addr),
+                "log": log_path.display().to_string(),
+                "maxConnections": max_connections,
+            }))
+            .unwrap()
+        );
+    } else {
+        println!("Server started successfully");
+        println!(
+            "  PID: {}",
+            ServerSessionManager::load_session()?.unwrap().pid
+        );
+        println!("  Socket: {}", socket_path.display());
+        println!("  TCP: {}", tcp_desc(tcp_port, bind_addr));
+        println!("  Log: {}", log_path.display());
+        println!("  Max connections: {}", max_connections);
+        println!();
+        println!("Use 'server status' to check server status.");
+        println!("Use 'server call <method> <args>' to send RPC requests.");
+        println!("Use 'server call --remote <ip:port> <method> <args>' for remote devices.");
+    }
     Ok(())
 }
 
@@ -274,7 +304,7 @@ async fn wait_for_daemon_session(socket_path: &PathBuf, _max_connections: usize)
 }
 
 /// Stop the server daemon
-async fn stop_server() -> Result<()> {
+async fn stop_server(json_output: bool) -> Result<()> {
     // Load session
     let meta = ServerSessionManager::load_session()?.ok_or_else(|| {
         SerialError::Io(io::Error::new(
@@ -285,7 +315,18 @@ async fn stop_server() -> Result<()> {
 
     // Check if process is running
     if !ServerSessionManager::is_process_running(meta.pid) {
-        println!("✗ Server is not running (stale session)");
+        if json_output {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "ok": true,
+                    "stale": true
+                }))
+                .unwrap()
+            );
+        } else {
+            println!("✗ Server is not running (stale session)");
+        }
         ServerSessionManager::clear_session()?;
         return Ok(());
     }
@@ -298,22 +339,60 @@ async fn stop_server() -> Result<()> {
 
     // Check if it stopped
     if !ServerSessionManager::is_process_running(meta.pid) {
-        println!("✓ Server stopped successfully");
+        if json_output {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "ok": true,
+                    "pid": meta.pid
+                }))
+                .unwrap()
+            );
+        } else {
+            println!("✓ Server stopped successfully");
+        }
         ServerSessionManager::clear_session()?;
     } else {
-        println!("⚠ Server did not stop gracefully (PID: {})", meta.pid);
-        println!("  You may need to manually kill the process:");
-        println!("  kill {}", meta.pid);
+        if json_output {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "ok": false,
+                    "error": format!("Server did not stop gracefully (PID: {})", meta.pid)
+                }))
+                .unwrap()
+            );
+        } else {
+            println!("⚠ Server did not stop gracefully (PID: {})", meta.pid);
+            println!("  You may need to manually kill the process:");
+            println!("  kill {}", meta.pid);
+        }
     }
 
     Ok(())
 }
 
 /// Show server status
-async fn show_server_status() -> Result<()> {
+async fn show_server_status(json_output: bool) -> Result<()> {
     match ServerSessionManager::load_session()? {
         Some(meta) => {
             let running = ServerSessionManager::is_process_running(meta.pid);
+
+            if json_output {
+                let mut status = serde_json::json!({
+                    "running": running,
+                    "pid": meta.pid,
+                    "socket": meta.socket_path.display().to_string(),
+                    "tcpPort": meta.tcp_port,
+                    "log": meta.log_path.display().to_string(),
+                    "maxConnections": meta.max_connections,
+                });
+                if let Ok(started) = std::time::UNIX_EPOCH.elapsed() {
+                    status["uptimeSecs"] = serde_json::json!(started.as_secs() - meta.started_at);
+                }
+                println!("{}", serde_json::to_string_pretty(&status).unwrap());
+                return Ok(());
+            }
 
             println!("Server Status:");
             println!();
@@ -350,9 +429,19 @@ async fn show_server_status() -> Result<()> {
             }
         }
         None => {
-            println!("Server Status: Not running");
-            println!();
-            println!("Use 'server start' to start the server daemon.");
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "running": false
+                    }))
+                    .unwrap()
+                );
+            } else {
+                println!("Server Status: Not running");
+                println!();
+                println!("Use 'server start' to start the server daemon.");
+            }
         }
     }
 

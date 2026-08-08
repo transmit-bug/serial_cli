@@ -65,31 +65,31 @@ async fn main() -> Result<()> {
 
     // Execute command
     let json_output = cli.json;
-    match cli.command {
+    let result = match cli.command {
         Some(Commands::Port { port_command }) => {
-            port_cmd::handle_port_command(port_command, json_output).await?;
+            port_cmd::handle_port_command(port_command, json_output).await
         }
         Some(Commands::Interactive) => {
             let mut shell = InteractiveShell::new();
-            shell.run().await?;
+            shell.run().await
         }
         Some(Commands::Run { script, args }) => {
-            script_cmd::run_lua_script(PathBuf::from(script), args, script_manager).await?;
+            script_cmd::run_lua_script(PathBuf::from(script), args, script_manager).await
         }
         Some(Commands::Script { script_command }) => {
-            script_cmd::handle_script_command(script_command, json_output, script_manager).await?;
+            script_cmd::handle_script_command(script_command, json_output, script_manager).await
         }
         Some(Commands::Sniff { sniff_command }) => {
-            sniff_cmd::handle_sniff_command(sniff_command, json_output).await?;
+            sniff_cmd::handle_sniff_command(sniff_command, json_output).await
         }
         Some(Commands::Config { config_command }) => {
-            config_cmd::handle_config_command(config_command, json_output)?;
+            config_cmd::handle_config_command(config_command, json_output)
         }
         Some(Commands::Virtual { virtual_command }) => {
-            virtual_port::handle_virtual_command(virtual_command, json_output).await?;
+            virtual_port::handle_virtual_command(virtual_command, json_output).await
         }
         Some(Commands::Server { server_command }) => {
-            server_cmd::handle_server_command(server_command, json_output).await?;
+            server_cmd::handle_server_command(server_command, json_output).await
         }
         Some(Commands::SniffDaemon {
             port,
@@ -103,14 +103,19 @@ async fn main() -> Result<()> {
                 max_packets,
                 hex,
             )
-            .await?;
+            .await
         }
         None => {
             // No command specified, default to interactive mode
             let mut shell = InteractiveShell::new();
-            shell.run().await?;
+            shell.run().await
         }
-    }
+    };
 
-    Ok(())
+    // Virtual port pairs are process-scoped (in-memory registry). Ensure any
+    // spawned backend processes and symlinks (e.g. socat) are cleaned up
+    // before the CLI process exits so nothing leaks (see #64).
+    virtual_port::shutdown_all().await;
+
+    result
 }
