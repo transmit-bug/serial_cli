@@ -70,52 +70,56 @@ pub fn handle_config_command(cmd: ConfigCommand, json_output: bool) -> Result<()
         ConfigCommand::Set { key, value } => {
             match config_manager.set(&key, &value) {
                 Ok(_) => {
-                    println!("\u{2713} Configuration updated successfully");
-
-                    if let Err(e) = config_manager.validate() {
-                        println!("\u{26A0} Warning: Configuration may be invalid: {}", e);
+                    // Write-through: persist immediately so the value survives
+                    // the process — every CLI invocation is a fresh process, so
+                    // an in-memory-only set would be lost (#68). Uses the same
+                    // path resolution as `config save` (no explicit path).
+                    let save_path = crate::config::default_config_save_path();
+                    match config_manager.save(Some(&save_path)) {
+                        Ok(_) => {
+                            println!(
+                                "\u{2713} Configuration updated and saved to {}",
+                                save_path.display()
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("\u{2717} Updated configuration but failed to save: {}", e);
+                            return Err(e);
+                        }
                     }
-
-                    println!("Note: Use 'config save' to persist changes");
                 }
                 Err(e) => {
-                    println!("\u{2717} Failed to set configuration: {}", e);
-                    println!();
-                    println!("Valid configuration keys:");
-                    println!("  serial.baudrate              - Baud rate (e.g., 115200)");
-                    println!("  serial.databits              - Data bits (5-8)");
-                    println!("  serial.stopbits              - Stop bits (1-2)");
-                    println!("  serial.parity                - Parity (none/odd/even)");
-                    println!("  serial.timeout_ms            - Timeout in milliseconds");
-                    println!(
+                    eprintln!("\u{2717} Failed to set configuration: {}", e);
+                    eprintln!();
+                    eprintln!("Valid configuration keys:");
+                    eprintln!("  serial.baudrate              - Baud rate (e.g., 115200)");
+                    eprintln!("  serial.databits              - Data bits (5-8)");
+                    eprintln!("  serial.stopbits              - Stop bits (1-2)");
+                    eprintln!("  serial.parity                - Parity (none/odd/even)");
+                    eprintln!("  serial.timeout_ms            - Timeout in milliseconds");
+                    eprintln!(
                         "  logging.level                - Log level (error/warn/info/debug/trace)"
                     );
-                    println!("  logging.format               - Log format (text/json)");
-                    println!("  logging.file                 - Log file path");
-                    println!("  lua.memory_limit_mb          - Lua memory limit");
-                    println!("  lua.timeout_seconds          - Lua timeout");
-                    println!("  lua.enable_sandbox           - Enable Lua sandbox");
-                    println!("  output.json_pretty           - Pretty print JSON");
-                    println!("  output.show_timestamp        - Show timestamps");
-                    println!("  virtual.backend              - Virtual port backend (pty/socat/namedpipe)");
-                    println!("  virtual.monitor              - Enable monitoring by default");
-                    println!("  virtual.monitor_format       - Monitor format (hex/raw)");
-                    println!("  virtual.auto_cleanup         - Auto-cleanup on exit");
-                    println!("  virtual.max_packets          - Max packets to capture");
-                    println!("  virtual.bridge_buffer_size   - Bridge buffer size");
-                    println!("  virtual.bridge_poll_interval_ms - Bridge poll interval");
+                    eprintln!("  logging.format               - Log format (text/json)");
+                    eprintln!("  logging.file                 - Log file path");
+                    eprintln!("  lua.memory_limit_mb          - Lua memory limit");
+                    eprintln!("  lua.timeout_seconds          - Lua timeout");
+                    eprintln!("  lua.enable_sandbox           - Enable Lua sandbox");
+                    eprintln!("  output.json_pretty           - Pretty print JSON");
+                    eprintln!("  output.show_timestamp        - Show timestamps");
+                    eprintln!("  virtual.backend              - Virtual port backend (pty/socat/namedpipe)");
+                    eprintln!("  virtual.monitor              - Enable monitoring by default");
+                    eprintln!("  virtual.monitor_format       - Monitor format (hex/raw)");
+                    eprintln!("  virtual.auto_cleanup         - Auto-cleanup on exit");
+                    eprintln!("  virtual.max_packets          - Max packets to capture");
+                    eprintln!("  virtual.bridge_buffer_size   - Bridge buffer size");
+                    eprintln!("  virtual.bridge_poll_interval_ms - Bridge poll interval");
                     return Err(e);
                 }
             }
         }
         ConfigCommand::Save { path } => {
-            let output_path = path.unwrap_or_else(|| {
-                if let Some(global_path) = crate::config::get_global_config_path() {
-                    global_path
-                } else {
-                    std::path::PathBuf::from(".serial-cli.toml")
-                }
-            });
+            let output_path = path.unwrap_or_else(crate::config::default_config_save_path);
 
             match config_manager.save(Some(&output_path)) {
                 Ok(_) => {

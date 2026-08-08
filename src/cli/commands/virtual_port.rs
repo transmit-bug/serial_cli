@@ -1,7 +1,15 @@
 //! Virtual serial port command handler
 //!
 //! Handles `serial-cli virtual create|list|stop|stats`.
-//! Manages a global registry of active virtual port pairs.
+//!
+//! Two kinds of pairs are tracked:
+//!
+//! - **In-process pairs** (pty backend): live in the [`VIRTUAL_REGISTRY`] and
+//!   die with the CLI process. `shutdown_all` stops them on exit.
+//! - **Detached pairs** (socat backend, `virtual create --backend socat`):
+//!   spawned as a session-detached socat process and tracked in a state file
+//!   (`src/cli/virtual_port_session.rs`), so they survive the creating CLI
+//!   process and can be listed/stopped from later invocations (#70).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -14,16 +22,17 @@ use crate::error::{Result, SerialError};
 use crate::serial_core::{BackendType, VirtualConfig, VirtualSerialPair};
 use serde_json::json;
 
-/// In-memory registry of active virtual port pairs, keyed by pair ID.
+/// In-memory registry of in-process virtual port pairs, keyed by pair ID.
 static VIRTUAL_REGISTRY: Lazy<Arc<RwLock<HashMap<String, VirtualSerialPair>>>> =
     Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 
-/// Stop and clean up all registered virtual port pairs.
+/// Stop and clean up all in-process registered virtual port pairs.
 ///
-/// Virtual pairs are process-scoped: the in-memory registry dies with the
+/// In-process pairs are process-scoped: the in-memory registry dies with the
 /// process. Backends that spawn external processes (socat) or create symlinks
 /// must not leave those behind when the CLI exits, so `main` invokes this
-/// before returning.
+/// before returning. Detached (persistent) socat pairs tracked in the state
+/// file are intentionally NOT here — they must survive the CLI exit (#70).
 pub async fn shutdown_all() {
     let mut registry = VIRTUAL_REGISTRY.write().await;
     for (_, pair) in registry.drain() {
@@ -80,18 +89,55 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, json_output: bool) -> R
             // Get app config for other settings
             let app_config = config_manager.get();
 
-            // Use monitor from config if not explicitly set
-            let monitor_enabled = if !monitor {
-                app_config.virtual_ports.monitor
-            } else {
-                monitor
-            };
-
             // Use max_packets from config if not explicitly set
             let max_packets_config = if max_packets == 0 {
                 app_config.virtual_ports.max_packets
             } else {
                 max_packets
+            };
+
+            // ── Detached (persistent) socat path (#70) ───────────────
+            // A socat pair is spawned as a session-detached process and
+            // tracked in a state file, so it survives this CLI process.
+            // It is NOT inserted into the in-memory VIRTUAL_REGISTRY (whose
+            // Drop/shutdown_all semantics would kill it on exit).
+            if backend_type == BackendType::Socat {
+                let entry = crate::cli::virtual_port_session::create_socat_pair()?;
+
+                if json_output {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "id": entry.id,
+                            "portA": entry.port_a,
+                            "portB": entry.port_b,
+                            "backend": "socat",
+                            "monitor": false,
+                            "maxPackets": max_packets_config,
+                            "detached": true,
+                            "socatPid": entry.socat_pid,
+                        }))
+                        .unwrap()
+                    );
+                } else {
+                    println!("✓ Virtual port pair created (detached socat backend)");
+                    println!("  ID: {}", entry.id);
+                    println!("  Port A: {}", entry.port_a);
+                    println!("  Port B: {}", entry.port_b);
+                    println!("  Backend: socat (persistent — survives this CLI process)");
+                    println!("  Socat PID: {}", entry.socat_pid);
+                    println!();
+                    println!("  Use 'virtual list' to see active pairs");
+                    println!("  Use 'virtual stop {}' to stop it", entry.id);
+                }
+                return Ok(());
+            }
+
+            // Use monitor from config if not explicitly set
+            let monitor_enabled = if !monitor {
+                app_config.virtual_ports.monitor
+            } else {
+                monitor
             };
 
             // Create virtual config
@@ -141,10 +187,27 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, json_output: bool) -> R
         }
 
         VirtualCommand::List => {
+            // Detached (persistent) pairs from the state file, pruned of
+            // entries whose socat process died (#70).
+            let detached = crate::cli::virtual_port_session::load_and_prune()?;
             let registry = VIRTUAL_REGISTRY.read().await;
 
             if json_output {
                 let mut items: Vec<serde_json::Value> = Vec::new();
+                for entry in &detached {
+                    let stats = crate::cli::virtual_port_session::entry_stats(entry);
+                    items.push(json!({
+                        "id": stats.id,
+                        "portA": stats.port_a,
+                        "portB": stats.port_b,
+                        "backend": stats.backend,
+                        "running": stats.running,
+                        "uptimeSecs": stats.uptime_secs,
+                        "bytesBridged": stats.bytes_bridged,
+                        "packetsBridged": stats.packets_bridged,
+                        "bridgeErrors": stats.bridge_errors,
+                    }));
+                }
                 for (id, pair) in registry.iter() {
                     let stats = pair.stats().await;
                     items.push(json!({
@@ -167,7 +230,7 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, json_output: bool) -> R
                     }))
                     .unwrap()
                 );
-            } else if registry.is_empty() {
+            } else if detached.is_empty() && registry.is_empty() {
                 println!("No active virtual port pairs");
                 println!();
                 println!("Create a virtual pair with:");
@@ -175,6 +238,20 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, json_output: bool) -> R
             } else {
                 println!("Active virtual port pairs:");
                 println!();
+                for entry in &detached {
+                    let stats = crate::cli::virtual_port_session::entry_stats(entry);
+                    println!("  ID: {}", stats.id);
+                    println!("    Port A: {}", stats.port_a);
+                    println!("    Port B: {}", stats.port_b);
+                    println!("    Backend: {}", stats.backend);
+                    println!("    Uptime: {}s", stats.uptime_secs);
+                    println!(
+                        "    Status: {}",
+                        if stats.running { "Running" } else { "Stopped" }
+                    );
+                    println!("    Socat PID: {}", entry.socat_pid);
+                    println!();
+                }
                 for (id, pair) in registry.iter() {
                     let stats = pair.stats().await;
                     println!("  ID: {}", id);
@@ -197,40 +274,102 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, json_output: bool) -> R
         }
 
         VirtualCommand::Stop { id } => {
-            let mut registry = VIRTUAL_REGISTRY.write().await;
-
-            if let Some(pair) = registry.remove(&id) {
-                match pair.stop().await {
-                    Ok(_) => {
-                        if json_output {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&json!({
-                                    "ok": true,
-                                    "id": id
-                                }))
-                                .unwrap()
-                            );
-                        } else {
-                            println!("✓ Virtual pair stopped");
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("⚠ Error stopping virtual pair: {}", e);
-                        return Err(e);
+            // 1. Detached (persistent) pair — works across processes (#70).
+            match crate::cli::virtual_port_session::stop_socat_pair(&id)? {
+                Some((_entry, was_running)) => {
+                    if json_output {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&json!({
+                                "ok": true,
+                                "id": id,
+                                "stale": !was_running,
+                            }))
+                            .unwrap()
+                        );
+                    } else if was_running {
+                        println!("✓ Virtual pair stopped");
+                    } else {
+                        println!("✓ Virtual pair stopped (stale — socat was no longer running)");
+                        println!("  Cleaned up symlinks and state entry for {}", id);
                     }
                 }
-            } else {
-                eprintln!("✗ Virtual pair not found: {}", id);
-                eprintln!("Use 'serial-cli virtual list' to see active pairs");
-                return Err(SerialError::VirtualPort(format!(
-                    "Virtual pair not found: {}",
-                    id
-                )));
+                None => {
+                    // 2. Fall back to the in-process registry (pty/session pairs).
+                    let mut registry = VIRTUAL_REGISTRY.write().await;
+
+                    if let Some(pair) = registry.remove(&id) {
+                        match pair.stop().await {
+                            Ok(_) => {
+                                if json_output {
+                                    println!(
+                                        "{}",
+                                        serde_json::to_string_pretty(&json!({
+                                            "ok": true,
+                                            "id": id
+                                        }))
+                                        .unwrap()
+                                    );
+                                } else {
+                                    println!("✓ Virtual pair stopped");
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("⚠ Error stopping virtual pair: {}", e);
+                                return Err(e);
+                            }
+                        }
+                    } else {
+                        eprintln!("✗ Virtual pair not found: {}", id);
+                        eprintln!("Use 'serial-cli virtual list' to see active pairs");
+                        return Err(SerialError::VirtualPort(format!(
+                            "Virtual pair not found: {}",
+                            id
+                        )));
+                    }
+                }
             }
         }
 
         VirtualCommand::Stats { id } => {
+            // 1. Detached (persistent) pair — works across processes (#70).
+            // `load_and_prune` also removes stale entries (crash recovery).
+            let detached = crate::cli::virtual_port_session::load_and_prune()?;
+            if let Some(entry) = detached.iter().find(|e| e.id == id) {
+                let stats = crate::cli::virtual_port_session::entry_stats(entry);
+                if json_output {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "id": stats.id,
+                            "portA": stats.port_a,
+                            "portB": stats.port_b,
+                            "backend": stats.backend,
+                            "running": stats.running,
+                            "uptimeSecs": stats.uptime_secs,
+                            "bytesBridged": stats.bytes_bridged,
+                            "packetsBridged": stats.packets_bridged,
+                            "bridgeErrors": stats.bridge_errors,
+                            "lastError": stats.last_error,
+                        }))
+                        .unwrap()
+                    );
+                } else {
+                    println!("Virtual pair statistics:");
+                    println!("  ID: {}", stats.id);
+                    println!("  Port A: {}", stats.port_a);
+                    println!("  Port B: {}", stats.port_b);
+                    println!("  Backend: {}", stats.backend);
+                    println!(
+                        "  Status: {}",
+                        if stats.running { "Running" } else { "Stopped" }
+                    );
+                    println!("  Uptime: {}s", stats.uptime_secs);
+                }
+                return Ok(());
+            }
+
+            // 2. In-process registry (pty/session pairs).
             let registry = VIRTUAL_REGISTRY.read().await;
 
             if let Some(pair) = registry.get(&id) {
@@ -273,7 +412,7 @@ pub async fn handle_virtual_command(cmd: VirtualCommand, json_output: bool) -> R
                 }
             } else {
                 eprintln!("✗ Virtual pair not found: {}", id);
-                println!("Use 'serial-cli virtual list' to see active pairs");
+                eprintln!("Use 'serial-cli virtual list' to see active pairs");
                 return Err(SerialError::VirtualPort(format!(
                     "Virtual pair not found: {}",
                     id

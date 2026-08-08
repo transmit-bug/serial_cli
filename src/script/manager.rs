@@ -63,6 +63,11 @@ impl ScriptManager {
         // that are not already registered (community/user scripts)
         Self::load_external_protocols(&mut scripts);
 
+        // Register custom protocols persisted in the config file
+        // (`[protocols.custom.*]`). `script load` writes entries here, so a
+        // new process sees the same custom scripts across invocations (#69).
+        Self::load_custom_protocols_from_config(&mut scripts);
+
         Self { scripts }
     }
 
@@ -150,6 +155,66 @@ impl ScriptManager {
                     },
                 );
             }
+        }
+    }
+
+    /// Load custom protocols persisted in the config file (`[protocols.custom.*]`)
+    /// into the runtime registry.
+    ///
+    /// Entries whose script file no longer exists are skipped with a warning
+    /// (they remain in config for the user to clean up with `script remove`).
+    /// Built-in script names are never overridden.
+    fn load_custom_protocols_from_config(scripts: &mut HashMap<String, LoadedScript>) {
+        let config_manager = crate::config::ConfigManager::load_with_fallback();
+        let config = config_manager.get();
+
+        for (name, proto) in &config.protocols.custom {
+            let is_builtin = scripts.get(name).map(|s| s.built_in).unwrap_or(false);
+            if is_builtin {
+                tracing::warn!(
+                    "Custom protocol '{}' collides with a built-in script; ignoring",
+                    name
+                );
+                continue;
+            }
+            if !proto.path.exists() {
+                tracing::warn!(
+                    "Custom protocol '{}' configured at {} but file not found",
+                    name,
+                    proto.path.display()
+                );
+                continue;
+            }
+            let source = match std::fs::read_to_string(&proto.path) {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!("Failed to read {}: {}", proto.path.display(), e);
+                    continue;
+                }
+            };
+            let meta = extract_script_meta(&source);
+            let description = meta
+                .as_ref()
+                .and_then(|m| m.description.clone())
+                .unwrap_or_else(|| format!("Custom protocol: {}", proto.path.display()));
+            tracing::debug!(
+                "Registered custom protocol from config: {} from {}",
+                name,
+                proto.path.display()
+            );
+            scripts.insert(
+                name.clone(),
+                LoadedScript {
+                    name: name.clone(),
+                    description,
+                    source,
+                    path: Some(proto.path.clone()),
+                    built_in: false,
+                    loaded_at: std::time::SystemTime::now(),
+                    version: proto.version.max(1),
+                    meta,
+                },
+            );
         }
     }
 

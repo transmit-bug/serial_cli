@@ -80,6 +80,7 @@ pub async fn handle_script_command(
         ScriptCommand::Validate { path } => validate_script(&path, json_output),
         ScriptCommand::Load { path, .. } => load_script(&path, json_output, script_manager).await,
         ScriptCommand::Unload { name } => unload_script(&name, json_output, script_manager).await,
+        ScriptCommand::Remove { name } => remove_script(&name, json_output, script_manager).await,
         ScriptCommand::Reload { name } => reload_script(&name, json_output, script_manager).await,
         ScriptCommand::HotReload { action } => handle_hot_reload(&action, json_output),
     }
@@ -179,22 +180,62 @@ fn validate_script(path: &Path, _json_output: bool) -> Result<()> {
     // Read the file
     let source = std::fs::read_to_string(path).map_err(SerialError::Io)?;
 
-    // Validate Lua syntax
+    // Validate Lua syntax. Name the chunk after the script path so line
+    // numbers in errors point at the user's file, not the internal
+    // `src/cli/commands/script.rs:<line>` location mlua would otherwise
+    // embed as the chunk name (#71).
     let lua = mlua::Lua::new();
-    match lua.load(&source).exec() {
+    let chunk_name = path.to_string_lossy();
+    match lua.load(&source).set_name(chunk_name).exec() {
         Ok(_) => {
             println!("\u{2713} Script is valid");
             Ok(())
         }
         Err(e) => {
-            println!("\u{2717} Validation failed: {}", e);
+            // Strip the `[string "..."]` chunk-name prefix mlua prepends so
+            // users see the actual Lua error (message + line) without an
+            // internal source path (#71).
+            let clean = clean_lua_error_message(&e.to_string());
+            let (line, message) = extract_lua_error_parts(&clean);
+            eprintln!("\u{2717} Validation failed: {}", clean);
             Err(SerialError::Script(ScriptError::Syntax {
                 script: path.to_path_buf(),
-                line: 0,
-                message: e.to_string(),
+                line,
+                message,
             }))
         }
     }
+}
+
+/// Strip the `[string "<chunk name>"]` prefix mlua prepends to string-chunk
+/// errors (wherever it appears), leaving `LINE: message` (or just `message`).
+fn clean_lua_error_message(msg: &str) -> String {
+    if let Some(start) = msg.find("[string \"") {
+        if let Some(rel_end) = msg[start..].find(']') {
+            let end = start + rel_end;
+            let after = msg[end + 1..].trim_start_matches(':').trim_start();
+            if !after.is_empty() {
+                return format!("{}{}", &msg[..start], after);
+            }
+        }
+    }
+    msg.to_string()
+}
+
+/// Split a chunk-stripped Lua error into `(line, message)`. Handles both
+/// `syntax error: 5: ')' expected` and `5: message` shapes; returns line 0
+/// with the full message when no leading line number is present.
+fn extract_lua_error_parts(clean: &str) -> (usize, String) {
+    let rest = clean.strip_prefix("syntax error: ").unwrap_or(clean);
+    match rest.find(':') {
+        Some(idx) if idx > 0 => {
+            if let Ok(line) = rest[..idx].trim().parse::<usize>() {
+                return (line, rest[idx + 1..].trim_start().to_string());
+            }
+        }
+        _ => {}
+    }
+    (0, clean.to_string())
 }
 
 async fn load_script(
@@ -209,8 +250,24 @@ async fn load_script(
 
     let info = manager.load(path)?;
 
+    // Persist to [protocols.custom] so the script survives across CLI
+    // invocations (#69). If the name is already registered in config (e.g.
+    // from a previous `script load`), update the stored path instead.
+    let config_manager = crate::config::ConfigManager::load_with_fallback();
+    if config_manager
+        .add_custom_protocol(info.name.clone(), path.to_path_buf())
+        .is_err()
+    {
+        config_manager.update_custom_protocol(info.name.clone(), path.to_path_buf())?;
+    }
+    config_manager.save(None)?;
+
     println!("\u{2713} Script loaded: {}", info.name);
     println!("  Path: {}", path.display());
+    println!(
+        "  Persisted to [protocols.custom] (use 'script remove {}' to forget)",
+        info.name
+    );
     Ok(())
 }
 
@@ -222,7 +279,28 @@ async fn unload_script(
     let mut manager = script_manager.lock().await;
     manager.unload(name)?;
 
-    println!("\u{2713} Script unloaded: {}", name);
+    println!("\u{2713} Script unloaded (session-only): {}", name);
+    Ok(())
+}
+
+async fn remove_script(
+    name: &str,
+    _json_output: bool,
+    script_manager: Arc<Mutex<ScriptManager>>,
+) -> Result<()> {
+    // Remove from config permanently first (fails for built-ins / unknown
+    // names that were never persisted).
+    let config_manager = crate::config::ConfigManager::load_with_fallback();
+    config_manager.remove_custom_protocol(name)?;
+    config_manager.save(None)?;
+
+    // Remove from the runtime registry if it is currently loaded.
+    let mut manager = script_manager.lock().await;
+    if manager.has(name) {
+        manager.unload(name)?;
+    }
+
+    println!("\u{2713} Script removed: {}", name);
     Ok(())
 }
 

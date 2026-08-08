@@ -325,7 +325,7 @@ async fn stop_server(json_output: bool) -> Result<()> {
                 .unwrap()
             );
         } else {
-            println!("✗ Server is not running (stale session)");
+            eprintln!("✗ Server is not running (stale session)");
         }
         ServerSessionManager::clear_session()?;
         return Ok(());
@@ -363,9 +363,9 @@ async fn stop_server(json_output: bool) -> Result<()> {
                 .unwrap()
             );
         } else {
-            println!("⚠ Server did not stop gracefully (PID: {})", meta.pid);
-            println!("  You may need to manually kill the process:");
-            println!("  kill {}", meta.pid);
+            eprintln!("⚠ Server did not stop gracefully (PID: {})", meta.pid);
+            eprintln!("  You may need to manually kill the process:");
+            eprintln!("  kill {}", meta.pid);
         }
     }
 
