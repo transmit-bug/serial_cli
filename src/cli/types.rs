@@ -99,8 +99,14 @@ pub enum ScriptCommand {
         name: Option<String>,
     },
 
-    /// Unload a custom script
+    /// Unload a custom script (session-only — does not touch config)
     Unload {
+        /// Script name
+        name: String,
+    },
+
+    /// Remove a custom script permanently (from config and runtime)
+    Remove {
         /// Script name
         name: String,
     },
@@ -158,9 +164,13 @@ pub enum SniffCommand {
 
     /// Save captured packets to file
     Save {
-        /// Output file path
-        #[arg(short, long)]
-        path: PathBuf,
+        /// Output file path (positional or via -p/--path)
+        #[arg(value_name = "PATH")]
+        path: Option<PathBuf>,
+
+        /// Output file path (alternative to the positional argument)
+        #[arg(short, long, conflicts_with = "path")]
+        path_flag: Option<PathBuf>,
     },
 }
 

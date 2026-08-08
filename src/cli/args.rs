@@ -16,6 +16,7 @@ use super::types::{
 #[derive(Parser)]
 #[command(name = "serial-cli")]
 #[command(about = "A universal serial port CLI tool optimized for AI interaction", long_about = None)]
+#[command(version)]
 pub struct Cli {
     /// Enable JSON output for all commands.
     ///

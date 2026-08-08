@@ -38,10 +38,21 @@ use tokio::sync::Mutex;
 ///
 /// # Exit codes
 ///
-/// Returns `Ok(())` on success. Any error is propagated through [`Result`]
-/// and printed by the runtime.
+/// Exits 0 on success. On error, prints `Error: <human readable>` (via
+/// `SerialError`'s `Display`, not the Rust `Debug` form) to stderr and exits
+/// with code 1 (#71). Clap exits 2 on argument-parsing errors and 0 for
+/// `--version`/`--help`.
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(e) = run().await {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
+}
+
+/// The real CLI entry point: parse args, dispatch, and clean up in-process
+/// virtual port pairs before returning.
+async fn run() -> Result<()> {
     let cli = Cli::parse();
 
     // Initialize logging - supports RUST_LOG, LOG_FORMAT, LOG_FILE env vars
@@ -114,7 +125,9 @@ async fn main() -> Result<()> {
 
     // Virtual port pairs are process-scoped (in-memory registry). Ensure any
     // spawned backend processes and symlinks (e.g. socat) are cleaned up
-    // before the CLI process exits so nothing leaks (see #64).
+    // before the CLI process exits so nothing leaks (see #64). Detached
+    // (persistent) socat pairs tracked in the state file are NOT in the
+    // registry, so they survive the CLI exit by design (#70).
     virtual_port::shutdown_all().await;
 
     result

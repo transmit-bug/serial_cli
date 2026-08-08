@@ -60,21 +60,45 @@ impl ConfigManager {
                 let baudrate = value
                     .parse::<u32>()
                     .map_err(|_| SerialError::Config(format!("Invalid baudrate: {}", value)))?;
+                if baudrate == 0 {
+                    return Err(SerialError::Config("Baudrate cannot be zero".to_string()));
+                }
                 config.serial.baudrate = baudrate;
             }
             ["serial", "databits"] => {
                 let databits = value
                     .parse::<u8>()
                     .map_err(|_| SerialError::Config(format!("Invalid databits: {}", value)))?;
+                if !(5..=8).contains(&databits) {
+                    return Err(SerialError::Config(format!(
+                        "Invalid databits: {} (must be between 5 and 8)",
+                        value
+                    )));
+                }
                 config.serial.databits = databits;
             }
             ["serial", "stopbits"] => {
                 let stopbits = value
                     .parse::<u8>()
                     .map_err(|_| SerialError::Config(format!("Invalid stopbits: {}", value)))?;
+                if !(1..=2).contains(&stopbits) {
+                    return Err(SerialError::Config(format!(
+                        "Invalid stopbits: {} (must be 1 or 2)",
+                        value
+                    )));
+                }
                 config.serial.stopbits = stopbits;
             }
             ["serial", "parity"] => {
+                match value.to_lowercase().as_str() {
+                    "none" | "odd" | "even" => {}
+                    _ => {
+                        return Err(SerialError::Config(format!(
+                            "Invalid parity: {} (must be 'none', 'odd', or 'even')",
+                            value
+                        )));
+                    }
+                }
                 config.serial.parity = value.to_string();
             }
             ["serial", "timeout_ms"] => {
@@ -84,6 +108,15 @@ impl ConfigManager {
                 config.serial.timeout_ms = timeout;
             }
             ["logging", "level"] => {
+                match value.to_lowercase().as_str() {
+                    "error" | "warn" | "info" | "debug" | "trace" => {}
+                    _ => {
+                        return Err(SerialError::Config(format!(
+                            "Invalid logging level: {} (must be error, warn, info, debug, or trace)",
+                            value
+                        )));
+                    }
+                }
                 config.logging.level = value.to_string();
             }
             ["logging", "format"] => {
@@ -324,6 +357,14 @@ impl Default for ConfigManager {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Resolve the default config file path used by `config save` (no explicit
+/// path) and by `config set` write-through persistence: the global config
+/// directory when available, otherwise `.serial-cli.toml` in the current
+/// working directory.
+pub fn default_config_save_path() -> PathBuf {
+    get_global_config_path().unwrap_or_else(|| PathBuf::from(".serial-cli.toml"))
 }
 
 /// Get the actual config file path that would be used
@@ -701,9 +742,10 @@ mod tests {
     #[test]
     fn test_config_set_invalid_databits_out_of_range() {
         let manager = ConfigManager::new();
-        // 99 is a valid u8, so set() succeeds — validation catches it
-        manager.set("serial.databits", "99").unwrap();
-        assert!(manager.validate().is_err());
+        // 99 is out of the 5-8 range — set() rejects it at set time (#71)
+        assert!(manager.set("serial.databits", "99").is_err());
+        assert!(manager.set("serial.databits", "4").is_err());
+        assert!(manager.set("serial.databits", "9").is_err());
     }
 
     #[test]
@@ -730,39 +772,32 @@ mod tests {
     #[test]
     fn test_config_validate_zero_baudrate() {
         let manager = ConfigManager::new();
-        manager.set("serial.baudrate", "0").unwrap();
-        assert!(manager.validate().is_err());
+        assert!(manager.set("serial.baudrate", "0").is_err());
     }
 
     #[test]
     fn test_config_validate_invalid_databits() {
         let manager = ConfigManager::new();
-        manager.set("serial.databits", "4").unwrap();
-        assert!(manager.validate().is_err());
-        manager.set("serial.databits", "9").unwrap();
-        assert!(manager.validate().is_err());
+        assert!(manager.set("serial.databits", "4").is_err());
+        assert!(manager.set("serial.databits", "9").is_err());
     }
 
     #[test]
     fn test_config_validate_invalid_stopbits() {
         let manager = ConfigManager::new();
-        manager.set("serial.stopbits", "0").unwrap();
-        assert!(manager.validate().is_err());
-        manager.set("serial.stopbits", "3").unwrap();
-        assert!(manager.validate().is_err());
+        assert!(manager.set("serial.stopbits", "0").is_err());
+        assert!(manager.set("serial.stopbits", "3").is_err());
     }
 
     #[test]
     fn test_config_validate_invalid_parity() {
         let manager = ConfigManager::new();
-        manager.set("serial.parity", "mark").unwrap();
-        assert!(manager.validate().is_err());
+        assert!(manager.set("serial.parity", "mark").is_err());
     }
 
     #[test]
     fn test_config_validate_invalid_log_level() {
         let manager = ConfigManager::new();
-        manager.set("logging.level", "verbose").unwrap();
-        assert!(manager.validate().is_err());
+        assert!(manager.set("logging.level", "verbose").is_err());
     }
 }

@@ -163,7 +163,19 @@ pub async fn handle_sniff_command(cmd: SniffCommand, json_output: bool) -> Resul
                 }
             }
         }
-        SniffCommand::Save { path } => {
+        SniffCommand::Save { path, path_flag } => {
+            // Accept the output path either positionally or via -p/--path.
+            let path = match (path, path_flag) {
+                (Some(p), _) => p,
+                (None, Some(p)) => p,
+                (None, None) => {
+                    return Err(SerialError::InvalidInput(
+                        "No output path given. Use 'sniff save <path>' or 'sniff save -p <path>'."
+                            .to_string(),
+                    ));
+                }
+            };
+
             let meta = get_session_stats()?;
 
             // Try to read from the session's output file if one exists
