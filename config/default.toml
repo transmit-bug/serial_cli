@@ -20,11 +20,6 @@ memory_limit_mb = 128
 timeout_seconds = 300
 enable_sandbox = true
 
-[task]
-# Task scheduler configuration
-max_concurrent = 10
-default_timeout_seconds = 60
-
 [output]
 # Output configuration
 json_pretty = true

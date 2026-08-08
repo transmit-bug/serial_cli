@@ -1,6 +1,6 @@
 #!/usr/bin/env serial-cli run
 -- AI Advanced Example
--- Demonstrates complex automation: device discovery, protocol handling, batch operations
+-- Demonstrates complex automation: device discovery, protocol handling, scripted workflows
 
 -- Configuration
 local MAX_RETRIES = 3
@@ -180,7 +180,7 @@ local function execute_command(command_info)
   return command_entry.status == "ok"
 end
 
--- Step 4: Batch Command Execution
+-- Step 4: Command Sequence Execution
 local function execute_command_sequence()
   log_context("Starting command sequence", {count = #TEST_COMMANDS})
 

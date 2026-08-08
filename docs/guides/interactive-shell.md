@@ -158,4 +158,4 @@ serial-cli interactive
 serial-cli              # (same thing, no subcommand)
 ```
 
-The interactive shell is intended for exploration, debugging, and ad-hoc testing. For automated or repeated workloads, prefer Lua scripts (`serial-cli run script.lua`) or the batch subcommand.
+The interactive shell is intended for exploration, debugging, and ad-hoc testing. For automated or repeated workloads, prefer Lua scripts (`serial-cli run script.lua`).

@@ -127,21 +127,6 @@ timeout_seconds = 60
 enable_sandbox  = false
 ```
 
-### `[task]` — Task Scheduler Configuration
-
-Controls the background task scheduler used for batch operations and concurrent work.
-
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `max_concurrent` | `usize` | `10` | Maximum number of concurrent tasks. Must not be zero. |
-| `default_timeout_seconds` | `u64` | `60` | Default timeout for individual tasks (in seconds). |
-
-```toml
-[task]
-max_concurrent          = 5
-default_timeout_seconds = 30
-```
-
 ### `[output]` — Output Configuration
 
 Controls the formatting of structured output from commands.

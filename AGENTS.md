@@ -8,7 +8,7 @@ Three targets share one library:
 
 | Binary | Crate | Purpose |
 |---|---|---|
-| `serial-cli` | root | CLI tool — arg parsing, interactive REPL, batch execution |
+| `serial-cli` | root | CLI tool — arg parsing, interactive REPL, script execution |
 | `serial-cli-tauri` | `src-tauri/` | GUI app — Tauri 2.0 IPC layer over the same library |
 | (library) | `serial-cli` | Core logic: port I/O, script engine, config, server |
 

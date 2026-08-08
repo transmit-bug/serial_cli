@@ -10,7 +10,7 @@
 
   **A Universal Serial Port Tool with CLI & GUI - Optimized for AI Interaction**
 
-  [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Features](#-features) • [Examples](#-examples) • [Lua Scripting](#-lua-scripting) • [Development](#-development)
+  [Quick Start](#-quick-start) • [Features](#-features) • [Usage](#-usage) • [Lua Scripting](#-lua-scripting) • [GUI](#-gui) • [Documentation](#-documentation)
 
 </div>
 
@@ -18,120 +18,16 @@
 
 ## 💡 What is Serial CLI?
 
-Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides **CLI interface**, **structured JSON output**, **embedded LuaJIT scripting**, **support for multiple protocols**, and a **modern GUI application** - making it perfect for both human interaction and AI/automation workflows.
+Serial CLI is a powerful, cross-platform serial communication tool built with Rust. It provides a **CLI**, a **modern desktop GUI**, **structured JSON output**, **embedded LuaJIT scripting**, and **multiple protocol support** — built from the ground up for both human interaction and AI/automation workflows.
 
 **✨ CLI Production Ready** • **🖥️ GUI Production Ready** • **🔧 237+ Tests Passing** • **🌍 Linux • macOS • Windows**
 
----
+**At a glance:**
 
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-# Install from source
-cargo install --path .
-
-# Or download pre-built binaries
-# Visit: https://github.com/transmit-bug/serial_cli/releases
-
-# Or install via script (auto-detects OS/arch, verifies SHA-256)
-curl -fsSL https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.sh | sh
-# Windows (PowerShell):
-#   Invoke-WebRequest https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.ps1 -OutFile install.ps1; .\install.ps1
-
-# Or install the .deb (Debian/Ubuntu/Raspberry Pi)
-wget https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-linux-x86_64.deb
-sudo apt install ./serial-cli-linux-x86_64.deb
-```
-
-### Daemon auto-start on boot (可选开机自启)
-
-```bash
-# Register the daemon to start on boot (systemd / launchd / Task Scheduler)
-serial-cli server service install [--port 23333] [--bind 0.0.0.0]
-
-# Linux: the .deb also ships a systemd unit — enable it directly
-sudo systemctl enable --now serial-cli
-
-# Remove auto-start
-serial-cli server service uninstall
-```
-
-# Clone repository
-git clone <repository-url>
-cd serial_cli
-
-# Development build
-just dev
-
-# Release build
-just build
-
-# Run tests
-just test
-```
-
-### Basic Usage
-
-```bash
-# List available serial ports
-serial-cli port list
-
-# Send data to a port
-serial-cli port send --port /dev/ttyUSB0 "AT"
-
-# Interactive mode
-serial-cli interactive
-
-# Run Lua script
-serial-cli run script.lua
-
-# List available scripts
-serial-cli script list
-
-# Create virtual serial port pair
-serial-cli virtual create --backend auto
-
-# Start sniffing on a port
-serial-cli sniff start --port /dev/ttyUSB0
-
-# Start server daemon (for AI/automation workflows)
-serial-cli server start
-
-# Configuration management
-serial-cli config show
-serial-cli config set serial.baudrate 9600
-```
-
----
-
-## 📖 Usage Examples
-
-### Interactive Shell
-
-```bash
-$ serial-cli
-Serial CLI Interactive Shell
-Type 'help' for available commands, 'quit' to exit
-
-serial> list
-Available serial ports:
-  - /dev/ttyUSB0 (UsbPort)
-  - /dev/ttyACM0 (AcmPort)
-
-serial> open /dev/ttyUSB0
-Port opened successfully
-Port ID: /dev/ttyUSB0-abc123
-
-serial> send AT
-Sent 2 bytes
-
-serial> recv 64
-Received (4 bytes): OK
-
-serial> quit
-```
+- **Human-friendly** — interactive REPL shell plus a full desktop GUI (Tauri), with i18n (en/zh)
+- **AI/automation-ready** — structured JSON output, a persistent JSON-RPC server daemon, and LAN remote access
+- **Deeply scriptable** — embedded LuaJIT with `require()` cross-script imports, hot-reload, custom protocols
+- **No-hardware testing** — virtual serial port pairs (PTY / NamedPipe / Socat) and traffic sniffing
 
 ---
 
@@ -143,203 +39,122 @@ serial> quit
 |:---:|:---:|:---:|:---:|
 | Works with any serial device | Structured JSON output | Embedded LuaJIT runtime | Linux • macOS • Windows |
 
-| 📡 **Protocols** | 🔄 **Batch Mode** | 🔍 **Sniff Sessions** | 🖥️ **GUI Available** | 🚀 **Server Mode** |
-|:---:|:---:|:---:|:---:|:---:|
-| Modbus • AT Commands • Custom | Variables, loops, error reporting | Start/stop/stats/save | Tauri-based GUI | Daemon with JSON-RPC (12 methods) |
+| 📡 **Protocols** | 🔍 **Sniff Sessions** | 🖥️ **GUI Available** | 🚀 **Server Mode** |
+|:---:|:---:|:---:|:---:|
+| Modbus • AT Commands • Custom | Start/stop/stats/save | Tauri-based GUI | Daemon with JSON-RPC (12 methods) |
 
 </div>
 
 ### Core Capabilities
 
-- **🔌 Serial Port Management** - List, open, configure, and manage serial ports
-- **📜 Lua Scripting** - Automate tasks with embedded LuaJIT (high-performance)
-- **📡 Protocol Support** - Built-in Modbus RTU/ASCII, AT Commands, line-based, and **custom Lua scripts**
-- **🎨 Custom Scripts** - Load custom scripts from Lua files with hot-reload support
-- **🤖 AI-Friendly** - JSON output mode for easy integration with AI systems
-- **🔄 Batch Processing** - Execute multiple scripts with variable substitution, loops, and per-script error reporting
-- **🔍 Sniff Sessions** - Start/stop/stats/save serial traffic with background daemon and session management
-- **🚀 Server Mode** - Persistent daemon with JSON-RPC 2.0 interface for AI/automation workflows:
+- **🔌 Serial Port Management** — list, open, configure, and manage serial ports
+- **📜 Lua Scripting** — automate tasks with embedded LuaJIT, including `require()` cross-script imports and hot-reload
+- **📡 Protocol Support** — built-in Modbus RTU/ASCII, AT Commands, line-based, and **custom Lua scripts**
+- **🤖 AI-Friendly** — JSON output mode for easy integration with AI systems
+- **🔍 Sniff Sessions** — start/stop/stats/save serial traffic with a background daemon and session management
+- **🚀 Server Mode** — persistent daemon with a JSON-RPC 2.0 interface for AI/automation workflows:
   - 10-100x latency improvement (50-200ms → 1-5ms with persistent connections)
-  - Protocol persistence (load once, use globally)
-  - Multi-client support (up to 10 concurrent connections)
-  - Standard JSON-RPC 2.0 API with 12 methods (including subscribe/unsubscribe)
-  - Unix socket IPC (Unix) and named pipes (Windows)
-  - Perfect for AI agent integration and automation
-- **🖥️ GUI Application** - Modern Tauri-based GUI with:
-  - Professional tool aesthetic (VS Code / Postman style)
-  - Real-time data monitoring with virtual scrolling
-  - Monaco script editor
-  - Protocol management with hot-reload
-  - Multi-format data export (TXT/CSV/JSON)
-  - System notifications
-  - Complete keyboard shortcuts
-  - Internationalization (en/zh)
-- **🔌 Virtual Serial Ports** - Pluggable backend architecture:
-  - **PTY Backend** (Unix/macOS) - POSIX pseudo-terminals
-  - **NamedPipe Backend** (Windows) - Windows named pipes
-  - **Socat Backend** (Cross-platform) - Socat-based virtual ports
-  - Platform auto-detection (defaults to best backend for your OS)
-  - Runtime backend selection via CLI flag or config file
+  - Protocol persistence (load once, use globally) and multi-client support (up to 10 connections)
+  - **LAN remote access** — operate any device's Daemon from another machine on the LAN (`server call --remote <ip:port>`), plus a Remote Devices page in the GUI
+  - Unix socket IPC (Unix), named pipes (Windows), daemon auto-start on boot (systemd / launchd / Task Scheduler)
+- **🖥️ GUI Application** — modern Tauri-based GUI with:
+  - Real-time data monitoring with virtual scrolling and remote device management
+  - Monaco script editor and protocol management with hot-reload
+  - Multi-format data export (TXT/CSV/JSON), system notifications, keyboard shortcuts, i18n (en/zh)
+- **🔌 Virtual Serial Ports** — pluggable backends: **PTY** (Unix/macOS), **NamedPipe** (Windows), **Socat** (cross-platform), with platform auto-detection and runtime backend selection (CLI flag or config)
 
 ---
 
-### Run Lua Scripts
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
+# Auto-installer (detects OS/arch, verifies SHA-256)
+curl -fsSL https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.sh | sh
+# Windows (PowerShell):
+#   Invoke-WebRequest https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.ps1 -OutFile install.ps1; .\install.ps1
+
+# Or install the .deb (Debian/Ubuntu/Raspberry Pi) — also ships a systemd unit
+wget https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-linux-x86_64.deb
+sudo apt install ./serial-cli-linux-x86_64.deb
+
+# Or build from source (Rust 1.75+)
+cargo install --path .
+```
+
+### 开机自启 (Daemon auto-start on boot)
+
+```bash
+# Register the daemon to start on boot (systemd / launchd / Task Scheduler)
+serial-cli server service install [--port 23333] [--bind 0.0.0.0]
+
+# Linux: the .deb already ships a systemd unit — enable it directly
+sudo systemctl enable --now serial-cli
+
+# Remove auto-start
+serial-cli server service uninstall
+```
+
+### First Steps
+
+```bash
+# List available serial ports
+serial-cli port list
+
+# Send data to a device
+serial-cli port send --port /dev/ttyUSB0 "AT"
+
+# Interactive REPL (also the default when no subcommand is given)
+serial-cli
+
 # Run a Lua script
 serial-cli run script.lua
 
-# With arguments
-serial-cli run script.lua arg1 arg2
-
-# Run with specific port settings
-serial-cli run modbus_read.lua --port /dev/ttyUSB0 --baudrate 19200
-```
-
-#### Data Sniffing — Session Management
-
-```bash
-# Start sniffing on a port (spawns background daemon)
-serial-cli sniff start -p /dev/ttyUSB0 --output capture.log
-
-# Check sniff session statistics
-serial-cli sniff stats
-
-# Save captured packets to a file
-serial-cli sniff save -p backup.log
-
-# Stop the active sniff session
-serial-cli sniff stop
-```
-
-### Batch Processing — Variables & Loops
-
-```bash
-# Run a single Lua script
-serial-cli batch run script.lua
-
-# Run a batch file with variable substitution and loops
-serial-cli batch run tasks.batch
-
-# List available batch scripts
-serial-cli batch list
-```
-
-**Batch file example** (`tasks.batch`):
-```bash
-# Set variables (also reads from environment)
-set PORT /dev/ttyUSB0
-set DEVICE modbus
-
-# Run scripts with variable substitution
-scripts/${DEVICE}/init.lua
-scripts/${DEVICE}/read.lua
-
-# Loop with sleep
-loop 3
-  scripts/${DEVICE}/poll.lua
-  sleep 500
-end
-```
-
-### Virtual Serial Ports — Testing & Development
-
-```bash
-# Create virtual port pair (auto-detects best backend)
-serial-cli virtual create
-
-# Create with specific backend
-serial-cli virtual create --backend pty          # Unix/macOS
-serial-cli virtual create --backend namedpipe   # Windows
-serial-cli virtual create --backend socat       # Cross-platform (requires socat)
-
-# Create with monitoring enabled
-serial-cli virtual create --monitor --max-packets 1000
-
-# List active virtual pairs
-serial-cli virtual list
-
-# Show statistics for a pair
-serial-cli virtual stats <id>
-
-# Stop a virtual pair
-serial-cli virtual stop <id>
-```
-
-**Virtual ports are perfect for:**
-- Testing serial applications without hardware
-- Development and debugging
-- CI/CD pipeline automation
-- Protocol development and validation
-
-**Backend Selection:**
-- **Auto** (recommended): Automatically selects the best backend for your platform
-- **PTY**: Best performance on Unix/macOS
-- **NamedPipe**: Native Windows implementation
-- **Socat**: Cross-platform alternative (requires `socat` installation)
-
-**Set default backend in config:**
-```bash
-serial-cli config set virtual.backend socat
-```
-
-### Server Mode — AI/Automation Workflow & LAN Remote Access
-
-```bash
-# Start the server daemon (Unix socket + TCP 0.0.0.0:23333)
+# Start the JSON-RPC server daemon (for AI/automation + LAN access)
 serial-cli server start
+```
 
-# Check server status
-serial-cli server status
+---
 
-# Make RPC calls (local — Unix socket first, TCP localhost fallback)
-serial-cli server call port_list '{}'
-serial-cli server call port_open '{"port": "/dev/ttyUSB0", "baudrate": 115200}'
-serial-cli server call port_send '{"connection_id": "xxx", "data": "AT"}'
-serial-cli server call port_recv '{"connection_id": "xxx", "timeout": 1000}'
-serial-cli server call server_stats '{}'
+## 📖 Usage
 
-# Remote access — reach a device's Daemon from any workstation on the LAN
-serial-cli server call --remote 192.168.1.50:23333 port_list '{}'
+Full command references live in [docs/commands](docs/commands/); here is what each capability looks like:
 
-# Stop the server
+| Capability | Example | Docs |
+|------------|---------|------|
+| Interactive shell | `serial-cli` | [interactive](docs/commands/interactive.md) |
+| Send / receive data | `serial-cli port send --port /dev/ttyUSB0 "AT"` | [list-ports](docs/commands/list-ports.md) |
+| Lua scripts | `serial-cli run modbus_read.lua` | [run-script](docs/commands/run-script.md) |
+| Protocol scripts | `serial-cli script list` | [script](docs/commands/script.md) |
+| Traffic sniffing | `serial-cli sniff start -p /dev/ttyUSB0` | [sniff](docs/commands/sniff.md) |
+| Virtual ports | `serial-cli virtual create` | [virtual](docs/commands/virtual.md) |
+| Configuration | `serial-cli config show` | [config](docs/commands/config.md) |
+| Server / daemon | `serial-cli server start` | [server](docs/commands/server.md) |
+
+### Server Mode — AI/Automation & LAN Remote Access
+
+```bash
+serial-cli server start                                   # daemon (Unix socket + TCP 0.0.0.0:23333)
+serial-cli server status                                  # check status
+serial-cli server call port_open '{"port":"/dev/ttyUSB0","baudrate":115200}'
+serial-cli server call --remote 192.168.1.50:23333 port_list '{}'   # LAN remote
 serial-cli server stop
 ```
 
-**Server Mode is perfect for:**
-- **AI agents** - Persistent connections reduce latency by 10-100x
-- **Automation workflows** - Long-running processes with connection pooling
-- **Multi-client scenarios** - Multiple agents share serial port connections
-- **Remote debugging** - Operate a target device's serial ports from your workstation (`server call --remote <ip:port>`); the Tauri GUI has a Remote Devices page for the same over a UI
-- **Protocol caching** - Custom protocols loaded once, available globally
-- **CI/CD pipelines** - Fast, repeatable serial operations
+- **AI agents** — persistent connections cut latency 10-100x (50-200ms → 1-5ms)
+- **Multi-client** — up to 10 concurrent clients share port connections
+- **Remote debugging** — operate a target device's serial ports from your workstation; the GUI's Remote Devices page does the same over a UI
+- **RPC methods** — `port_list`, `port_open/close/send/recv`, `port_subscribe/unsubscribe`, `script_list/load/unload`, `connection_list`, `server_stats`
+- **Server options** — `--port` (default 23333), `--bind`, `--no-tcp`, `--socket-path`, `--log`, `--max-connections`
 
-**Performance Benefits:**
-- **Latency**: 50-200ms (one-shot) → 1-5ms (persistent connection)
-- **Concurrency**: Up to 10 simultaneous client connections
-- **Memory**: ~10-20MB baseline footprint
-- **Protocols**: Load custom Lua protocols once, use across all clients
-
-**Server options:** `--port <p>` (default 23333), `--bind <ip>` (default 0.0.0.0), `--no-tcp` (local-only), `--socket-path`, `--log`, `--max-connections`.
-
-**RPC Methods Available (identical over Unix socket and TCP):**
-- `port_list` - List available serial ports
-- `port_open` - Open a serial port (returns connection_id)
-- `port_close` - Close a serial port connection
-- `port_send` - Send data to an open port
-- `port_recv` - Receive data from an open port (with timeout)
-- `port_subscribe` / `port_unsubscribe` - Real-time data push notifications
-- `script_list` - List available protocols
-- `script_load` - Load a custom protocol
-- `script_unload` - Unload a custom protocol
-- `connection_list` - List active connections
-- `server_stats` - Get server statistics
+Full guide: [docs/ai/SERVER_MODE.md](docs/ai/SERVER_MODE.md)
 
 ---
 
 ## 📜 Lua Scripting
 
-Serial CLI embeds a **LuaJIT** runtime for automation. Write scripts to open ports, send/receive data, encode/decode protocols, and more.
+Serial CLI embeds a **LuaJIT** runtime for automation. Write scripts to open ports, send/receive data, encode/decode protocols, and more. Scripts can `require()` each other and hot-reload on change.
 
 ```lua
 local port = serial_open("/dev/ttyUSB0", {baudrate = 115200})
@@ -349,47 +164,21 @@ print(json_encode({status = "ok", data = response}))
 serial_close(port)
 ```
 
-Run: `serial-cli run script.lua`
+Run: `serial-cli run script.lua` — see `examples/` and `scripts/protocols/` for ready-made protocol scripts.
 
-See `examples/` for protocol implementations (Modbus RTU, data logging, etc.).
-
-> **Full API reference**: [docs/reference/lua-scripting.md](docs/reference/lua-scripting.md)
+**Full API reference**: [docs/reference/lua-scripting.md](docs/reference/lua-scripting.md)
 
 ---
 
-## 🛠️ Development
+## 🖥️ GUI
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for full development guide (prerequisites, IDE setup, cross-compilation, release process).
+A modern Tauri-based desktop app (Windows / macOS / Linux):
 
-**Quick commands** (requires Rust 1.75+ and [just](https://github.com/casey/just)):
+- Real-time data monitoring with virtual scrolling and remote device management (LAN Daemons)
+- Monaco script editor, protocol management with hot-reload
+- Multi-format data export (TXT/CSV/JSON), system notifications, keyboard shortcuts, i18n (en/zh)
 
-```bash
-just dev          # Build (debug)
-just build        # Build (release)
-just test         # Run tests
-just check        # fmt + lint + test
-just gui-dev      # Start GUI dev server
-just gui-build    # Build GUI application
-```
-
-**Project structure** — see [docs/dev/ARCH.md](docs/dev/ARCH.md) for full architecture reference.
-
----
-
-## 🔍 Troubleshooting
-
-See [docs/reference/troubleshooting.md](docs/reference/troubleshooting.md) for full guide.
-
-**Quick fixes:**
-
-| Issue | Solution |
-|-------|----------|
-| Permission denied (Linux) | `sudo usermod -a -G dialout $USER` then re-login |
-| Port not found | Run `serial-cli port list` to verify available ports |
-| Timeout error | Check baudrate matches device, increase timeout |
-| Port in use | Close other applications using the port |
-
-**Debug mode:** `serial-cli --verbose <command>` or `RUST_LOG=debug serial-cli <command>`
+Build from source: `just gui-build` — see [DEVELOPMENT.md](DEVELOPMENT.md) for prerequisites.
 
 ---
 
@@ -397,18 +186,20 @@ See [docs/reference/troubleshooting.md](docs/reference/troubleshooting.md) for f
 
 | Document | Description |
 |:---|:---|
-| **[DEVELOPMENT.md](DEVELOPMENT.md)** | Development guide for contributors |
+| **[docs/README.md](docs/README.md)** | Complete documentation index |
 | **[docs/guides/getting-started.md](docs/guides/getting-started.md)** | Getting started guide |
+| **[docs/guides/script-development.md](docs/guides/script-development.md)** | Lua script development guide |
 | **[docs/ai/SERVER_MODE.md](docs/ai/SERVER_MODE.md)** | Server Mode user guide (AI/automation workflows) |
 | **[docs/ai/USAGE.md](docs/ai/USAGE.md)** | AI integration guide |
+| **[docs/reference/lua-scripting.md](docs/reference/lua-scripting.md)** | Lua API reference |
 | **[docs/reference/troubleshooting.md](docs/reference/troubleshooting.md)** | Troubleshooting guide |
-| **[docs/README.md](docs/README.md)** | Complete documentation index |
+| **[DEVELOPMENT.md](DEVELOPMENT.md)** | Development guide for contributors |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read [DEVELOPMENT.md](DEVELOPMENT.md) for details on our code of conduct, development setup, and submission process.
+Contributions are welcome! Please read [DEVELOPMENT.md](DEVELOPMENT.md) for our code of conduct, development setup, and submission process.
 
 ---
 

@@ -31,9 +31,6 @@ serial-cli run script.lua
 # Get machine-readable output
 serial-cli port list --json
 serial-cli script list --json
-
-# Batch processing
-serial-cli batch run commands.txt --concurrent
 ```
 
 ## JSON Output Format
@@ -132,7 +129,7 @@ print(json_encode({status="error", error="Max retries exceeded"}))
 os.exit(1)
 ```
 
-### 3. Batch Commands
+### 3. Sequential Command Execution
 
 ```lua
 -- Execute multiple commands sequentially

@@ -47,7 +47,3 @@ _Avoid_: Remote session, RPC session
 **Data Listener**:
 A background async task that continuously reads incoming data from an open connection and broadcasts it to subscribers. Without it, callers must poll for data. In server mode a reader is spawned per Port when a client subscribes (`port_subscribe`) and stopped on unsubscribe/close, so polling via `port_recv` stays intact for non-streaming clients.
 _Avoid_: IoLoop, read loop, background reader
-
-**Batch**:
-A sequence of commands or scripts executed together with configurable concurrency, timeout, and error handling.
-_Avoid_: Job, task queue

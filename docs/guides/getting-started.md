@@ -4,6 +4,25 @@ Serial CLI is a universal serial port communication tool with embedded LuaJIT sc
 
 ## Installation
 
+You can install a prebuilt binary (no Rust toolchain required) or build from source.
+
+### Prebuilt binaries
+
+```bash
+# Auto-installer (detects OS/arch, verifies SHA-256)
+curl -fsSL https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.sh | sh
+# Windows (PowerShell):
+#   Invoke-WebRequest https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-install.ps1 -OutFile install.ps1; .\install.ps1
+
+# Or the .deb (Debian/Ubuntu/Raspberry Pi) — also ships a systemd unit for boot auto-start
+wget https://github.com/transmit-bug/serial_cli/releases/latest/download/serial-cli-linux-x86_64.deb
+sudo apt install ./serial-cli-linux-x86_64.deb
+```
+
+All prebuilt binaries: <https://github.com/transmit-bug/serial_cli/releases>
+
+### Building from source
+
 ### Requirements
 
 - **Rust** 1.75 or later
@@ -58,14 +77,14 @@ serial-cli --help
 ### List Available Ports
 
 ```bash
-serial-cli list-ports
+serial-cli port list
 ```
 
 ### Send Data to a Serial Port
 
 ```bash
-serial-cli send --port /dev/ttyUSB0 "AT"
-serial-cli send --port COM3 --baud 9600 "AT+CGMI"
+serial-cli port send --port /dev/ttyUSB0 "AT"
+serial-cli port send --port COM3 --baud 9600 "AT+CGMI"
 ```
 
 ### Interactive Mode
@@ -94,8 +113,8 @@ serial-cli run script.lua arg1 arg2
 Examples:
 
 ```bash
-serial-cli --json list-ports
-serial-cli --verbose --json send --port /dev/ttyUSB0 "AT"
+serial-cli --json port list
+serial-cli --verbose --json port send --port /dev/ttyUSB0 "AT"
 ```
 
 ## Command Reference
@@ -106,10 +125,9 @@ For detailed usage of each command, see the dedicated documentation:
 |---------|-------------|------|
 | `interactive` | Interactive REPL shell | [Interactive Shell Guide](interactive-shell.md) |
 | `run` | Execute a Lua script | [Run Script](../commands/run-script.md) |
-| `list-ports` | List available serial ports | [List Ports](../commands/list-ports.md) |
-| `protocol` | Protocol management | [Protocol](../commands/protocol.md) |
+| `port` | List, send, and manage serial ports | [List Ports](../commands/list-ports.md) |
+| `script` | Script management (list, load, unload, validate) | [Script](../commands/script.md) |
 | `sniff` | Traffic sniffing | [Sniff](../commands/sniff.md) |
-| `batch` | Batch execution | [Batch](../commands/batch.md) |
 | `config` | Configuration management | [Config](../commands/config.md) |
 | `virtual` | Virtual serial ports | [Virtual](../commands/virtual.md) |
 | `server` | JSON-RPC server mode | [Server](../commands/server.md) |
@@ -138,5 +156,5 @@ just build-macos  # x86_64 + arm64
 ## Next Steps
 
 - Read the [Architecture Guide](../dev/ARCH.md) for a deep dive into the project structure and design patterns.
-- Explore protocol scripting with Lua in the `protocol/` documentation.
+- Explore protocol scripting with Lua in [docs/reference/protocols.md](../reference/protocols.md).
 - Check the configuration reference for all available settings.

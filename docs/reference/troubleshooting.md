@@ -185,30 +185,6 @@ Script error: Sandbox violation: os.execute
     bridge_poll_interval_ms = 50  # increase from default 10ms
     ```
 
-### Batch Execution Failures
-
-**Error:** `Parse error: ...`
-
-- The batch task file (JSON or TOML) contains a syntax error.
-- Validate the file with a JSON/TOML linter before running.
-- Check for missing commas, unclosed strings, or incorrect data types.
-
-**Error:** `Task error: Task dependency 'task_a' failed`
-
-- A task in the batch depends on another task that has already failed.
-- Check the output of the dependency task for the root cause.
-- Batch tasks stop executing dependent tasks when a dependency fails.
-
-**Error:** `Task error: Resource exhausted: memory`
-
-- Too many concurrent tasks exceeded available memory.
-- Reduce `task.max_concurrent` in `.serial-cli.toml` (default: 10).
-
-**Error:** `Task error: Deadlock detected in task 'task_x'`
-
-- Circular dependencies exist between tasks (A depends on B, B depends on A).
-- Review the task dependency graph in the batch file and remove cycles.
-
 ## Debugging Tips
 
 ### Use `--verbose` for Detailed Logging

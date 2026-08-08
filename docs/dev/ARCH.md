@@ -21,15 +21,13 @@ src/
 │
 ├── cli/                    # CLI layer
 │   ├── args.rs             # Cli, Commands clap definitions
-│   ├── types.rs            # ScriptCommand, SniffCommand, BatchCommand,
+│   ├── types.rs            # ScriptCommand, SniffCommand,
 │   │                       # ConfigCommand, VirtualCommand enums
 │   ├── interactive.rs      # InteractiveShell REPL (rustyline)
 │   ├── json.rs             # JsonFormatter, JsonResponse
-│   ├── batch.rs            # BatchRunner, BatchConfig
 │   └── commands/           # Command handlers (one file per group)
 │       ├── script.rs       # script list/info/validate/load/unload/reload + run_lua_script
 │       ├── sniff.rs        # sniff start/stop/stats/save
-│       ├── batch.rs        # batch run/list
 │       ├── config.rs       # config show/set/save/reset
 │       ├── virtual_port.rs # virtual create/list/stop/stats + registry
 │       ├── ports.rs        # list_ports, send_data

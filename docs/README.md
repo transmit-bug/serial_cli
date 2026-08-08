@@ -21,7 +21,6 @@ docs/
 │   ├── terminology.md               # English-Chinese glossary
 │   └── troubleshooting.md
 ├── commands/       # Per-command documentation
-│   ├── batch.md
 │   ├── config.md
 │   └── ...
 ├── features/       # Feature-specific documentation
