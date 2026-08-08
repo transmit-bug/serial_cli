@@ -76,6 +76,8 @@ This guide covers common issues, debugging strategies, and error codes encounter
 
 Use `--virtual-backend auto` to let Serial CLI select the best available backend automatically.
 
+**Known limitation (macOS):** `port send` cannot open PTY paths (e.g. `/dev/ttys*`) on macOS. The `serialport` crate sets the baud rate via the `IOSSIOSPEED` ioctl, which returns `ENOTTY` ("Not a typewriter") on PTYs, so opening a virtual port fails with `Not a typewriter`. This only affects virtual ports on macOS — real devices (`/dev/cu.*`) work normally, and Linux/Windows are unaffected. To exercise the full send/receive round-trip, use a real device or run virtual-port tests on Linux.
+
 ### Lua Script Errors
 
 **Syntax Error:**
