@@ -53,6 +53,34 @@ Built-in script names are reserved; custom scripts cannot use these names.
 
 ---
 
+## Extended Scripts (`scripts/protocols/`)
+
+Beyond the four built-ins, the repo ships **11 more protocol scripts** in `scripts/protocols/` plus one shared library. They are auto-discovered by scanning the protocols directory at runtime (external-file-first; the embedded copies above are the offline fallback for the four built-ins). Each is tested in `tests/protocol_extended_tests.rs`.
+
+| Script | Description | Framing |
+|--------|-------------|---------|
+| `can` | CAN bus over serial (SLCAN/Lawicel compatible) | text `t`/`T` frames |
+| `dlt645` | DL/T 645 Chinese smart electricity meter protocol | `0x68` framed + checksum |
+| `dmx512` | DMX512 stage lighting control protocol | start/length framed + end byte |
+| `i2c_uart` | I2C over UART bridge protocol | STX + length + data + checksum |
+| `mqtt_serial` | MQTT over serial (AT command based, SIM7600/ESP32) | AT lines terminated with `\r` |
+| `nmea0183` | NMEA 0183 GPS/marine instrument protocol | `$...*CS\r\n` sentences |
+| `onewire` | 1-Wire over UART bridge protocol (DS18B20, etc.) | length + command + data + checksum |
+| `pzem004t` | PZEM-004T power/energy monitoring module (Modbus RTU variant) | Modbus RTU frames |
+| `sdi12` | SDI-12 environmental sensor protocol | `!`-terminated commands, `\r\n` responses |
+| `spi_uart` | SPI over UART bridge protocol | STX + length(2) + data + checksum |
+| `temp_sensor` | Modbus RTU temperature/humidity sensor driver | Modbus RTU frames |
+
+Shared library (not a protocol, do not select as a script):
+
+| Script | Purpose |
+|--------|---------|
+| `modbus_rtu_lib` | Reusable Modbus RTU helpers (CRC16, frame build/parse); `require()`-able from other scripts |
+
+Note: `pzem004t` and `temp_sensor` delegate CRC handling to `modbus_rtu_lib` via `require()`; the four embedded built-ins stay self-contained (installed binaries ship no `scripts/` directory, so they cannot `require()` external files).
+
+---
+
 ## Protocol Formats
 
 ### modbus_rtu

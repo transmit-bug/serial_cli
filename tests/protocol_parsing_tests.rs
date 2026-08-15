@@ -270,13 +270,17 @@ fn test_modbus_ascii_lrc_roundtrip() {
 // ── Line 协议测试 ───────────────────────────────────────────────────────
 
 #[test]
-fn test_line_protocol_on_send_passthrough() {
+fn test_line_protocol_on_send_appends_newline() {
     let manager = ScriptManager::new();
     let engine = manager.create_engine("line").unwrap();
 
-    // line 协议的 on_send 是透传（不添加换行符）
+    // line 协议的 on_send 追加换行符（除非已存在）
     let result = engine.on_send(b"Hello").unwrap();
-    assert_eq!(result, b"Hello");
+    assert_eq!(result, b"Hello\n");
+
+    // 已带换行则不改
+    let result = engine.on_send(b"Hello\n").unwrap();
+    assert_eq!(result, b"Hello\n");
 }
 
 #[test]
@@ -294,30 +298,34 @@ fn test_line_protocol_empty_data() {
     let engine = manager.create_engine("line").unwrap();
 
     let result = engine.on_send(b"").unwrap();
-    assert!(result.is_empty());
+    assert_eq!(result, b"\n");
 }
 
 #[test]
-fn test_line_protocol_binary_passthrough() {
+fn test_line_protocol_binary_lossy_newline() {
     let manager = ScriptManager::new();
     let engine = manager.create_engine("line").unwrap();
 
+    // line 是文本协议：二进制经 UTF-8 lossy 转换后追加换行（不保真透传）
     let data: Vec<u8> = (0..=255).collect();
     let result = engine.on_send(&data).unwrap();
-    // line 协议透传，不修改数据
-    assert_eq!(result, data);
+    assert!(result.ends_with(b"\n"));
+    assert!(result.len() >= 1);
 }
 
 // ── AT Command 协议测试 ─────────────────────────────────────────────────
 
 #[test]
-fn test_at_command_encode_passthrough() {
+fn test_at_command_encode_appends_cr() {
     let manager = ScriptManager::new();
     let engine = manager.create_engine("at_command").unwrap();
 
-    // AT 命令的 on_send 是透传
+    // AT 命令的 on_send 追加 \r（除非已存在）
     let result = engine.on_send(b"ATZ").unwrap();
-    assert_eq!(result, b"ATZ");
+    assert_eq!(result, b"ATZ\r");
+
+    let result = engine.on_send(b"ATZ\r").unwrap();
+    assert_eq!(result, b"ATZ\r");
 }
 
 #[test]

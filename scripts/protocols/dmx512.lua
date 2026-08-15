@@ -68,8 +68,8 @@ function on_send(data)
         num_channels = 512
     end
 
-    local len_lo = bit.band(num_channels + 1, 0xFF)  -- +1 for startcode
-    local len_hi = bit.band(bit.rshift(num_channels + 1, 8), 0xFF)
+    local len_lo = bit.band(num_channels, 0xFF)  -- startcode lives in the prefix, not the payload
+    local len_hi = bit.band(bit.rshift(num_channels, 8), 0xFF)
 
     local frame = { START_BYTE, DMX_STARTCODE, len_lo, len_hi }
     for i = 1, num_channels do

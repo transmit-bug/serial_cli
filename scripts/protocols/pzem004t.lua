@@ -74,35 +74,11 @@ _actions = {
 
 
 local frame_buffer = {}
-
--- CRC16 for Modbus RTU (same as modbus_rtu)
-local function crc16(data)
-    local crc = 0xFFFF
-    for _, byte in ipairs(data) do
-        crc = bit.bxor(crc, byte)
-        for _ = 1, 8 do
-            if bit.band(crc, 1) == 1 then
-                crc = bit.bxor(bit.rshift(crc, 1), 0xA001)
-            else
-                crc = bit.rshift(crc, 1)
-            end
-        end
-    end
-    return crc
-end
+local modbus = require("modbus_rtu_lib")
 
 function on_send(data)
     -- data = [slave_id][func_code][params...]
-    local crc = crc16(data)
-    local lo = bit.band(crc, 0xFF)
-    local hi = bit.band(bit.rshift(crc, 8), 0xFF)
-    local frame = {}
-    for _, b in ipairs(data) do
-        table.insert(frame, b)
-    end
-    table.insert(frame, lo)
-    table.insert(frame, hi)
-    return frame
+    return modbus.append_crc(data)
 end
 
 function on_recv(data)
@@ -150,14 +126,8 @@ function on_recv(data)
     for i = 1, frame_len - 2 do
         table.insert(payload, frame[i])
     end
-    local expected_crc = crc16(payload)
-    local got_lo = frame[frame_len - 1]
-    local got_hi = frame[frame_len]
-    local got_crc = bit.bor(got_lo, bit.lshift(got_hi, 8))
-
-    if expected_crc ~= got_crc then
-        log_warn("PZEM CRC mismatch: expected " .. string.format("0x%04X", expected_crc) ..
-                 " got " .. string.format("0x%04X", got_crc))
+    if not modbus.verify_crc(frame) then
+        log_warn("PZEM CRC mismatch")
         return nil
     end
 

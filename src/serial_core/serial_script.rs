@@ -65,7 +65,17 @@ impl SerialScriptEngine {
         // Configure package.path for require() support
         crate::lua::runtime::configure_package_path(&lua);
 
-        // Validate syntax
+        // Register the API globals (log_*, bytes_to_string, hex, json, time)
+        // BEFORE executing the script — otherwise scripts created via
+        // create_engine() (which never calls load()) silently fall back to
+        // passthrough when they call helpers like bytes_to_string (#84).
+        crate::lua::runtime::ScriptRuntime::register_all(&lua).map_err(|e| {
+            SerialError::Script(crate::error::ScriptError::ApiError(format!(
+                "Failed to register script API: {e}"
+            )))
+        })?;
+
+        // Validate syntax + define functions
         lua.load(script).exec().map_err(|e| {
             SerialError::Script(crate::error::ScriptError::ApiError(format!(
                 "Invalid Lua script: {e}"
