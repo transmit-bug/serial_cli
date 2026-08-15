@@ -8,8 +8,66 @@ SCRIPT_META = {
     author = "serial_cli",
     data_format = "binary",
     min_frame_size = 4,
-    tags = {"modbus", "rtu", "industrial"},
+    tags = {"modbus", "rtu", "industrial"}
+,
 }
+
+_actions = {
+    read_coils = {
+        label = "📡 读线圈",
+        group = "Modbus",
+        icon = "radio",
+        params = {
+            { name = "slave", type = "number", default = 1, label = "从站地址" },
+            { name = "addr",  type = "number", default = 0, label = "起始地址" },
+            { name = "count", type = "number", default = 1, label = "数量" },
+        },
+    },
+    read_input_registers = {
+        label = "📊 读输入寄存器",
+        group = "Modbus",
+        icon = "bar-chart",
+        params = {
+            { name = "slave", type = "number", default = 1, label = "从站地址" },
+            { name = "addr",  type = "number", default = 0, label = "起始地址" },
+            { name = "count", type = "number", default = 1, label = "数量" },
+        },
+    },
+    read_holding_registers = {
+        label = "📋 读保持寄存器",
+        group = "Modbus",
+        icon = "book-open",
+        params = {
+            { name = "slave", type = "number", default = 1, label = "从站地址" },
+            { name = "addr",  type = "number", default = 0, label = "起始地址" },
+            { name = "count", type = "number", default = 1, label = "数量" },
+        },
+    },
+    write_single_register = {
+        label = "✏️ 写单个寄存器",
+        group = "Modbus",
+        icon = "edit",
+        confirm = true,
+        params = {
+            { name = "slave",  type = "number", default = 1, label = "从站地址" },
+            { name = "addr",   type = "number", default = 0, label = "寄存器地址" },
+            { name = "value",  type = "number",                label = "值" },
+        },
+    },
+    write_multiple_registers = {
+        label = "📝 写多个寄存器",
+        group = "Modbus",
+        icon = "edit-3",
+        confirm = true,
+        params = {
+            { name = "slave",  type = "number", default = 1, label = "从站地址" },
+            { name = "addr",   type = "number", default = 0, label = "起始地址" },
+            { name = "values", type = "string",               label = "值 (逗号分隔)" },
+        },
+    },
+}
+
+
 
 local frame_buffer = {}
 
