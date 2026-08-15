@@ -552,6 +552,5 @@ Planned features for future releases:
 
 ## See Also
 
-- [Architecture Documentation](../dev/ARCH.md)
 - [Protocol Reference](../reference/protocols.md)
 - [AI Usage Guide](USAGE.md)

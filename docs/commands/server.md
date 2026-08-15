@@ -241,4 +241,3 @@ serial-cli server call --remote 192.168.1.50:23333 port_recv "{\"connection_id\"
 ## See Also
 
 - [Server Mode User Guide](../../docs/ai/SERVER_MODE.md) — detailed API reference and AI integration examples
-- [Architecture Documentation](../../docs/dev/ARCH.md) — project structure and module layout

@@ -353,9 +353,7 @@ fonts: {
 ## 🔗 相关资源
 
 ### 内部文档
-- [../dev/ARCH.md](../dev/ARCH.md) - 架构设计文档
 - [../reference/protocols.md](../reference/protocols.md) - 协议参考文档
-- [../dev/UI-DESIGN-DECISIONS.md](../dev/UI-DESIGN-DECISIONS.md) - UI设计决策记录
 
 ### 推荐组件库
 - [shadcn/ui](https://ui.shadcn.com/) - 可定制的React组件库（推荐）
