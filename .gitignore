@@ -30,8 +30,6 @@ yarn-error.log*
 bun.lock
 
 # Tauri GUI
-src-ui/dist/
-src-ui/.vite/
 src-tauri/target/
 src-tauri/WixTools
 
@@ -48,3 +46,4 @@ src-tauri/WixTools
 .cache/
 .claude/
 .pi/
+.pi-subagents/
