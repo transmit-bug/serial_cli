@@ -155,6 +155,5 @@ just build-macos  # x86_64 + arm64
 
 ## Next Steps
 
-- Read the [Architecture Guide](../dev/ARCH.md) for a deep dive into the project structure and design patterns.
 - Explore protocol scripting with Lua in [docs/reference/protocols.md](../reference/protocols.md).
 - Check the configuration reference for all available settings.

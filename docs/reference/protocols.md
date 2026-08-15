@@ -375,6 +375,5 @@ For the complete Lua API reference (serial I/O, JSON, hex utilities, etc.), see 
 
 ## See Also
 
-- [Architecture](../dev/ARCH.md) — Full system architecture
 - [Lua Scripting](lua-scripting.md) — Lua API reference
-- [Unified Script System Design](../dev/UNIFIED-SCRIPT-SYSTEM.md) — Design decision document
+- [Terminology](terminology.md) — shared CLI/GUI term glossary

@@ -10,9 +10,8 @@ docs/
 │   ├── getting-started.md
 │   └── interactive-shell.md
 ├── dev/            # Internal development docs
-│   ├── ARCH.md                      # Architecture overview
-│   ├── FRONTEND-REWRITE-DESIGN.md   # Frontend rewrite design spec
-│   └── UNIFIED-SCRIPT-SYSTEM.md     # Unified script system design decision
+│   ├── FRONTEND-CLEANUP-INVENTORY.md  # Frontend dead-code inventory (#78)
+│   └── RUST-CLEANUP-INVENTORY.md      # Rust/Lua dead-code inventory (#79)
 ├── reference/      # Reference material
 │   ├── configuration.md
 │   ├── events.md
@@ -61,8 +60,7 @@ docs/
 ### File Naming Conventions
 
 - Use kebab-case for filenames: `getting-started.md`
-- Design decisions: `FEATURE_DECISION.md`
-- Architecture: `ARCH.md` (in dev/)
+- Design decisions: `docs/adr/`
 - Command docs: command name matching CLI: `config.md`, `sniff.md`
 
 ### Content Guidelines
