@@ -90,18 +90,6 @@ impl SerialSniffer {
         ))
     }
 
-    /// Get all captured packets
-    pub async fn get_packets(&self) -> Vec<CapturedPacket> {
-        let packets = self.packets.lock().await;
-        packets.clone()
-    }
-
-    /// Clear all captured packets
-    pub async fn clear_packets(&self) {
-        let mut packets = self.packets.lock().await;
-        packets.clear();
-    }
-
     /// Get packet count
     pub async fn packet_count(&self) -> usize {
         let packets = self.packets.lock().await;
@@ -212,11 +200,6 @@ impl SnifferSession {
             config,
             running,
         }
-    }
-
-    /// Capture a transmitted packet
-    pub async fn capture_tx(&self, data: &[u8]) -> Result<()> {
-        self.capture_packet(data, PacketDirection::Tx).await
     }
 
     /// Capture a received packet
@@ -337,13 +320,14 @@ mod tests {
             Arc::new(Mutex::new(true)),
         );
 
-        // Simulate capturing some packets
-        session.capture_tx(&[0x01, 0x02, 0x03]).await.unwrap();
+        // Simulate capturing some packets (RX path; TX capture is no longer exposed)
+        session.capture_rx(&[0x01, 0x02, 0x03]).await.unwrap();
         session.capture_rx(&[0x04, 0x05]).await.unwrap();
 
-        let packets = sniffer.get_packets().await;
+        assert_eq!(sniffer.packet_count().await, 2);
+        let packets = sniffer.packets.lock().await;
         assert_eq!(packets.len(), 2);
-        assert_eq!(packets[0].direction, PacketDirection::Tx);
+        assert_eq!(packets[0].direction, PacketDirection::Rx);
         assert_eq!(packets[1].direction, PacketDirection::Rx);
     }
 
@@ -366,12 +350,11 @@ mod tests {
         );
 
         // Capture more than max_packets
-        session.capture_tx(&[0x01]).await.unwrap();
-        session.capture_tx(&[0x02]).await.unwrap();
-        session.capture_tx(&[0x03]).await.unwrap(); // Should be ignored
+        session.capture_rx(&[0x01]).await.unwrap();
+        session.capture_rx(&[0x02]).await.unwrap();
+        session.capture_rx(&[0x03]).await.unwrap(); // Should be ignored
 
-        let packets = sniffer.get_packets().await;
-        assert_eq!(packets.len(), 2); // Only 2 packets should be captured
+        assert_eq!(sniffer.packet_count().await, 2); // Only 2 packets should be captured
     }
 
     #[tokio::test]
@@ -387,10 +370,10 @@ mod tests {
             Arc::new(Mutex::new(true)),
         );
 
-        session.capture_tx(&[0x01]).await.unwrap();
+        session.capture_rx(&[0x01]).await.unwrap();
         assert_eq!(sniffer.packet_count().await, 1);
 
-        sniffer.clear_packets().await;
+        sniffer.packets.lock().await.clear();
         assert_eq!(sniffer.packet_count().await, 0);
     }
 
@@ -407,13 +390,13 @@ mod tests {
             Arc::new(Mutex::new(true)),
         );
 
-        session.capture_tx(&[0x01, 0x02, 0x03]).await.unwrap();
+        session.capture_rx(&[0x01, 0x02, 0x03]).await.unwrap();
         session.capture_rx(&[0x04, 0x05]).await.unwrap();
 
         let stats = session.stats().await;
         assert_eq!(stats.total_packets, 2);
-        assert_eq!(stats.tx_packets, 1);
-        assert_eq!(stats.rx_packets, 1);
+        assert_eq!(stats.tx_packets, 0);
+        assert_eq!(stats.rx_packets, 2);
         assert_eq!(stats.total_bytes, 5);
     }
 }

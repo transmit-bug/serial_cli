@@ -52,19 +52,6 @@ impl MockSerialPortBuilder {
         self
     }
 
-    /// Set the read timeout.
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-
-    /// Set a read limit: after this many bytes, reads return `WouldBlock`.
-    /// Useful for testing timeout behavior.
-    pub fn with_read_limit(mut self, limit: usize) -> Self {
-        self.read_limit = Some(limit);
-        self
-    }
-
     /// Build the mock port.
     pub fn build(self) -> MockSerialPort {
         MockSerialPort {
@@ -105,16 +92,6 @@ impl MockSerialPort {
     /// Get the number of bytes written to this port.
     pub fn written_len(&self) -> usize {
         self.write_capture.lock().unwrap().len()
-    }
-
-    /// Clear the write capture buffer.
-    pub fn clear_write_capture(&self) {
-        self.write_capture.lock().unwrap().clear();
-    }
-
-    /// Push additional data into the read buffer (simulates incoming data).
-    pub fn push_read_data(&self, data: &[u8]) {
-        self.read_buffer.lock().unwrap().extend_from_slice(data);
     }
 
     /// Get a reference to the write capture for shared verification.
@@ -382,15 +359,6 @@ mod tests {
         assert_eq!(mock.written_len(), 5);
     }
 
-    #[test]
-    fn test_mock_push_read_data() {
-        let mock = MockSerialPort::empty();
-        mock.push_read_data(b"World");
-
-        let mut buf = [0u8; 32];
-        let n = (&mock).read(&mut buf).unwrap();
-        assert_eq!(&buf[..n], b"World");
-    }
 
     #[test]
     fn test_mock_clear_buffer() {
@@ -422,10 +390,8 @@ mod tests {
     fn test_mock_builder() {
         let mock = MockSerialPort::builder()
             .with_read_data(b"test")
-            .with_timeout(Duration::from_secs(2))
             .build();
 
-        assert_eq!(mock.timeout(), Duration::from_secs(2));
 
         let mut buf = [0u8; 32];
         let n = (&mock).read(&mut buf).unwrap();
@@ -443,30 +409,5 @@ mod tests {
         assert_eq!(&buf[..n], b"shared");
     }
 
-    #[test]
-    fn test_mock_read_limit() {
-        let mock = MockSerialPort::builder()
-            .with_read_data(b"Hello, World!")
-            .with_read_limit(5)
-            .build();
 
-        let mut buf = [0u8; 32];
-        let n = (&mock).read(&mut buf).unwrap();
-        assert_eq!(n, 5);
-        assert_eq!(&buf[..5], b"Hello");
-
-        // Next read should hit the limit
-        let result = (&mock).read(&mut buf);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_mock_write_clear() {
-        let mock = MockSerialPort::empty();
-        let mut mock_mut = mock; // need mut for write
-        mock_mut.write_all(b"data").unwrap();
-        assert_eq!(mock_mut.written_len(), 4);
-        mock_mut.clear_write_capture();
-        assert_eq!(mock_mut.written_len(), 0);
-    }
 }

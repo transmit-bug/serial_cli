@@ -17,8 +17,6 @@ fn bench_script_load(c: &mut Criterion) {
 
 /// Benchmark script validation
 fn bench_script_validation(c: &mut Criterion) {
-    let manager = ScriptManager::new();
-
     c.bench_function("script_validate_source", |b| {
         let source = r#"
             function on_send(data)

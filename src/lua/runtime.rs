@@ -25,8 +25,6 @@ use crate::script::ScriptManager;
 use crate::utils::lua_conversion::lua_table_to_bytes;
 use mlua::{Lua, Value};
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 /// Thread-local Lua state pool for reusing Lua instances
 ///
@@ -117,67 +115,6 @@ pub fn acquire_lua() -> Lua {
 /// Release a Lua instance back to the thread-local pool
 pub fn release_lua(lua: Lua) {
     LUA_POOL.with(|pool| pool.release(lua))
-}
-
-/// Script cache for avoiding redundant parsing and execution
-///
-/// Caches the result of script execution based on script content hash.
-/// This is useful for scripts that are executed repeatedly with the same input.
-#[derive(Clone)]
-pub struct ScriptCache {
-    cache: Arc<Mutex<HashMap<String, bool>>>,
-}
-
-impl ScriptCache {
-    /// Create a new empty cache
-    pub fn new() -> Self {
-        Self {
-            cache: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    /// Check if a script has been executed before
-    pub fn contains(&self, script: &str) -> bool {
-        let hash = self.compute_hash(script);
-        self.cache.lock().unwrap().contains_key(&hash)
-    }
-
-    /// Mark a script as executed
-    pub fn mark_executed(&self, script: &str) {
-        let hash = self.compute_hash(script);
-        self.cache.lock().unwrap().insert(hash, true);
-    }
-
-    /// Clear the cache
-    pub fn clear(&self) {
-        self.cache.lock().unwrap().clear();
-    }
-
-    /// Get the number of cached scripts
-    pub fn len(&self) -> usize {
-        self.cache.lock().unwrap().len()
-    }
-
-    /// Check if the cache is empty
-    pub fn is_empty(&self) -> bool {
-        self.cache.lock().unwrap().is_empty()
-    }
-
-    /// Compute a hash of the script content
-    fn compute_hash(&self, source: &str) -> String {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        source.hash(&mut hasher);
-        format!("{:x}", hasher.finish())
-    }
-}
-
-impl Default for ScriptCache {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 /// Unified Lua runtime for registering all tool functions.
@@ -618,20 +555,4 @@ mod tests {
         release_lua(lua);
     }
 
-    #[test]
-    fn test_script_cache() {
-        let cache = ScriptCache::new();
-        assert!(cache.is_empty());
-
-        let script = "print('hello')";
-        assert!(!cache.contains(script));
-
-        cache.mark_executed(script);
-        assert!(cache.contains(script));
-        assert_eq!(cache.len(), 1);
-
-        cache.clear();
-        assert!(!cache.contains(script));
-        assert!(cache.is_empty());
-    }
 }

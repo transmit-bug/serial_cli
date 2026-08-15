@@ -28,7 +28,6 @@ mlua = { version = "0.9", features = ["luajit", "async", "vendored"] }
 
 # Error handling
 thiserror = "1.0"
-anyhow = "1.0"
 
 # Logging and tracing
 tracing = "0.1"
@@ -47,9 +46,6 @@ rustyline = "18.0"
 bytes = "1.5"
 base64 = "0.22"
 
-# File watching
-notify = "6.1"
-
 # Configuration
 directories = "5.0"
 chrono = { version = "0.4", features = ["serde"] }
@@ -67,9 +63,6 @@ sysinfo = "0.32"
 # Testing
 proptest = "1.4"
 criterion = "0.5"
-rustyline = "18.0.0"
-rand = { version = "0.10", features = ["std"] }
-libc = "0.2"
 tempfile = "3.8"
 
 [target.'cfg(windows)'.dependencies]

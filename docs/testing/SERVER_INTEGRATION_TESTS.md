@@ -2,7 +2,7 @@
 
 ## 测试概述
 
-创建了 `tests/server_integration.rs`，包含 13 个集成测试，全面覆盖 Server 模式的核心功能。
+创建了 `tests/server_state_tests.rs`，包含 13 个集成测试，全面覆盖 Server 模式的核心功能。
 
 ## 测试覆盖范围
 
@@ -107,6 +107,8 @@ test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 ## 后续计划
 
+> **历史遗留**：以下计划已以不同名称实现（`tests/script_validation_tests.rs`、端口管理测试、`benches/`），本节仅作记录。
+
 - 添加脚本验证集成测试（`tests/script_validation_integration.rs`）
 - 添加端口管理集成测试
 - 考虑添加性能基准测试
@@ -116,7 +118,7 @@ test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
 ## TCP 远程访问（LAN）e2e 测试
 
-`tests/e2e_server_tests.rs` 已扩展为**双传输** e2e 套件（16 个用例，`cargo test --test e2e_server_tests -- --ignored`）：
+`tests/e2e_server_tests.rs` 已扩展为**双传输** e2e 套件（17 个用例，`cargo test --test e2e_server_tests -- --ignored`）：
 
 - `E2EClient` 泛型化，同一套 JSON-RPC 客户端跑 Unix socket 与 TCP 两种传输
 - 保留原有 9 个 Unix socket 用例（修复了陈旧用例：`protocol_list` → `script_list`，并补上缺失的 `\n` 行结束符——行分帧协议要求请求以 `\n` 结尾，否则服务端 `LinesCodec` 会等待 EOF）

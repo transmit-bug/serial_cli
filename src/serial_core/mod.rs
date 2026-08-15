@@ -12,9 +12,6 @@ pub mod signals;
 pub mod sniffer;
 pub mod virtual_port;
 
-#[cfg(windows)]
-pub mod windows_signals;
-
 pub use backends::BackendType;
 pub use factory::BackendFactory;
 pub use io_loop::IoLoop;
@@ -26,6 +23,3 @@ pub use virtual_port::{
     CapturedPacket as VirtualCapturedPacket, PacketDirection as VirtualPacketDirection,
     VirtualConfig, VirtualSerialPair, VirtualStats,
 };
-
-#[cfg(windows)]
-pub use windows_signals::WindowsSignalControl;
