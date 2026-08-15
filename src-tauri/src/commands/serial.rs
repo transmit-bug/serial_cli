@@ -8,42 +8,10 @@
 
 use crate::state::app_state::{AppState, DataSniffer, PortStatsTracker};
 use log::{debug, error, info};
-use serial_cli::serial_core::SerialPortHandle;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, State};
-
-/// Signal status snapshot for a serial port.
-#[derive(serde::Serialize)]
-pub struct SignalStatus {
-    pub dtr: bool,
-    pub rts: bool,
-    /// CTS readback; `null` when the platform cannot read it.
-    pub cts: Option<bool>,
-    /// DSR readback; `null` when the platform cannot read it.
-    pub dsr: Option<bool>,
-    pub platform: String,
-}
-
-/// Build a [`SignalStatus`] snapshot from a locked port handle.
-async fn snapshot_signals(
-    port_handle: tokio::sync::MutexGuard<'_, SerialPortHandle>,
-) -> SignalStatus {
-    let mut handle = port_handle;
-    let dtr = handle.dtr_enabled();
-    let rts = handle.rts_enabled();
-    let cts = handle.read_cts().ok();
-    let dsr = handle.read_dsr().ok();
-    let platform = handle.signal_platform().to_string();
-    SignalStatus {
-        dtr,
-        rts,
-        cts,
-        dsr,
-        platform,
-    }
-}
 
 /// Set the DTR (Data Terminal Ready) output signal for a port.
 #[tauri::command]
@@ -51,7 +19,7 @@ pub async fn set_dtr(
     port_id: String,
     enable: bool,
     state: State<'_, AppState>,
-) -> Result<SignalStatus, String> {
+) -> Result<serial_cli::serial_core::SignalStatus, String> {
     let manager = state.port_manager.lock().await;
     let port_handle = manager
         .get_port(&port_id)
@@ -61,7 +29,7 @@ pub async fn set_dtr(
     handle
         .set_dtr(enable)
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
-    Ok(snapshot_signals(handle).await)
+    Ok(handle.signal_status())
 }
 
 /// Set the RTS (Request to Send) output signal for a port.
@@ -70,7 +38,7 @@ pub async fn set_rts(
     port_id: String,
     enable: bool,
     state: State<'_, AppState>,
-) -> Result<SignalStatus, String> {
+) -> Result<serial_cli::serial_core::SignalStatus, String> {
     let manager = state.port_manager.lock().await;
     let port_handle = manager
         .get_port(&port_id)
@@ -80,7 +48,7 @@ pub async fn set_rts(
     handle
         .set_rts(enable)
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
-    Ok(snapshot_signals(handle).await)
+    Ok(handle.signal_status())
 }
 
 /// Read the current DTR/RTS/CTS/DSR signal state for a port.
@@ -88,14 +56,14 @@ pub async fn set_rts(
 pub async fn get_signals(
     port_id: String,
     state: State<'_, AppState>,
-) -> Result<SignalStatus, String> {
+) -> Result<serial_cli::serial_core::SignalStatus, String> {
     let manager = state.port_manager.lock().await;
     let port_handle = manager
         .get_port(&port_id)
         .await
         .map_err(|e: serial_cli::error::SerialError| e.to_string())?;
-    let handle = port_handle.lock().await;
-    Ok(snapshot_signals(handle).await)
+    let mut handle = port_handle.lock().await;
+    Ok(handle.signal_status())
 }
 
 /// Send data to a serial port
@@ -209,58 +177,9 @@ pub async fn start_sniffing(
     // Shared stop flag
     let stop_flag = Arc::new(AtomicBool::new(false));
 
-    // --- Blocking read task ---
+    // --- Blocking read task (library pump) ---
     let read_stop = stop_flag.clone();
-    let read_port_id = port_id.clone();
-    let read_task_handle = tokio::task::spawn_blocking(move || {
-        info!(
-            "Sniffer blocking-read task started for port: {}",
-            read_port_id
-        );
-        let mut buffer = vec![0u8; 4096];
-
-        loop {
-            // Check stop signal between reads
-            if read_stop.load(std::sync::atomic::Ordering::Relaxed) {
-                info!("Stop signal received for port: {}", read_port_id);
-                break;
-            }
-
-            // Lock the port handle, do one read, release lock
-            // Lock is released after each read so writes can interleave
-            {
-                let mut handle = port_handle.blocking_lock();
-                match handle.read(&mut buffer) {
-                    Ok(n) if n > 0 => {
-                        if data_tx.blocking_send(buffer[..n].to_vec()).is_err() {
-                            // Channel closed — async side shut down
-                            break;
-                        }
-                    }
-                    Ok(_) => {} // 0 bytes (serialport timeout)
-                    Err(e) => {
-                        let msg = e.to_string();
-                        if msg.contains("timed out") || msg.contains("timeout") {
-                            continue;
-                        }
-                        if msg.contains("Broken pipe") || msg.contains("disconnected") {
-                            debug!("Port {} disconnected", read_port_id);
-                            let _ = data_tx.blocking_send(vec![]); // sentinel to signal disconnect
-                            break;
-                        }
-                        debug!("Read error on port {}: {}", read_port_id, msg);
-                        // Brief pause before retrying to avoid tight error loop
-                        std::thread::sleep(Duration::from_millis(100));
-                    }
-                }
-            }
-        }
-
-        info!(
-            "Sniffer blocking-read task stopped for port: {}",
-            read_port_id
-        );
-    });
+    let read_task_handle = serial_cli::serial_core::spawn_read_pump(port_handle, data_tx, read_stop);
 
     // --- Async event loop: receive data, update stats, emit Tauri events ---
     let event_port_id = port_id.clone();

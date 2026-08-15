@@ -92,6 +92,22 @@ impl PortManager {
 /// On Unix, DTR/RTS signals are controlled via `ioctl` on the raw file
 /// descriptor. On Windows, signal control is not available and methods
 /// return [`SignalState::NotSupported`](crate::serial_core::signals::SignalState::NotSupported).
+/// Signal status snapshot for a serial port (for IPC serialization).
+/// Moved from the Tauri layer (#85).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SignalStatus {
+    /// DTR output state.
+    pub dtr: bool,
+    /// RTS output state.
+    pub rts: bool,
+    /// CTS readback; `None` when the platform cannot read it.
+    pub cts: Option<bool>,
+    /// DSR readback; `None` when the platform cannot read it.
+    pub dsr: Option<bool>,
+    /// Signal-control platform backend name.
+    pub platform: String,
+}
+
 pub struct SerialPortHandle {
     name: String,
     port: Box<dyn serialport::SerialPort>,
@@ -156,6 +172,31 @@ pub enum Parity {
     Odd,
     /// Even parity — the parity bit ensures an even number of 1-bits in the frame.
     Even,
+}
+
+impl Parity {
+    /// Parse a parity setting from a case-insensitive string ("odd", "even",
+    /// anything else → [`Parity::None`]). Moved from the Tauri layer (#85).
+    pub fn parse_ignore_case(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "odd" => Parity::Odd,
+            "even" => Parity::Even,
+            _ => Parity::None,
+        }
+    }
+}
+
+impl FlowControl {
+    /// Parse a flow-control setting from a case-insensitive string ("software",
+    /// "hardware", anything else → [`FlowControl::None`]). Moved from the
+    /// Tauri layer (#85).
+    pub fn parse_ignore_case(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "software" => FlowControl::Software,
+            "hardware" => FlowControl::Hardware,
+            _ => FlowControl::None,
+        }
+    }
 }
 
 impl Default for SerialConfig {
@@ -871,6 +912,18 @@ impl SerialPortHandle {
         }
     }
 
+    /// Snapshot the current DTR/RTS/CTS/DSR signal state for IPC serialization.
+    /// Moved from the Tauri layer (#85).
+    pub fn signal_status(&mut self) -> SignalStatus {
+        SignalStatus {
+            dtr: self.dtr_enabled(),
+            rts: self.rts_enabled(),
+            cts: self.read_cts().ok(),
+            dsr: self.read_dsr().ok(),
+            platform: self.signal_platform().to_string(),
+        }
+    }
+
     /// Write raw bytes to the serial port. Returns the number of bytes written.
     ///
     /// Data flow: raw data → script `on_send()` → protocol `encode()` → serial port.
@@ -1062,9 +1115,79 @@ pub struct SerialPortInfo {
     pub com_number: Option<u32>,
 }
 
+impl SerialPortInfo {
+    /// True when the port is a system debug console or pseudo-terminal that
+    /// should not be offered as an openable hardware port (avoids ENOTTY).
+    /// Moved from the Tauri layer (#85).
+    pub fn is_system_console(&self) -> bool {
+        self.port_name.contains("debug-console")
+            || self.port_name.contains("pty.")
+            || self.port_name.contains("ttys")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_parity_ignore_case() {
+        assert!(matches!(Parity::parse_ignore_case("Odd"), Parity::Odd));
+        assert!(matches!(Parity::parse_ignore_case("odd"), Parity::Odd));
+        assert!(matches!(Parity::parse_ignore_case("ODD"), Parity::Odd));
+        assert!(matches!(Parity::parse_ignore_case("Even"), Parity::Even));
+        assert!(matches!(Parity::parse_ignore_case("none"), Parity::None));
+        assert!(matches!(Parity::parse_ignore_case("invalid"), Parity::None));
+        assert!(matches!(Parity::parse_ignore_case(""), Parity::None));
+    }
+
+    #[test]
+    fn test_parse_flow_control_ignore_case() {
+        assert!(matches!(
+            FlowControl::parse_ignore_case("Software"),
+            FlowControl::Software
+        ));
+        assert!(matches!(
+            FlowControl::parse_ignore_case("HARDWARE"),
+            FlowControl::Hardware
+        ));
+        assert!(matches!(
+            FlowControl::parse_ignore_case("none"),
+            FlowControl::None
+        ));
+        assert!(matches!(
+            FlowControl::parse_ignore_case("invalid"),
+            FlowControl::None
+        ));
+    }
+
+    #[test]
+    fn test_is_system_console() {
+        assert!(SerialPortInfo {
+            port_name: "/dev/cu.debug-console".into(),
+            ..SerialPortInfo {
+                port_name: String::new(),
+                port_type: String::new(),
+                friendly_name: None,
+                hardware_id: None,
+                manufacturer: None,
+                com_number: None,
+            }
+        }
+        .is_system_console());
+        assert!(!SerialPortInfo {
+            port_name: "/dev/ttyUSB0".into(),
+            ..SerialPortInfo {
+                port_name: String::new(),
+                port_type: String::new(),
+                friendly_name: None,
+                hardware_id: None,
+                manufacturer: None,
+                com_number: None,
+            }
+        }
+        .is_system_console());
+    }
 
     #[test]
     fn test_config_default() {

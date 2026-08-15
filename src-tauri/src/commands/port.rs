@@ -8,7 +8,7 @@
 
 use crate::state::app_state::AppState;
 use crate::state::port_state::{PortStats, PortStatus, SerialConfig};
-use serial_cli::serial_core::{FlowControl, Parity, PortManager, SerialConfig as CoreSerialConfig};
+use serial_cli::serial_core::{PortManager, SerialConfig as CoreSerialConfig};
 use tauri::State;
 
 /// List available serial ports (includes hardware + virtual ports)
@@ -23,12 +23,7 @@ pub async fn list_ports(state: State<'_, AppState>) -> Result<Vec<PortInfo>, Str
         .map(|ports| {
             ports
                 .into_iter()
-                .filter(|p| {
-                    // Filter out debug consoles and pseudo-terminals that cause ENOTTY errors
-                    !p.port_name.contains("debug-console")
-                        && !p.port_name.contains("pty.")
-                        && !p.port_name.contains("ttys")
-                })
+                .filter(|p| !p.is_system_console())
                 .map(|p| PortInfo {
                     port_name: p.port_name,
                     port_type: format!("{:?}", p.port_type),
@@ -86,9 +81,9 @@ pub async fn open_port(
         baudrate: config.baudrate,
         databits: config.databits,
         stopbits: config.stopbits,
-        parity: parse_parity(&config.parity),
+        parity: serial_cli::serial_core::Parity::parse_ignore_case(&config.parity),
         timeout_ms: config.timeout_ms,
-        flow_control: parse_flow_control(&config.flow_control),
+        flow_control: serial_cli::serial_core::FlowControl::parse_ignore_case(&config.flow_control),
         dtr_enable: false,
         rts_enable: false,
     };
@@ -274,89 +269,4 @@ pub struct PortInfo {
     /// Virtual port pair ID (only set when is_virtual == true)
     #[serde(default)]
     pub virtual_id: Option<String>,
-}
-
-/// Parse parity from string
-fn parse_parity(parity: &str) -> Parity {
-    match parity.to_lowercase().as_str() {
-        "odd" => Parity::Odd,
-        "even" => Parity::Even,
-        _ => Parity::None,
-    }
-}
-
-/// Parse flow control from string
-fn parse_flow_control(flow: &str) -> FlowControl {
-    match flow.to_lowercase().as_str() {
-        "software" => FlowControl::Software,
-        "hardware" => FlowControl::Hardware,
-        _ => FlowControl::None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_parity_odd() {
-        assert!(matches!(parse_parity("Odd"), Parity::Odd));
-        assert!(matches!(parse_parity("odd"), Parity::Odd));
-        assert!(matches!(parse_parity("ODD"), Parity::Odd));
-    }
-
-    #[test]
-    fn test_parse_parity_even() {
-        assert!(matches!(parse_parity("Even"), Parity::Even));
-        assert!(matches!(parse_parity("even"), Parity::Even));
-        assert!(matches!(parse_parity("EVEN"), Parity::Even));
-    }
-
-    #[test]
-    fn test_parse_parity_none() {
-        assert!(matches!(parse_parity("None"), Parity::None));
-        assert!(matches!(parse_parity("none"), Parity::None));
-        assert!(matches!(parse_parity("invalid"), Parity::None));
-        assert!(matches!(parse_parity(""), Parity::None));
-    }
-
-    #[test]
-    fn test_parse_flow_control_software() {
-        assert!(matches!(
-            parse_flow_control("Software"),
-            FlowControl::Software
-        ));
-        assert!(matches!(
-            parse_flow_control("software"),
-            FlowControl::Software
-        ));
-        assert!(matches!(
-            parse_flow_control("SOFTWARE"),
-            FlowControl::Software
-        ));
-    }
-
-    #[test]
-    fn test_parse_flow_control_hardware() {
-        assert!(matches!(
-            parse_flow_control("Hardware"),
-            FlowControl::Hardware
-        ));
-        assert!(matches!(
-            parse_flow_control("hardware"),
-            FlowControl::Hardware
-        ));
-        assert!(matches!(
-            parse_flow_control("HARDWARE"),
-            FlowControl::Hardware
-        ));
-    }
-
-    #[test]
-    fn test_parse_flow_control_none() {
-        assert!(matches!(parse_flow_control("None"), FlowControl::None));
-        assert!(matches!(parse_flow_control("none"), FlowControl::None));
-        assert!(matches!(parse_flow_control("invalid"), FlowControl::None));
-        assert!(matches!(parse_flow_control(""), FlowControl::None));
-    }
 }
