@@ -24,7 +24,7 @@ async-trait = "0.1"
 uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # Lua integration
-mlua = { version = "0.9", features = ["luajit", "async", "vendored"] }
+mlua = { version = "0.12", features = ["luajit", "async", "vendored"] }
 
 # Error handling
 thiserror = "1.0"
