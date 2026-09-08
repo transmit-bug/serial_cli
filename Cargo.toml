@@ -44,7 +44,7 @@ rustyline = "18.0"
 
 # Utilities
 bytes = "1.5"
-base64 = "0.22"
+base64 = "0.23"
 
 # Configuration
 directories = "5.0"
