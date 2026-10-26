@@ -40,7 +40,7 @@ toml = "0.8"
 
 # CLI
 clap = { version = "4.4", features = ["derive"] }
-rustyline = "18.0"
+rustyline = "19.0"
 
 # Utilities
 bytes = "1.5"
